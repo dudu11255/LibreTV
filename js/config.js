@@ -25,11 +25,7 @@ const API_SITES = {
         name: '非凡影视',
         detail: 'http://ffzy5.tv',
     },
-    sllzy: {
-        api: 'http://360zy.com',
-        name: '360影视',
-        detail: 'http://360zy.com',
-    },
+    
 };
 
 // 抽象API请求配置
@@ -77,7 +73,6 @@ const SECURITY_CONFIG = {
     maxQueryLength: 100,        // 最大搜索长度
     allowedApiDomains: [        // 允许的API域名
         'heimuer.xyz',
-        'ffzy5.tv',
-        '360zy.com'
+        'ffzy5.tv'
     ]
 };

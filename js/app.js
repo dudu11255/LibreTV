@@ -1,6 +1,12 @@
 // 全局变量
 let currentApiSource = localStorage.getItem('currentApiSource') || 'heimuer';
 let customApiUrl = localStorage.getItem('customApiUrl') || '';
+// 添加当前播放的集数索引
+let currentEpisodeIndex = 0;
+// 添加当前视频的所有集数
+let currentEpisodes = [];
+// 添加当前视频的标题
+let currentVideoTitle = '';
 
 // 页面初始化
 document.addEventListener('DOMContentLoaded', function() {
@@ -38,8 +44,8 @@ async function updateSiteStatusWithTest(source) {
     if (cachedResult) {
         try {
             const { isAvailable, timestamp } = JSON.parse(cachedResult);
-            // 缓存有效期为1小时
-            if (Date.now() - timestamp < 3600000) {
+            // 缓存有效期为2个月
+            if (Date.now() - timestamp < 5184000000) {
                 updateSiteStatus(isAvailable);
                 return;
             }
@@ -259,6 +265,7 @@ async function showDetails(id, vod_name) {
         const modalContent = document.getElementById('modalContent');
         
         modalTitle.textContent = vod_name || '未知视频';
+        currentVideoTitle = vod_name || '未知视频';
         
         if (data.episodes && data.episodes.length > 0) {
             // 安全处理集数URL
@@ -273,14 +280,17 @@ async function showDetails(id, vod_name) {
                 }
             }).filter(url => url); // 过滤掉空URL
             
+            // 保存当前视频的所有集数
+            currentEpisodes = safeEpisodes;
+            
             if (safeEpisodes.length === 0) {
                 modalContent.innerHTML = '<p class="text-center text-gray-400 py-8">没有找到可用的播放链接</p>';
             } else {
                 modalContent.innerHTML = `
                     <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
                         ${safeEpisodes.map((episode, index) => `
-                            <button onclick="playVideo('${episode}','${vod_name.replace(/"/g, '&quot;')}')" 
-                                    class="px-4 py-2 bg-[#222] hover:bg-[#333] border border-[#333] hover:border-white rounded-lg transition-colors text-center">
+                            <button id="episode-${index}" onclick="playVideo('${episode}','${vod_name.replace(/"/g, '&quot;')}', ${index})" 
+                                    class="px-4 py-2 bg-[#222] hover:bg-[#333] border border-[#333] hover:border-white rounded-lg transition-colors text-center episode-btn">
                                 第${index + 1}集
                             </button>
                         `).join('')}
@@ -304,8 +314,8 @@ async function showDetails(id, vod_name) {
     }
 }
 
-// 播放视频
-function playVideo(url, vod_name) {
+// 更新播放视频函数，添加集数索引参数
+function playVideo(url, vod_name, episodeIndex = 0) {
     if (!url) {
         showToast('无效的视频链接', 'error');
         return;
@@ -314,20 +324,63 @@ function playVideo(url, vod_name) {
     showLoading();
     const modalContent = document.getElementById('modalContent');
     const modalTitle = document.getElementById('modalTitle');
-    let episodeNumber = '1';
+    
+    // 更新当前播放集数索引
+    currentEpisodeIndex = episodeIndex;
     
     try {
-        // 获取当前点击的按钮中的集数
-        if (event && event.target) {
-            episodeNumber = event.target.textContent.replace(/[^0-9]/g, '') || '1';
-        }
-        
-        // Remove URL encoding to prevent double encoding issues
+        // 安全处理URL和标题
         const safeUrl = url;
         const safeTitle = vod_name ? vod_name.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '未知视频';
         
         // 更新标题显示
-        modalTitle.textContent = safeTitle + " - 第" + episodeNumber + "集";
+        modalTitle.textContent = safeTitle + " - 第" + (currentEpisodeIndex + 1) + "集";
+        
+        // 更新当前播放的集数按钮样式
+        const episodeButtons = document.querySelectorAll('.episode-btn');
+        episodeButtons.forEach((btn, index) => {
+            if (index === currentEpisodeIndex) {
+                btn.classList.add('playing');
+                btn.classList.add('bg-blue-700');
+                btn.classList.remove('bg-[#222]');
+                btn.classList.add('border-blue-500');
+                btn.classList.remove('border-[#333]');
+            } else {
+                btn.classList.remove('playing');
+                btn.classList.remove('bg-blue-700');
+                btn.classList.add('bg-[#222]');
+                btn.classList.remove('border-blue-500');
+                btn.classList.add('border-[#333]');
+            }
+        });
+        
+        // 创建导航控制按钮
+        const hasPrevious = currentEpisodeIndex > 0;
+        const hasNext = currentEpisodeIndex < currentEpisodes.length - 1;
+        
+        const navigationControls = `
+            <div class="flex justify-between items-center my-4">
+                <button onclick="playPreviousEpisode()" 
+                        class="px-4 py-2 ${hasPrevious ? 'bg-[#222] hover:bg-[#333]' : 'bg-gray-700 cursor-not-allowed'} 
+                               border border-[#333] rounded-lg transition-colors"
+                        ${!hasPrevious ? 'disabled' : ''}>
+                    <svg class="w-5 h-5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                    上一集
+                </button>
+                <span class="text-gray-400">第 ${currentEpisodeIndex + 1}/${currentEpisodes.length} 集</span>
+                <button onclick="playNextEpisode()" 
+                        class="px-4 py-2 ${hasNext ? 'bg-[#222] hover:bg-[#333]' : 'bg-gray-700 cursor-not-allowed'} 
+                               border border-[#333] rounded-lg transition-colors"
+                        ${!hasNext ? 'disabled' : ''}>
+                    下一集
+                    <svg class="w-5 h-5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </button>
+            </div>
+        `;
         
         // 先移除现有的视频播放器（如果存在）
         const existingPlayer = modalContent.querySelector('.video-player');
@@ -335,15 +388,18 @@ function playVideo(url, vod_name) {
             existingPlayer.remove();
         }
         
-        // 当前HTML内容
-        const currentHtml = modalContent.innerHTML;
+        // 获取当前HTML内容并查找剧集列表
+        const episodesList = modalContent.querySelector('.grid');
         
-        // 如果是第一次播放，保存集数列表
-        if (!modalContent.querySelector('.episodes-list')) {
+        if (episodesList) {
+            // 保留剧集列表
+            const episodesHtml = episodesList.outerHTML;
+            
             modalContent.innerHTML = `
-                <div class="space-y-6">
+                <div class="space-y-4">
                     <div class="video-player">
                         <iframe 
+                            id="videoIframe"
                             src="${HOPLAYER_URL}?url=${safeUrl}&autoplay=true"
                             width="100%" 
                             height="600" 
@@ -354,61 +410,55 @@ function playVideo(url, vod_name) {
                             onerror="handlePlayerError()">
                         </iframe>
                     </div>
-                    <div class="episodes-list mt-6">
-                        ${currentHtml}
+                    ${navigationControls}
+                    <div class="episodes-list mt-4">
+                        ${episodesHtml}
                     </div>
                 </div>
             `;
         } else {
-            // 如果已经有集数列表，只更新视频播放器
-            const episodesList = modalContent.querySelector('.episodes-list');
-            if (episodesList) {
-                modalContent.innerHTML = `
-                    <div class="space-y-6">
-                        <div class="video-player">
-                            <iframe 
-                                src="${HOPLAYER_URL}?url=${safeUrl}&autoplay=true"
-                                width="100%" 
-                                height="600" 
-                                frameborder="0" 
-                                scrolling="no"
-                                allow="autoplay; encrypted-media; fullscreen"
-                                onload="hideLoading()"
-                                onerror="handlePlayerError()">
-                            </iframe>
-                        </div>
-                        <div class="episodes-list mt-6">
-                            ${episodesList.innerHTML}
-                        </div>
+            // 没有找到剧集列表，重新创建完整内容
+            modalContent.innerHTML = `
+                <div class="space-y-4">
+                    <div class="video-player">
+                        <iframe 
+                            id="videoIframe"
+                            src="${HOPLAYER_URL}?url=${safeUrl}&autoplay=true"
+                            width="100%" 
+                            height="600" 
+                            frameborder="0" 
+                            scrolling="no"
+                            allow="autoplay; encrypted-media; fullscreen"
+                            onload="hideLoading()"
+                            onerror="handlePlayerError()">
+                        </iframe>
                     </div>
-                `;
-            } else {
-                // 如果找不到episodes-list元素，重新创建
-                modalContent.innerHTML = `
-                    <div class="space-y-6">
-                        <div class="video-player">
-                            <iframe 
-                                src="${HOPLAYER_URL}?url=${safeUrl}&autoplay=true"
-                                width="100%" 
-                                height="600" 
-                                frameborder="0" 
-                                scrolling="no"
-                                allow="autoplay; encrypted-media; fullscreen"
-                                onload="hideLoading()"
-                                onerror="handlePlayerError()">
-                            </iframe>
-                        </div>
-                        <div class="episodes-list mt-6">
-                            ${currentHtml}
-                        </div>
-                    </div>
-                `;
-            }
+                    ${navigationControls}
+                </div>
+            `;
         }
     } catch (error) {
         console.error('播放器加载错误:', error);
         hideLoading();
         showToast('视频播放加载失败，请检查链接或稍后重试', 'error');
+    }
+}
+
+// 播放上一集
+function playPreviousEpisode() {
+    if (currentEpisodeIndex > 0) {
+        const prevIndex = currentEpisodeIndex - 1;
+        const prevUrl = currentEpisodes[prevIndex];
+        playVideo(prevUrl, currentVideoTitle, prevIndex);
+    }
+}
+
+// 播放下一集
+function playNextEpisode() {
+    if (currentEpisodeIndex < currentEpisodes.length - 1) {
+        const nextIndex = currentEpisodeIndex + 1;
+        const nextUrl = currentEpisodes[nextIndex];
+        playVideo(nextUrl, currentVideoTitle, nextIndex);
     }
 }
 

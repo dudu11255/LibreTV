@@ -130,7 +130,7 @@ function getSearchHistory() {
     }
 }
 
-// 保存搜索历史的增强版本 - 添加时间戳和最大数量限制
+// 保存搜索历史的增强版本 - 添加时间戳和最大数量限制，现在缓存2个月
 function saveSearchHistory(query) {
     if (!query || !query.trim()) return;
     
@@ -138,6 +138,14 @@ function saveSearchHistory(query) {
     query = query.trim().substring(0, 50).replace(/</g, '&lt;').replace(/>/g, '&gt;');
     
     let history = getSearchHistory();
+    
+    // 获取当前时间
+    const now = Date.now();
+    
+    // 过滤掉超过2个月的记录（约60天，60*24*60*60*1000 = 5184000000毫秒）
+    history = history.filter(item => 
+        typeof item === 'object' && item.timestamp && (now - item.timestamp < 5184000000)
+    );
     
     // 删除已存在的相同项
     history = history.filter(item => 
@@ -147,7 +155,7 @@ function saveSearchHistory(query) {
     // 新项添加到开头，包含时间戳
     history.unshift({
         text: query,
-        timestamp: Date.now()
+        timestamp: now
     });
     
     // 限制历史记录数量
