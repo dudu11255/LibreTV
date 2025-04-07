@@ -128,53 +128,12 @@
                 const lines = m3u8Content.split('\n');
                 const filteredLines = [];
                 
-                let isAdSegment = false;
-                let adSegmentStartIndex = -1;
-                let lastNonAdLine = '';
-                
                 for (let i = 0; i < lines.length; i++) {
                     const line = lines[i];
                     
-                    // 检测广告标记 - 更精确的检测逻辑
-                    if (line.includes('#EXT-X-DISCONTINUITY') || 
-                        line.includes('#EXT-X-CUE-OUT') || 
-                        line.includes('#EXT-X-CUE-IN') || 
-                        line.includes('#EXT-X-SPLICEPOINT') ||
-                        (strictMode && (line.includes('ad') || line.includes('AD') || line.includes('Ad')))) {
-                        // 确保不是误判为广告
-                        if (!lastNonAdLine.includes('#EXT-X-MAP') && !lastNonAdLine.includes('#EXT-X-KEY')) {
-                            isAdSegment = true;
-                            adSegmentStartIndex = i;
-                            continue;
-                        }
-                    }
-                    
-                    if (isAdSegment) {
-                        if (line.startsWith('#EXTINF') && i + 1 < lines.length && !lines[i + 1].startsWith('#')) {
-                            // 严格模式下，检查广告段持续时间是否小于10秒
-                            if (strictMode) {
-                                const durationMatch = line.match(/#EXTINF:(\d+\.?\d*)/);
-                                if (durationMatch && parseFloat(durationMatch[1]) < 10) {
-                                    i++; // 跳过URL行
-                                    isAdSegment = false;
-                                    continue;
-                                }
-                            }
-                            
-                            // 非严格模式或长片段，保留内容
-                            for (let j = adSegmentStartIndex; j <= i + 1; j++) {
-                                filteredLines.push(lines[j]);
-                            }
-                            i++; // 跳过URL行
-                            isAdSegment = false;
-                        } else if (line.includes('#EXT-X-DISCONTINUITY-SEQUENCE') || 
-                                  line.includes('#EXT-X-ENDLIST')) {
-                            isAdSegment = false;
-                        }
-                    } else {
-                        // 非广告分段，直接添加到过滤后的结果中
+                    // 只过滤#EXT-X-DISCONTINUITY标识
+                    if (!line.includes('#EXT-X-DISCONTINUITY')) {
                         filteredLines.push(line);
-                        lastNonAdLine = line;
                     }
                 }
                 
