@@ -314,7 +314,7 @@ async function showDetails(id, vod_name) {
     }
 }
 
-// 更新播放视频函数，添加集数索引参数
+// 更新播放视频函数，添加集数索引参数并使用自定义播放器
 function playVideo(url, vod_name, episodeIndex = 0) {
     if (!url) {
         showToast('无效的视频链接', 'error');
@@ -395,12 +395,13 @@ function playVideo(url, vod_name, episodeIndex = 0) {
             // 保留剧集列表
             const episodesHtml = episodesList.outerHTML;
             
+            // 使用我们的自定义播放器而不是hoplayer
             modalContent.innerHTML = `
                 <div class="space-y-4">
                     <div class="video-player">
                         <iframe 
                             id="videoIframe"
-                            src="${HOPLAYER_URL}?url=${safeUrl}&autoplay=true"
+                            src="${CUSTOM_PLAYER_URL}?url=${encodeURIComponent(safeUrl)}"
                             width="100%" 
                             height="600" 
                             frameborder="0" 
@@ -423,7 +424,7 @@ function playVideo(url, vod_name, episodeIndex = 0) {
                     <div class="video-player">
                         <iframe 
                             id="videoIframe"
-                            src="${HOPLAYER_URL}?url=${safeUrl}&autoplay=true"
+                            src="${CUSTOM_PLAYER_URL}?url=${encodeURIComponent(safeUrl)}"
                             width="100%" 
                             height="600" 
                             frameborder="0" 

@@ -48,13 +48,17 @@ const API_CONFIG = {
 // 优化后的正则表达式模式
 const M3U8_PATTERN = /\$https?:\/\/[^"'\s]+?\.m3u8/g;
 
+// 添加自定义播放器URL
+const CUSTOM_PLAYER_URL = 'player.html'; // 使用相对路径引用本地player.html
+
 // 增加视频播放相关配置
 const PLAYER_CONFIG = {
     autoplay: true,
     allowFullscreen: true,
     width: '100%',
     height: '600',
-    timeout: 15000  // 播放器加载超时时间
+    timeout: 15000,  // 播放器加载超时时间
+    filterAds: true  // 是否启用广告过滤
 };
 
 // 增加错误信息本地化

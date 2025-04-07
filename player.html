@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LibreTV 播放器</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dplayer@1.26.0/dist/DPlayer.min.css">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+        }
+        #player {
+            width: 100%;
+            height: 100%;
+        }
+        .loading-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            z-index: 100;
+            flex-direction: column;
+        }
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 10px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .error-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            z-index: 100;
+            flex-direction: column;
+            text-align: center;
+            padding: 1rem;
+        }
+        .error-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="player"></div>
+    <div class="loading-container" id="loading">
+        <div class="loading-spinner"></div>
+        <div>正在加载视频...</div>
+    </div>
+    <div class="error-container" id="error">
+        <div class="error-icon">⚠️</div>
+        <div id="error-message">视频加载失败</div>
+        <div style="margin-top: 10px; font-size: 14px; color: #aaa;">请尝试其他视频源或稍后重试</div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.6/dist/hls.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dplayer@1.26.0/dist/DPlayer.min.js"></script>
+    <script>
+        // 解析URL参数
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+
+        // 获取视频URL
+        const videoUrl = getUrlParameter('url');
+        if (!videoUrl) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'flex';
+            document.getElementById('error-message').textContent = '无效的视频链接';
+        } else {
+            // 初始化自定义M3U8 Loader
+            class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
+                constructor(config) {
+                    super(config);
+                    const load = this.load.bind(this);
+                    this.load = function(context, config, callbacks) {
+                        // 拦截manifest和level请求
+                        if (context.type === 'manifest' || context.type === 'level') {
+                            const onSuccess = callbacks.onSuccess;
+                            callbacks.onSuccess = function(response, stats, context) {
+                                // 如果是m3u8文件，处理内容以移除广告分段
+                                if (response.data && typeof response.data === 'string') {
+                                    // 过滤掉广告段 - 实现更精确的广告过滤逻辑
+                                    response.data = filterAdsFromM3U8(response.data, true);
+                                }
+                                return onSuccess(response, stats, context);
+                            };
+                        }
+                        // 执行原始load方法
+                        load(context, config, callbacks);
+                    };
+                }
+            }
+
+            // M3U8清单广告过滤函数
+            function filterAdsFromM3U8(m3u8Content, strictMode = false) {
+                if (!m3u8Content) return '';
+                
+                // 按行分割M3U8内容
+                const lines = m3u8Content.split('\n');
+                const filteredLines = [];
+                
+                let isAdSegment = false;
+                let adSegmentStartIndex = -1;
+                
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    
+                    // 检测广告标记 - 更精确的检测逻辑
+                    if (line.includes('#EXT-X-DISCONTINUITY') || 
+                        line.includes('#EXT-X-CUE-OUT') || 
+                        line.includes('#EXT-X-CUE-IN') || 
+                        line.includes('#EXT-X-SPLICEPOINT') ||
+                        (strictMode && (line.includes('ad') || line.includes('AD') || line.includes('Ad')))) {
+                        isAdSegment = true;
+                        adSegmentStartIndex = i;
+                        continue;
+                    }
+                    
+                    if (isAdSegment) {
+                        if (line.startsWith('#EXTINF') && i + 1 < lines.length && !lines[i + 1].startsWith('#')) {
+                            // 严格模式下，检查广告段持续时间是否小于10秒
+                            if (strictMode) {
+                                const durationMatch = line.match(/#EXTINF:(\d+\.?\d*)/);
+                                if (durationMatch && parseFloat(durationMatch[1]) < 10) {
+                                    i++; // 跳过URL行
+                                    isAdSegment = false;
+                                    continue;
+                                }
+                            }
+                            
+                            // 非严格模式或长片段，保留内容
+                            for (let j = adSegmentStartIndex; j <= i + 1; j++) {
+                                filteredLines.push(lines[j]);
+                            }
+                            i++; // 跳过URL行
+                            isAdSegment = false;
+                        } else if (line.includes('#EXT-X-DISCONTINUITY-SEQUENCE') || 
+                                  line.includes('#EXT-X-ENDLIST')) {
+                            isAdSegment = false;
+                        }
+                    } else {
+                        // 非广告分段，直接添加到过滤后的结果中
+                        filteredLines.push(line);
+                    }
+                }
+                
+                return filteredLines.join('\n');
+            }
+
+            // 创建DPlayer实例
+            document.addEventListener('DOMContentLoaded', function() {
+                // 配置HLS.js选项
+                const hlsConfig = {
+                    debug: false,
+                    // 使用自定义的loader以过滤广告
+                    loader: CustomHlsJsLoader,
+                    enableWorker: true,
+                    lowLatencyMode: false,
+                    backBufferLength: 90
+                };
+                
+                const dp = new DPlayer({
+                    container: document.getElementById('player'),
+                    autoplay: true,
+                    theme: '#00ccff',
+                    preload: 'auto',
+                    loop: false,
+                    lang: 'zh-cn',
+                    hotkey: true,
+                    mutex: true,
+                    volume: 0.7,
+                    video: {
+                        url: videoUrl,
+                        type: 'hls',
+                        pic: '',
+                        customType: {
+                            hls: function(video, player) {
+                                const hls = new Hls(hlsConfig);
+                                hls.loadSource(video.src);
+                                hls.attachMedia(video);
+                                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                                    video.play();
+                                });
+                                hls.on(Hls.Events.ERROR, function(event, data) {
+                                    if (data.fatal) {
+                                        console.error('HLS错误:', data);
+                                        showError('视频加载失败，可能是格式不兼容或源不可用');
+                                    }
+                                });
+                                // 监听加载完成事件
+                                hls.on(Hls.Events.LEVEL_LOADED, function() {
+                                    document.getElementById('loading').style.display = 'none';
+                                });
+                            }
+                        }
+                    }
+                });
+
+                dp.on('loadedmetadata', function() {
+                    document.getElementById('loading').style.display = 'none';
+                });
+
+                dp.on('error', function() {
+                    showError('视频播放失败，请检查视频源或网络连接');
+                });
+                
+                // 10秒后如果仍在加载，显示超时错误
+                setTimeout(function() {
+                    if (document.getElementById('loading').style.display !== 'none') {
+                        showError('视频加载超时，请检查网络连接或尝试其他视频源');
+                    }
+                }, 10000);
+            });
+
+            function showError(message) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'flex';
+                document.getElementById('error-message').textContent = message;
+            }
+        }
+    </script>
+</body>
+</html>
