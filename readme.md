@@ -80,6 +80,44 @@ python -m http.server 8080
 npx http-server -p 8080
 ```
 
+### Docker 部署
+
+本项目已配置 GitHub Actions 自动构建并推送 Docker 镜像至 Docker Hub，镜像地址为 **bestzwei/libretv**。
+
+每次推送到 main 分支时，自动构建流程会生成最新镜像。
+
+在本地测试，请执行以下命令：
+
+```bash
+docker pull bestzwei/libretv:latest
+docker run -d --name libretv -p 8899:80 bestzwei/libretv:latest
+```
+
+访问 http://localhost:8899 查看效果。
+
+### Docker Compose 部署
+
+你也可以通过 Docker Compose 部署本项目。新建一个名为 `docker-compose.yaml` 的文件，内容如下：
+
+```yaml
+version: '3'
+services:
+  libretv:
+    image: bestzwei/libretv:latest
+    container_name: libretv
+    ports:
+      - "8899:80"
+    restart: unless-stopped
+```
+
+然后运行以下命令启动服务：
+
+```bash
+docker-compose up -d
+```
+
+访问 http://localhost:8899 查看站点效果。
+
 ## 🔧 自定义配置
 
 项目主要配置在`js/config.js`文件中，你可以修改以下内容：
