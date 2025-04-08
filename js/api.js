@@ -77,8 +77,8 @@ async function handleApiRequest(url) {
             }
 
             const detailUrl = customApi
-                ? `${customApi}${API_CONFIG.detail.path}${id}.html`
-                : `${API_SITES[source].detail}${API_CONFIG.detail.path}${id}.html`;
+                ? `${customApi}${API_CONFIG.detail.path}${id}`
+                : `${API_SITES[source].api}${API_CONFIG.detail.path}${id}`;
             
             // 添加超时处理
             const controller = new AbortController();
@@ -96,37 +96,60 @@ async function handleApiRequest(url) {
                     throw new Error(`详情请求失败: ${response.status}`);
                 }
                 
-                const html = await response.text();
-                if (!html || html.length < 100) {
+                // 由于现在返回的是JSON而不是HTML，我们需要解析JSON
+                const data = await response.json();
+                
+                // 检查返回的数据是否有效
+                if (!data || !data.list || !Array.isArray(data.list) || data.list.length === 0) {
                     throw new Error('获取到的详情内容无效');
                 }
                 
-                const matches = html.match(M3U8_PATTERN) || [];
+                // 获取第一个匹配的视频详情
+                const videoDetail = data.list[0];
                 
-                // 改进的URL清理
-                const cleanUrls = matches.map(link => {
-                    try {
-                        // 去除各种引号和前缀
-                        let cleanLink = link.replace(/^\$/, '')
-                                           .replace(/^["']+/, '')
-                                           .replace(/["']+$/, '');
+                // 提取播放地址
+                let episodes = [];
+                
+                if (videoDetail.vod_play_url) {
+                    // 分割不同播放源
+                    const playSources = videoDetail.vod_play_url.split('$$$');
+                    
+                    // 提取第一个播放源的集数（通常为主要源）
+                    if (playSources.length > 0) {
+                        const mainSource = playSources[0];
+                        const episodeList = mainSource.split('#');
                         
-                        // 处理可能嵌在括号中的URL
-                        if (cleanLink.includes('(') && cleanLink.includes(')')) {
-                            cleanLink = cleanLink.split(')')[0].split('(').pop();
-                        }
-                        
-                        // 确保链接是http或https开头
-                        return (cleanLink.startsWith('http://') || cleanLink.startsWith('https://')) ? cleanLink : '';
-                    } catch (e) {
-                        return '';
+                        // 从每个集数中提取URL
+                        episodes = episodeList.map(ep => {
+                            const parts = ep.split('$');
+                            // 返回URL部分(通常是第二部分，如果有的话)
+                            return parts.length > 1 ? parts[1] : '';
+                        }).filter(url => url && (url.startsWith('http://') || url.startsWith('https://')));
                     }
-                }).filter(link => link); // 过滤掉空URL
-
+                }
+                
+                // 如果没有找到播放地址，尝试使用正则表达式查找m3u8链接
+                if (episodes.length === 0 && videoDetail.vod_content) {
+                    const matches = videoDetail.vod_content.match(M3U8_PATTERN) || [];
+                    episodes = matches.map(link => link.replace(/^\$/, ''));
+                }
+                
                 return JSON.stringify({
                     code: 200,
-                    episodes: cleanUrls,
+                    episodes: episodes,
                     detailUrl: detailUrl,
+                    // 添加更多视频详情，以便前端展示
+                    videoInfo: {
+                        title: videoDetail.vod_name,
+                        cover: videoDetail.vod_pic,
+                        desc: videoDetail.vod_content,
+                        type: videoDetail.type_name,
+                        year: videoDetail.vod_year,
+                        area: videoDetail.vod_area,
+                        director: videoDetail.vod_director,
+                        actor: videoDetail.vod_actor,
+                        remarks: videoDetail.vod_remarks
+                    }
                 });
             } catch (fetchError) {
                 clearTimeout(timeoutId);

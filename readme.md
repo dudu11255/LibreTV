@@ -42,6 +42,27 @@ LibreTV集成了强大的自定义播放器，具有以下特点：
 - 对M3U8清单文件进行实时处理
 - 支持严格和宽松两种过滤模式
 
+## 📹 视频源支持说明
+
+LibreTV 默认支持以下几种视频源接口：
+- 黑木耳影视 (heimuer)
+- 非凡影视 (ffzy)
+- 天涯资源 (tyyszy)
+- CK资源 (ckzy)
+
+### CMS采集站源兼容性
+
+本项目支持标准的苹果CMS V10 API格式。自定义API需遵循以下格式：
+- 搜索接口: `https://example.com/api.php/provide/vod/?ac=videolist&wd=关键词`
+- 详情接口: `https://example.com/api.php/provide/vod/?ac=detail&ids=视频ID`
+
+**重要提示**: 像 `https://360zy.com/api.php/provide/vod` 这样的CMS源需要按照以下格式添加：
+1. 在设置面板中选择"自定义接口"
+2. 接口地址只填写到域名部分: `https://360zy.com`（不要包含`/api.php/provide/vod`部分）
+3. 项目会自动补全正确的路径格式
+
+如果CMS接口非标准格式，可能需要修改项目中的`config.js`文件中的`API_CONFIG.search.path`和`API_CONFIG.detail.path`配置。
+
 ## 🛠️ 技术栈
 
 - HTML5 + CSS3 + JavaScript (ES6+)
@@ -50,6 +71,12 @@ LibreTV集成了强大的自定义播放器，具有以下特点：
 - DPlayer 视频播放器核心
 - 前端API请求拦截技术
 - localStorage本地存储
+
+## 🚀 一键部署
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FbestZwei%2FLibreTV)
+
+[![Deploy to Cloudflare Pages](https://img.shields.io/badge/Deploy%20to-Cloudflare%20Pages-blue?style=for-the-badge&logo=cloudflare)](https://dash.cloudflare.com/)
 
 ## 🚀 部署指南
 
