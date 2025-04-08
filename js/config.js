@@ -25,13 +25,24 @@ const API_SITES = {
         name: '非凡影视',
         detail: 'http://ffzy5.tv',
     },
+    tyyszy: {
+        api: 'https://tyyszy.com',
+        name: '天涯资源',
+        detail: 'https://tyyszy.com',
+    },
+    ckzy: {
+        api: 'https://www.ckzy1.com',
+        name: 'CK资源',
+        detail: 'https://www.ckzy1.com',
+    },
     
 };
 
 // 抽象API请求配置
 const API_CONFIG = {
     search: {
-        path: '/api.php/provide/vod/?ac=list&wd=',
+        // 修改搜索接口为返回更多详细数据（包括视频封面、简介和播放列表）
+        path: '/api.php/provide/vod/?ac=videolist&wd=',
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Accept': 'application/json'
