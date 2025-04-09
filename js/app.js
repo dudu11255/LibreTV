@@ -203,11 +203,6 @@ async function search() {
         
         const resultsDiv = document.getElementById('results');
         
-        if (!data.list || data.list.length === 0) {
-            resultsDiv.innerHTML = '<div class="col-span-full text-center text-gray-400 py-8">没有找到相关内容</div>';
-            return;
-        }
-        
         // 添加XSS保护，使用textContent和属性转义
         resultsDiv.innerHTML = data.list.map(item => {
             const safeId = item.vod_id ? item.vod_id.toString().replace(/[^\w-]/g, '') : '';
@@ -219,14 +214,59 @@ async function search() {
                 `<span class="bg-[#222] text-xs px-2 py-1 rounded-full">${item.source_name}</span>` : '';
             const sourceCode = item.source_code || currentApiSource;
             
+            // 重新设计的卡片布局 - 支持更好的封面图显示
+            const hasCover = item.vod_pic && item.vod_pic.startsWith('http');
+            
+            // 不同的布局设计 - 桌面端使用横向布局
             return `
-                <div class="card-hover bg-[#111] rounded-lg overflow-hidden cursor-pointer p-6 h-fit" 
+                <div class="card-hover bg-[#111] rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-[1.02] h-full" 
                      onclick="showDetails('${safeId}','${safeName}','${sourceCode}')">
-                    <h3 class="text-xl font-semibold mb-3">${safeName}</h3>
-                    <p class="text-gray-400 text-sm mb-2">${(item.type_name || '').toString().replace(/</g, '&lt;')}</p>
-                    <div class="flex justify-between items-center mt-3">
-                        <p class="text-gray-400 text-sm">${(item.vod_remarks || '').toString().replace(/</g, '&lt;')}</p>
-                        ${sourceInfo}
+                    <div class="md:flex">
+                        <!-- 封面图区域 - 在移动端是全宽，在桌面端是固定宽度 -->
+                        ${hasCover ? `
+                        <div class="md:w-1/3 relative overflow-hidden">
+                            <div class="w-full h-48 md:h-full">
+                                <img src="${item.vod_pic}" alt="${safeName}" 
+                                     class="w-full h-full object-cover transition-transform hover:scale-110" 
+                                     onerror="this.onerror=null; this.src='https://via.placeholder.com/300x450?text=无封面'; this.classList.add('object-contain');" 
+                                     loading="lazy">
+                                <div class="absolute inset-0 bg-gradient-to-t from-[#111] to-transparent opacity-60"></div>
+                            </div>
+                        </div>` : ''}
+                        
+                        <!-- 内容区域 - 如果没有封面图则占据全部宽度 -->
+                        <div class="p-5 flex flex-col flex-grow ${hasCover ? 'md:w-2/3' : 'w-full'}">
+                            <div class="flex-grow">
+                                <h3 class="text-xl font-semibold mb-3 line-clamp-2">${safeName}</h3>
+                                <div class="flex flex-wrap gap-2 mb-3">
+                                    ${(item.type_name || '').toString().replace(/</g, '&lt;') ? 
+                                      `<span class="text-xs py-1 px-2 rounded bg-opacity-20 bg-blue-500 text-blue-300">
+                                          ${(item.type_name || '').toString().replace(/</g, '&lt;')}
+                                      </span>` : ''}
+                                    ${(item.vod_year || '') ? 
+                                      `<span class="text-xs py-1 px-2 rounded bg-opacity-20 bg-purple-500 text-purple-300">
+                                          ${item.vod_year}
+                                      </span>` : ''}
+                                </div>
+                                <p class="text-gray-400 text-sm line-clamp-2">
+                                    ${(item.vod_remarks || '暂无介绍').toString().replace(/</g, '&lt;')}
+                                </p>
+                            </div>
+                            
+                            <!-- 底部元信息区域 -->
+                            <div class="flex justify-between items-center mt-4 pt-3 border-t border-gray-800">
+                                ${sourceInfo ? `<div>${sourceInfo}</div>` : '<div></div>'}
+                                <div>
+                                    <span class="text-xs text-gray-500 flex items-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        点击播放
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;
