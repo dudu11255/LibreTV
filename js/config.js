@@ -18,10 +18,12 @@ const API_SITES = {
     heimuer: {
         api: 'https://json.heimuer.xyz',
         name: '黑木耳',
+        detail: 'https://heimuer.tv'
     },
     ffzy: {
         api: 'http://ffzy5.tv',
         name: '非凡影视',
+        detail: 'http://ffzy5.tv'
     },
     tyyszy: {
         api: 'https://tyyszy.com',
@@ -47,6 +49,15 @@ const API_SITES = {
         api: 'https://dbzy.com',
         name: '豆瓣资源',
     }
+};
+
+// 添加聚合搜索的配置选项
+const AGGREGATED_SEARCH_CONFIG = {
+    enabled: true,             // 是否启用聚合搜索
+    timeout: 8000,            // 单个源超时时间（毫秒）
+    maxResults: 10000,          // 最大结果数量
+    parallelRequests: true,   // 是否并行请求所有源
+    showSourceBadges: true    // 是否显示来源徽章
 };
 
 // 抽象API请求配置

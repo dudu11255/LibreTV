@@ -215,13 +215,19 @@ async function search() {
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;');
+            const sourceInfo = item.source_name ? 
+                `<span class="bg-[#222] text-xs px-2 py-1 rounded-full">${item.source_name}</span>` : '';
+            const sourceCode = item.source_code || currentApiSource;
             
             return `
                 <div class="card-hover bg-[#111] rounded-lg overflow-hidden cursor-pointer p-6 h-fit" 
-                     onclick="showDetails('${safeId}','${safeName}')">
+                     onclick="showDetails('${safeId}','${safeName}','${sourceCode}')">
                     <h3 class="text-xl font-semibold mb-3">${safeName}</h3>
                     <p class="text-gray-400 text-sm mb-2">${(item.type_name || '').toString().replace(/</g, '&lt;')}</p>
-                    <p class="text-gray-400 text-sm">${(item.vod_remarks || '').toString().replace(/</g, '&lt;')}</p>
+                    <div class="flex justify-between items-center mt-3">
+                        <p class="text-gray-400 text-sm">${(item.vod_remarks || '').toString().replace(/</g, '&lt;')}</p>
+                        ${sourceInfo}
+                    </div>
                 </div>
             `;
         }).join('');
@@ -237,8 +243,8 @@ async function search() {
     }
 }
 
-// 显示详情
-async function showDetails(id, vod_name) {
+// 显示详情 - 修改函数接受sourceCode参数
+async function showDetails(id, vod_name, sourceCode = currentApiSource) {
     if (!id) {
         showToast('视频ID无效', 'error');
         return;
@@ -246,9 +252,9 @@ async function showDetails(id, vod_name) {
     
     showLoading();
     try {
-        const apiParams = currentApiSource === 'custom' 
+        const apiParams = sourceCode === 'custom' 
             ? '&customApi=' + encodeURIComponent(customApiUrl)
-            : '&source=' + currentApiSource;
+            : '&source=' + sourceCode;
         
         // 添加超时处理
         const controller = new AbortController();
@@ -266,8 +272,15 @@ async function showDetails(id, vod_name) {
         const modalTitle = document.getElementById('modalTitle');
         const modalContent = document.getElementById('modalContent');
         
-        modalTitle.textContent = vod_name || '未知视频';
+        // 显示来源信息
+        const sourceName = data.videoInfo && data.videoInfo.source_name ? 
+            ` <span class="text-sm font-normal text-gray-400">(${data.videoInfo.source_name})</span>` : '';
+        
+        modalTitle.innerHTML = (vod_name || '未知视频') + sourceName;
         currentVideoTitle = vod_name || '未知视频';
+        
+        // 保存当前源码以便后续操作
+        currentApiSource = sourceCode;
         
         if (data.episodes && data.episodes.length > 0) {
             // 安全处理集数URL
