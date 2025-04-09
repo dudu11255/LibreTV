@@ -138,9 +138,9 @@ LibreTV/
 └── sitemap.xml          // 站点地图
 ```
 
-## ⭐ Star 历史
+## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=bestZwei/LibreTV&type=Date)](https://star-history.com/#bestZwei/LibreTV&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=bestZwei/LibreTV&type=Date)](https://www.star-history.com/#bestZwei/LibreTV&Date)
 
 ## ⚠️ 免责声明
 
