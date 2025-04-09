@@ -121,6 +121,8 @@ services:
 - `SITE_CONFIG`: 更改站点名称、描述等基本信息
 - `PLAYER_CONFIG`: 调整播放器参数，如自动播放、广告过滤等
 
+注意：若使用docker部署，可进入容器，在`/usr/share/nginx/html/js`内修改相关配置
+
 ## 🌟 项目结构
 
 ```
