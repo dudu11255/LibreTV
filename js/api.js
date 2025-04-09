@@ -219,20 +219,22 @@ async function handleFFZYDetail(id, sourceCode) {
         const html = await response.text();
         
         // 非凡影视使用不同的正则表达式
-        const ffzyPattern = /(?<=\$)(https?:\/\/[^"'\s]+?\/\d{8}\/\d+_[a-f0-9]+\/index\.m3u8)/g;
+        const ffzyPattern = /\$(https?:\/\/[^"'\s]+?\/\d{8}\/\d+_[a-f0-9]+\/index\.m3u8)/g;
         let matches = html.match(ffzyPattern) || [];
-        
+
         // 处理可能包含括号的链接
         matches = matches.map(link => {
+            link = link.substring(1, link.length);
             const parenIndex = link.indexOf('(');
             return parenIndex > 0 ? link.substring(0, parenIndex) : link;
         });
-        
+
         // 如果没有找到链接，尝试一个更通用的模式
         if (matches.length === 0) {
-            const generalPattern = /(?<=\$)(https?:\/\/[^"'\s]+?\.m3u8)/g;
+            const generalPattern = /\$(https?:\/\/[^"'\s]+?\.m3u8)/g;
             matches = html.match(generalPattern) || [];
             matches = matches.map(link => {
+                link = link.substring(1, link.length);
                 const parenIndex = link.indexOf('(');
                 return parenIndex > 0 ? link.substring(0, parenIndex) : link;
             });
