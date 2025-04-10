@@ -208,3 +208,29 @@ body {
     border-color: var(--primary-color);
     box-shadow: 0 0 8px rgba(0, 204, 255, 0.3);
 }
+
+#yellowFilterToggle:checked + .toggle-bg {
+    background-color: var(--primary-color);
+}
+
+#yellowFilterToggle:checked ~ .toggle-dot {
+    transform: translateX(1.5rem);
+}
+
+#yellowFilterToggle:focus + .toggle-bg,
+#yellowFilterToggle:hover + .toggle-bg {
+    box-shadow: 0 0 0 2px rgba(0, 204, 255, 0.3);
+}
+
+.toggle-dot {
+    transition: transform 0.3s ease-in-out;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.toggle-bg {
+    transition: background-color 0.3s ease-in-out;
+}
+
+#yellowFilterToggle:checked ~ .toggle-dot {
+    box-shadow: 0 2px 4px rgba(0, 204, 255, 0.3);
+}

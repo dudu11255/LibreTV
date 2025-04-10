@@ -30,6 +30,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // 渲染搜索历史
     renderSearchHistory();
     
+    // 设置黄色内容过滤开关初始状态
+    const yellowFilterToggle = document.getElementById('yellowFilterToggle');
+    if (yellowFilterToggle) {
+        yellowFilterToggle.checked = localStorage.getItem('yellowFilterEnabled') === 'true';
+    }
+    
     // 设置事件监听器
     setupEventListeners();
 });
@@ -141,6 +147,14 @@ function setupEventListeners() {
             panel.classList.remove('show');
         }
     });
+    
+    // 新增：黄色内容过滤开关事件绑定
+    const yellowFilterToggle = document.getElementById('yellowFilterToggle');
+    if (yellowFilterToggle) {
+        yellowFilterToggle.addEventListener('change', function(e) {
+            localStorage.setItem('yellowFilterEnabled', e.target.checked);
+        });
+    }
 }
 
 // 重置搜索区域
@@ -196,6 +210,17 @@ async function search() {
         // 保存搜索历史
         saveSearchHistory(query);
         
+        // 处理搜索结果过滤：如果启用了黄色内容过滤，则过滤掉分类含有“伦理片”或“色情片”的项目
+        const yellowFilterEnabled = localStorage.getItem('yellowFilterEnabled') === 'true';
+        let results = data.list;
+        if (yellowFilterEnabled) {
+            const banned = ['伦理片', '色情片','福利视频','福利片'];
+            results = results.filter(item => {
+                const typeName = item.type_name || '';
+                return !banned.some(keyword => typeName.includes(keyword));
+            });
+        }
+        
         // 显示结果区域，调整搜索区域
         document.getElementById('searchArea').classList.remove('flex-1');
         document.getElementById('searchArea').classList.add('mb-8');
@@ -204,7 +229,7 @@ async function search() {
         const resultsDiv = document.getElementById('results');
         
         // 添加XSS保护，使用textContent和属性转义
-        resultsDiv.innerHTML = data.list.map(item => {
+        resultsDiv.innerHTML = results.map(item => {
             const safeId = item.vod_id ? item.vod_id.toString().replace(/[^\w-]/g, '') : '';
             const safeName = (item.vod_name || '').toString()
                 .replace(/</g, '&lt;')

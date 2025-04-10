@@ -118,6 +118,27 @@
         input:checked + .slider:before {
             transform: translateX(22px);
         }
+        /* 添加快捷键提示样式 */
+        .shortcut-hint {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .shortcut-hint.show {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -200,6 +221,14 @@
         </div>
     </main>
 
+    <!-- 添加快捷键提示元素 -->
+    <div class="shortcut-hint" id="shortcutHint">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="shortcutIcon">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+        </svg>
+        <span id="shortcutText"></span>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.6/dist/hls.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dplayer@1.26.0/dist/DPlayer.min.js"></script>
     <script src="js/config.js"></script>
@@ -215,6 +244,7 @@
         let isUserSeeking = false; // 跟踪用户是否正在拖动进度条
         let videoHasEnded = false; // 跟踪视频是否已经自然结束
         let userClickedPosition = null; // 记录用户点击的位置
+        let shortcutHintTimeout = null; // 用于控制快捷键提示显示时间
 
         // 页面加载
         document.addEventListener('DOMContentLoaded', function() {
@@ -274,7 +304,63 @@
             setTimeout(() => {
                 setupProgressBarPreciseClicks();
             }, 1000);
+
+            // 添加键盘快捷键事件监听
+            document.addEventListener('keydown', handleKeyboardShortcuts);
         });
+
+        // 新增：处理键盘快捷键
+        function handleKeyboardShortcuts(e) {
+            // 忽略输入框中的按键事件
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            // Alt + 左箭头 = 上一集
+            if (e.altKey && e.key === 'ArrowLeft') {
+                if (currentEpisodeIndex > 0) {
+                    playPreviousEpisode();
+                    showShortcutHint('上一集', 'left');
+                    e.preventDefault();
+                }
+            }
+            
+            // Alt + 右箭头 = 下一集
+            if (e.altKey && e.key === 'ArrowRight') {
+                if (currentEpisodeIndex < currentEpisodes.length - 1) {
+                    playNextEpisode();
+                    showShortcutHint('下一集', 'right');
+                    e.preventDefault();
+                }
+            }
+        }
+
+        // 新增：显示快捷键提示
+        function showShortcutHint(text, direction) {
+            const hintElement = document.getElementById('shortcutHint');
+            const textElement = document.getElementById('shortcutText');
+            const iconElement = document.getElementById('shortcutIcon');
+            
+            // 清除之前的超时
+            if (shortcutHintTimeout) {
+                clearTimeout(shortcutHintTimeout);
+            }
+            
+            // 设置文本和图标方向
+            textElement.textContent = text;
+            
+            if (direction === 'left') {
+                iconElement.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>';
+            } else {
+                iconElement.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>';
+            }
+            
+            // 显示提示
+            hintElement.classList.add('show');
+            
+            // 两秒后隐藏
+            shortcutHintTimeout = setTimeout(() => {
+                hintElement.classList.remove('show');
+            }, 2000);
+        }
 
         // 初始化播放器
         function initPlayer(videoUrl) {
