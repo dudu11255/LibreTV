@@ -381,16 +381,15 @@ async function search() {
             // 重新设计的卡片布局 - 支持更好的封面图显示
             const hasCover = item.vod_pic && item.vod_pic.startsWith('http');
             
-            // 不同的布局设计 - 桌面端使用横向布局
+            // 不同的布局设计 - 桌面端使用横向布局，减小卡片尺寸
             return `
                 <div class="card-hover bg-[#111] rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-[1.02] h-full" 
                      onclick="showDetails('${safeId}','${safeName}','${sourceCode}')" ${apiUrlAttr}>
-                    <!-- Original card layout code -->
                     <div class="md:flex">
-                        <!-- 封面图区域 -->
+                        <!-- 封面图区域 - 调整高度更紧凑 -->
                         ${hasCover ? `
-                        <div class="md:w-1/3 relative overflow-hidden">
-                            <div class="w-full h-48 md:h-full">
+                        <div class="md:w-1/4 relative overflow-hidden">
+                            <div class="w-full h-40 md:h-full">
                                 <img src="${item.vod_pic}" alt="${safeName}" 
                                      class="w-full h-full object-cover transition-transform hover:scale-110" 
                                      onerror="this.onerror=null; this.src='https://via.placeholder.com/300x450?text=无封面'; this.classList.add('object-contain');" 
@@ -399,21 +398,33 @@ async function search() {
                             </div>
                         </div>` : ''}
                         
-                        <!-- 内容区域 -->
-                        <div class="p-5 flex flex-col flex-grow ${hasCover ? 'md:w-2/3' : 'w-full'}">
-                            <!-- Rest of the card content -->
+                        <!-- 内容区域 - 减小内边距 -->
+                        <div class="p-3 flex flex-col flex-grow ${hasCover ? 'md:w-3/4' : 'w-full'}">
                             <div class="flex-grow">
-                                <h3 class="text-xl font-semibold mb-3 line-clamp-2">${safeName}</h3>
-                                <!-- Type and year info -->
-                                <!-- ... -->
+                                <h3 class="text-lg font-semibold mb-2 line-clamp-2">${safeName}</h3>
+                                
+                                <!-- 添加影片元数据 - 使用原始彩色标签样式，但减小间距 -->
+                                <div class="flex flex-wrap gap-1 mb-2">
+                                    ${(item.type_name || '').toString().replace(/</g, '&lt;') ? 
+                                      `<span class="text-xs py-0.5 px-1.5 rounded bg-opacity-20 bg-blue-500 text-blue-300">
+                                          ${(item.type_name || '').toString().replace(/</g, '&lt;')}
+                                      </span>` : ''}
+                                    ${(item.vod_year || '') ? 
+                                      `<span class="text-xs py-0.5 px-1.5 rounded bg-opacity-20 bg-purple-500 text-purple-300">
+                                          ${item.vod_year}
+                                      </span>` : ''}
+                                </div>
+                                <p class="text-gray-400 text-xs line-clamp-2">
+                                    ${(item.vod_remarks || '暂无介绍').toString().replace(/</g, '&lt;')}
+                                </p>
                             </div>
                             
-                            <!-- 底部元信息区域 -->
-                            <div class="flex justify-between items-center mt-4 pt-3 border-t border-gray-800">
+                            <!-- 底部元信息区域 - 减小上边距 -->
+                            <div class="flex justify-between items-center mt-2 pt-2 border-t border-gray-800">
                                 ${sourceInfo ? `<div>${sourceInfo}</div>` : '<div></div>'}
                                 <div>
                                     <span class="text-xs text-gray-500 flex items-center">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
