@@ -45,6 +45,11 @@ const API_SITES = {
         api: 'https://cjhwba.com',
         name: '新华为',
     },
+    jisu: {
+        api: 'https://jszyapi.com',
+        name: '极速资源',
+        detail: 'https://jszyapi.com'
+    },
     dbzy: {
         api: 'https://dbzy.com',
         name: '豆瓣资源',
