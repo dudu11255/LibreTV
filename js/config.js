@@ -76,7 +76,7 @@ const API_SITES = {
     jkun: {
         api: 'https://jkunzyapi.com',
         name: 'jkun资源',
-        adult: true  // 标记为成人内容
+        adult: true
     },
     bwzy: {
         api: 'https://api.bwzym3u8.com',
