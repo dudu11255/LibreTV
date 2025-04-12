@@ -101,15 +101,10 @@ async function handleApiRequest(url) {
             }
 
             // 对于特殊源，使用特殊处理方式
-            if (sourceCode === 'ffzy' && API_SITES[sourceCode].detail) {
-                return await handleFFZYDetail(id, sourceCode);
+            if ((sourceCode === 'ffzy' || sourceCode === 'jisu' || sourceCode === 'huangcang') && API_SITES[sourceCode].detail) {
+                return await handleSpecialSourceDetail(id, sourceCode);
             }
             
-            // 对极速资源使用特殊处理方式
-            if (sourceCode === 'jisu' && API_SITES[sourceCode].detail) {
-                return await handleJisuDetail(id, sourceCode);
-            }
-
             const detailUrl = customApi
                 ? `${customApi}${API_CONFIG.detail.path}${id}`
                 : `${API_SITES[sourceCode].api}${API_CONFIG.detail.path}${id}`;
