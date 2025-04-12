@@ -347,7 +347,7 @@ async function search() {
         const yellowFilterEnabled = localStorage.getItem('yellowFilterEnabled') === 'true';
         let results = data.list;
         if (yellowFilterEnabled) {
-            const banned = ['伦理片', '色情片','福利视频','福利片'];
+            const banned = ['伦理片', '色情片','同性片','福利视频','福利片'];
             results = results.filter(item => {
                 const typeName = item.type_name || '';
                 return !banned.some(keyword => typeName.includes(keyword));
