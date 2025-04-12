@@ -187,5 +187,6 @@ const CUSTOM_API_CONFIG = {
     namePrefix: 'Custom-',    // 自定义源名称前缀
     validateUrl: true,        // 验证URL格式
     cacheResults: true,       // 缓存测试结果
-    cacheExpiry: 5184000000   // 缓存过期时间(2个月)
+    cacheExpiry: 5184000000,  // 缓存过期时间(2个月)
+    adultPropName: 'isAdult'  // 用于标记成人内容的属性名
 };
