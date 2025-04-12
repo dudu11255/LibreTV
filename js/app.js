@@ -412,10 +412,10 @@ async function search() {
                             </div>
                         </div>` : ''}
                         
-                        <!-- 内容区域 - 减小内边距 -->
+                        <!-- 内容区域 - 调整为适应多行标题 -->
                         <div class="p-3 flex flex-col flex-grow ${hasCover ? 'md:w-3/4' : 'w-full'}">
                             <div class="flex-grow">
-                                <h3 class="text-lg font-semibold mb-2 line-clamp-2">${safeName}</h3>
+                                <h3 class="text-lg font-semibold mb-2 break-words">${safeName}</h3>
                                 
                                 <!-- 添加影片元数据 - 使用原始彩色标签样式，但减小间距 -->
                                 <div class="flex flex-wrap gap-1 mb-2">
@@ -428,7 +428,7 @@ async function search() {
                                           ${item.vod_year}
                                       </span>` : ''}
                                 </div>
-                                <p class="text-gray-400 text-xs line-clamp-2">
+                                <p class="text-gray-400 text-xs h-9 overflow-hidden">
                                     ${(item.vod_remarks || '暂无介绍').toString().replace(/</g, '&lt;')}
                                 </p>
                             </div>
@@ -511,7 +511,8 @@ async function showDetails(id, vod_name, sourceCode = currentApiSource) {
         const sourceName = data.videoInfo && data.videoInfo.source_name ? 
             ` <span class="text-sm font-normal text-gray-400">(${data.videoInfo.source_name})</span>` : '';
         
-        modalTitle.innerHTML = (vod_name || '未知视频') + sourceName;
+        // 不对标题进行截断处理，允许完整显示
+        modalTitle.innerHTML = `<span class="break-words">${vod_name || '未知视频'}</span>${sourceName}`;
         currentVideoTitle = vod_name || '未知视频';
         
         // 保存当前源码以便后续操作

@@ -206,8 +206,20 @@ async function handleApiRequest(url) {
     }
 }
 
+// 新增: 处理极速资源详情的特殊函数 - 类似非凡影视的处理方式
+async function handleJisuDetail(id, sourceCode) {
+    // 直接复用通用的特殊源处理函数，传入相应参数
+    return await handleSpecialSourceDetail(id, sourceCode);
+}
+
 // 添加: 处理非凡影视详情的特殊函数
 async function handleFFZYDetail(id, sourceCode) {
+    // 直接复用通用的特殊源处理函数，传入相应参数
+    return await handleSpecialSourceDetail(id, sourceCode);
+}
+
+// 新增: 通用特殊源详情处理函数
+async function handleSpecialSourceDetail(id, sourceCode) {
     try {
         // 构建详情页URL（使用配置中的detail URL而不是api URL）
         const detailUrl = `${API_SITES[sourceCode].detail}/index.php/vod/detail/id/${id}.html`;
@@ -233,84 +245,21 @@ async function handleFFZYDetail(id, sourceCode) {
         // 获取HTML内容
         const html = await response.text();
         
-        // 非凡影视使用不同的正则表达式
-        const ffzyPattern = /\$(https?:\/\/[^"'\s]+?\/\d{8}\/\d+_[a-f0-9]+\/index\.m3u8)/g;
-        let matches = html.match(ffzyPattern) || [];
-
-        // 处理可能包含括号的链接
-        matches = matches.map(link => {
-            link = link.substring(1, link.length);
-            const parenIndex = link.indexOf('(');
-            return parenIndex > 0 ? link.substring(0, parenIndex) : link;
-        });
-
-        // 如果没有找到链接，尝试一个更通用的模式
+        // 根据不同源类型使用不同的正则表达式
+        let matches = [];
+        
+        if (sourceCode === 'ffzy') {
+            // 非凡影视使用特定的正则表达式
+            const ffzyPattern = /\$(https?:\/\/[^"'\s]+?\/\d{8}\/\d+_[a-f0-9]+\/index\.m3u8)/g;
+            matches = html.match(ffzyPattern) || [];
+        }
+        
+        // 如果没有找到链接或者是其他源类型，尝试一个更通用的模式
         if (matches.length === 0) {
             const generalPattern = /\$(https?:\/\/[^"'\s]+?\.m3u8)/g;
             matches = html.match(generalPattern) || [];
-            matches = matches.map(link => {
-                link = link.substring(1, link.length);
-                const parenIndex = link.indexOf('(');
-                return parenIndex > 0 ? link.substring(0, parenIndex) : link;
-            });
         }
         
-        // 提取可能存在的标题、简介等基本信息
-        // 这些正则可能需要根据网站实际HTML结构调整
-        const titleMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/);
-        const titleText = titleMatch ? titleMatch[1].trim() : '';
-        
-        const descMatch = html.match(/<div[^>]*class=["']sketch["'][^>]*>([\s\S]*?)<\/div>/);
-        const descText = descMatch ? descMatch[1].replace(/<[^>]+>/g, ' ').trim() : '';
-        
-        return JSON.stringify({
-            code: 200,
-            episodes: matches,
-            detailUrl: detailUrl,
-            videoInfo: {
-                title: titleText,
-                desc: descText,
-                source_name: API_SITES[sourceCode].name,
-                source_code: sourceCode
-            }
-        });
-    } catch (error) {
-        console.error('非凡影视详情获取失败:', error);
-        throw error;
-    }
-}
-
-// 新增: 处理极速资源详情的特殊函数 - 类似非凡影视的处理方式
-async function handleJisuDetail(id, sourceCode) {
-    try {
-        // 构建详情页URL（使用配置中的detail URL而不是api URL）
-        const detailUrl = `${API_SITES[sourceCode].detail}/index.php/vod/detail/id/${id}.html`;
-        
-        // 添加超时处理
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-        
-        // 获取详情页HTML
-        const response = await fetch(PROXY_URL + encodeURIComponent(detailUrl), {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            },
-            signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-        
-        if (!response.ok) {
-            throw new Error(`详情页请求失败: ${response.status}`);
-        }
-        
-        // 获取HTML内容
-        const html = await response.text();
-        
-        // 极速资源的正则表达式模式 - 类似非凡的处理方式
-        const jisuPattern = /\$(https?:\/\/[^"'\s]+?\.m3u8)/g;
-        let matches = html.match(jisuPattern) || [];
-
         // 处理链接
         matches = matches.map(link => {
             link = link.substring(1, link.length);
@@ -337,7 +286,7 @@ async function handleJisuDetail(id, sourceCode) {
             }
         });
     } catch (error) {
-        console.error('极速资源详情获取失败:', error);
+        console.error(`${API_SITES[sourceCode].name}详情获取失败:`, error);
         throw error;
     }
 }

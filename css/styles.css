@@ -32,6 +32,7 @@ button, .card-hover {
     transition: all 0.3s ease;
 }
 
+/* 改进卡片适应不同内容长度 */
 .card-hover {
     border: 1px solid var(--border-color);
     background: linear-gradient(135deg, var(--card-gradient-start), var(--card-gradient-end));
@@ -39,6 +40,25 @@ button, .card-hover {
     position: relative;
     overflow: hidden;
     border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* 确保卡片内容区域高度一致性 */
+.card-hover .flex-grow {
+    min-height: 90px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 针对不同长度的标题优化显示 */
+.card-hover h3 {
+    min-height: 3rem;  /* 至少能显示2行标题 */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    -webkit-line-clamp: 2; /* 最多显示2行 */
 }
 
 .card-hover::before {
@@ -169,6 +189,17 @@ body {
 @media screen and (max-width: 640px) {
     .footer {
         padding-bottom: 2rem;
+    }
+}
+
+/* 移动端布局优化 */
+@media screen and (max-width: 768px) {
+    .card-hover h3 {
+        min-height: 2.5rem;
+    }
+    
+    .card-hover .flex-grow {
+        min-height: 80px;
     }
 }
 
