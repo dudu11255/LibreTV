@@ -105,7 +105,7 @@ async function handleApiRequest(url) {
                 return await handleFFZYDetail(id, sourceCode);
             }
             
-            // 新增: 对极速资源使用特殊处理方式
+            // 对极速资源使用特殊处理方式
             if (sourceCode === 'jisu' && API_SITES[sourceCode].detail) {
                 return await handleJisuDetail(id, sourceCode);
             }
@@ -206,7 +206,8 @@ async function handleApiRequest(url) {
     }
 }
 
-// 新增: 处理极速资源详情的特殊函数 - 类似非凡影视的处理方式
+// 处理极速资源详情的特殊函数 - 类似非凡影视的处理方式
+
 async function handleJisuDetail(id, sourceCode) {
     // 直接复用通用的特殊源处理函数，传入相应参数
     return await handleSpecialSourceDetail(id, sourceCode);
@@ -218,7 +219,8 @@ async function handleFFZYDetail(id, sourceCode) {
     return await handleSpecialSourceDetail(id, sourceCode);
 }
 
-// 新增: 通用特殊源详情处理函数
+//  通用特殊源详情处理函数
+
 async function handleSpecialSourceDetail(id, sourceCode) {
     try {
         // 构建详情页URL（使用配置中的detail URL而不是api URL）
@@ -291,7 +293,7 @@ async function handleSpecialSourceDetail(id, sourceCode) {
     }
 }
 
-// 新增: 处理聚合搜索
+//  处理聚合搜索
 async function handleAggregatedSearch(searchQuery) {
     // 获取可用的API源列表（排除aggregated和custom）
     const availableSources = Object.keys(API_SITES).filter(key => 
@@ -399,7 +401,7 @@ async function handleAggregatedSearch(searchQuery) {
     }
 }
 
-// 新增：处理多个自定义API源的聚合搜索
+// 处理多个自定义API源的聚合搜索
 async function handleMultipleCustomSearch(searchQuery, customApiUrls) {
     // 解析自定义API列表
     const apiUrls = customApiUrls.split(CUSTOM_API_CONFIG.separator)

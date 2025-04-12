@@ -7,10 +7,10 @@ let currentEpisodeIndex = 0;
 let currentEpisodes = [];
 // 添加当前视频的标题
 let currentVideoTitle = '';
-// 新增全局变量用于倒序状态
+// 全局变量用于倒序状态
 let episodesReversed = false;
 
-// 新增：解析多个自定义API源
+// 解析多个自定义API源
 let customApiUrls = [];
 function parseCustomApiUrls() {
     if (!customApiUrl) return [];
@@ -130,7 +130,7 @@ async function updateSiteStatusWithTest(source) {
     }
 }
 
-// 新增：测试单个自定义API URL
+// 测试单个自定义API URL
 async function testCustomApiUrl(url) {
     if (!url) return false;
     
@@ -251,7 +251,7 @@ function setupEventListeners() {
         }
     });
     
-    // 新增：黄色内容过滤开关事件绑定
+    // 黄色内容过滤开关事件绑定
     const yellowFilterToggle = document.getElementById('yellowFilterToggle');
     if (yellowFilterToggle) {
         yellowFilterToggle.addEventListener('change', function(e) {
@@ -259,7 +259,7 @@ function setupEventListeners() {
         });
     }
     
-    // 新增：广告过滤开关事件绑定
+    // 广告过滤开关事件绑定
     const adFilterToggle = document.getElementById('adFilterToggle');
     if (adFilterToggle) {
         adFilterToggle.addEventListener('change', function(e) {
@@ -608,7 +608,7 @@ function handlePlayerError() {
     showToast('视频播放加载失败，请尝试其他视频源', 'error');
 }
 
-// 新增辅助函数用于渲染剧集按钮（使用当前的排序状态）
+// 辅助函数用于渲染剧集按钮（使用当前的排序状态）
 function renderEpisodes(vodName) {
     const episodes = episodesReversed ? [...currentEpisodes].reverse() : currentEpisodes;
     return episodes.map((episode, index) => {
@@ -623,7 +623,7 @@ function renderEpisodes(vodName) {
     }).join('');
 }
 
-// 新增切换排序状态的函数
+// 切换排序状态的函数
 function toggleEpisodeOrder() {
     episodesReversed = !episodesReversed;
     // 重新渲染剧集区域，使用 currentVideoTitle 作为视频标题
