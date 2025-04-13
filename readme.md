@@ -35,14 +35,6 @@ LibreTV播放器支持以下键盘快捷键：
 - **上/下箭头**：调整音量
 - **F**：全屏/退出全屏
 
-## 📹 视频源支持说明
-
-LibreTV 默认支持以下几种视频源接口：
-- 黑木耳影视 (heimuer)
-- 非凡影视 (ffzy)
-- 天涯资源 (tyyszy)
-- …
-
 ### CMS采集站源兼容性
 
 本项目支持标准的苹果CMS V10 API格式。自定义API需遵循以下格式：
@@ -132,25 +124,9 @@ services:
 - `API_SITES`: 添加或修改视频源API接口
 - `SITE_CONFIG`: 更改站点名称、描述等基本信息
 - `PLAYER_CONFIG`: 调整播放器参数，如自动播放、广告过滤等
+- `HIDE_BUILTIN_ADULT_APIS`: 用于控制是否隐藏内置的黄色采集站API，默认值为`true`。设置为`true`时，内置的某些敏感API将不会在设置面板中显示，可根据实际需要修改配置。
 
 注意：若使用docker部署，可进入容器，在`/usr/share/nginx/html/js`内修改相关配置
-
-## 🌟 项目结构
-
-```
-LibreTV/
-├── css/
-│   └── styles.css       // 自定义样式
-├── js/
-│   ├── app.js           // 主应用逻辑
-│   ├── api.js           // API请求处理
-│   ├── config.js        // 全局配置
-│   └── ui.js            // UI交互处理
-├── player.html          // 自定义视频播放器
-├── index.html           // 主页面
-├── robots.txt           // 搜索引擎爬虫配置
-└── sitemap.xml          // 站点地图
-```
 
 ## Star History
 
