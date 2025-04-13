@@ -124,6 +124,7 @@ services:
 - `API_SITES`: 添加或修改视频源API接口
 - `SITE_CONFIG`: 更改站点名称、描述等基本信息
 - `PLAYER_CONFIG`: 调整播放器参数，如自动播放、广告过滤等
+- `HIDE_BUILTIN_ADULT_APIS`: 用于控制是否隐藏内置的黄色采集站API，默认值为`true`。设置为`true`时，内置的某些敏感API将不会在设置面板中显示，可根据实际需要修改配置。
 
 注意：若使用docker部署，可进入容器，在`/usr/share/nginx/html/js`内修改相关配置
 
