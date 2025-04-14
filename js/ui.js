@@ -229,7 +229,7 @@ function clearSearchHistory() {
         showToast('搜索历史已清除', 'success');
     } catch (e) {
         console.error('清除搜索历史失败:', e);
-        showToast('清除搜索历史失败', 'error');
+        showToast('清除搜索历史失败:', 'error');
     }
 }
 
@@ -326,9 +326,19 @@ function loadViewingHistory() {
         const episodeText = item.episodeIndex !== undefined ? 
             `第${item.episodeIndex + 1}集` : '';
         
-        // 构建历史记录项HTML，移除缩略图，添加来源信息
+        // 为防止XSS，使用encodeURIComponent编码URL
+        const safeURL = encodeURIComponent(item.url);
+        
+        // 构建历史记录项HTML，添加删除按钮，需要放在position:relative的容器中
         return `
-            <div class="history-item cursor-pointer" onclick="playFromHistory('${item.url}', '${safeTitle}', ${item.episodeIndex || 0})">
+            <div class="history-item cursor-pointer relative group" onclick="playFromHistory('${item.url}', '${safeTitle}', ${item.episodeIndex || 0})">
+                <button onclick="event.stopPropagation(); deleteHistoryItem('${safeURL}')" 
+                        class="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-gray-400 hover:text-red-400 p-1 rounded-full hover:bg-gray-800 z-10"
+                        title="删除记录">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
                 <div class="history-info">
                     <div class="history-title">${safeTitle}</div>
                     <div class="history-meta">
@@ -341,32 +351,85 @@ function loadViewingHistory() {
             </div>
         `;
     }).join('');
+    
+    // 检查是否存在较多历史记录，添加底部边距确保底部按钮不会挡住内容
+    if (history.length > 5) {
+        historyList.classList.add('pb-4');
+    }
+}
+
+// 删除单个历史记录项
+function deleteHistoryItem(encodedUrl) {
+    try {
+        // 解码URL
+        const url = decodeURIComponent(encodedUrl);
+        
+        // 获取当前历史记录
+        const history = getViewingHistory();
+        
+        // 过滤掉要删除的项
+        const newHistory = history.filter(item => item.url !== url);
+        
+        // 保存回localStorage
+        localStorage.setItem('viewingHistory', JSON.stringify(newHistory));
+        
+        // 重新加载历史记录显示
+        loadViewingHistory();
+        
+        // 显示成功提示
+        showToast('已删除该记录', 'success');
+    } catch (e) {
+        console.error('删除历史记录项失败:', e);
+        showToast('删除记录失败', 'error');
+    }
 }
 
 // 从历史记录播放
 function playFromHistory(url, title, episodeIndex) {
     // 构造播放页面URL并跳转
-    const playerUrl = `player.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&index=${episodeIndex}`;
-    window.open(playerUrl, '_blank');
+    // 检查URL是否已经包含必要参数
+    if (url.includes('?')) {
+        // URL已有参数，添加&index=
+        const playUrl = `${url}${url.includes('index=') ? '' : `&index=${episodeIndex}`}`;
+        window.open(playUrl, '_blank');
+    } else {
+        // 原始URL，添加完整参数
+        const playerUrl = `player.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&index=${episodeIndex}`;
+        window.open(playerUrl, '_blank');
+    }
 }
 
-// 添加观看历史
+// 添加观看历史 - 确保每个视频标题只有一条记录
 function addToViewingHistory(videoInfo) {
     try {
         const history = getViewingHistory();
         
-        // 检查是否已经存在相同的项目（基于URL）
-        const existingIndex = history.findIndex(item => item.url === videoInfo.url);
+        // 检查是否已经存在相同标题的记录（同一视频的不同集数）
+        const existingIndex = history.findIndex(item => item.title === videoInfo.title);
         if (existingIndex !== -1) {
-            // 存在则移除旧的记录
+            // 存在则更新现有记录的集数和时间戳
+            const existingItem = history[existingIndex];
+            existingItem.episodeIndex = videoInfo.episodeIndex;
+            existingItem.timestamp = Date.now();
+            
+            // 确保来源信息保留
+            if (videoInfo.sourceName && !existingItem.sourceName) {
+                existingItem.sourceName = videoInfo.sourceName;
+            }
+            
+            // 更新URL，确保能够跳转到正确的集数
+            existingItem.url = videoInfo.url;
+            
+            // 移到最前面
             history.splice(existingIndex, 1);
+            history.unshift(existingItem);
+        } else {
+            // 添加新记录到最前面
+            history.unshift({
+                ...videoInfo,
+                timestamp: Date.now()
+            });
         }
-        
-        // 添加新记录到最前面
-        history.unshift({
-            ...videoInfo,
-            timestamp: Date.now()
-        });
         
         // 限制历史记录数量为50条
         const maxHistoryItems = 50;

@@ -790,10 +790,17 @@
             currentEpisodeIndex = index;
             videoHasEnded = false; // 重置视频结束标志
             
-            // 更新URL，不刷新页面
+            // 获取当前URL参数，保留source参数
+            const urlParams = new URLSearchParams(window.location.search);
+            const sourceName = urlParams.get('source') || '';
+            
+            // 更新URL，不刷新页面，保留source参数
             const newUrl = new URL(window.location.href);
             newUrl.searchParams.set('index', index);
             newUrl.searchParams.set('url', url);
+            if (sourceName) {
+                newUrl.searchParams.set('source', sourceName);
+            }
             window.history.pushState({}, '', newUrl);
             
             // 更新播放器
@@ -829,6 +836,9 @@
 
             // 重置用户点击位置记录
             userClickedPosition = null;
+            
+            // 三秒后保存到历史记录
+            setTimeout(() => saveToHistory(), 3000);
         }
 
         // 播放上一集
@@ -955,7 +965,8 @@
             // 构建要保存的视频信息对象
             const videoInfo = {
                 title: currentVideoTitle,
-                url: window.location.href, // 保存完整URL以便能直接打开
+                // 创建基础URL，使用标题作为唯一标识符
+                url: `player.html?title=${encodeURIComponent(currentVideoTitle)}&source=${encodeURIComponent(sourceName)}`,
                 episodeIndex: currentEpisodeIndex,
                 sourceName: sourceName,
                 timestamp: Date.now()
@@ -969,14 +980,23 @@
                 try {
                     const history = JSON.parse(localStorage.getItem('viewingHistory') || '[]');
                     
-                    // 检查是否已经存在相同的项目
-                    const existingIndex = history.findIndex(item => item.url === videoInfo.url);
+                    // 检查是否已经存在相同标题的记录（同一视频的不同集数）
+                    const existingIndex = history.findIndex(item => item.title === videoInfo.title);
                     if (existingIndex !== -1) {
-                        history.splice(existingIndex, 1);
+                        // 存在则更新现有记录的集数、时间戳和URL
+                        history[existingIndex].episodeIndex = currentEpisodeIndex;
+                        history[existingIndex].timestamp = Date.now();
+                        // 同时更新URL以保存当前的集数状态
+                        history[existingIndex].url = window.location.href;
+                        
+                        // 移到最前面
+                        const updatedItem = history.splice(existingIndex, 1)[0];
+                        history.unshift(updatedItem);
+                    } else {
+                        // 添加新记录到最前面，但保存完整URL以便能直接打开到正确的集数
+                        videoInfo.url = window.location.href;
+                        history.unshift(videoInfo);
                     }
-                    
-                    // 添加新记录到最前面
-                    history.unshift(videoInfo);
                     
                     // 限制历史记录数量为50条
                     if (history.length > 50) history.splice(50);
