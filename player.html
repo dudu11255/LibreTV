@@ -546,6 +546,9 @@
                 
                 // 视频加载完成后重新设置进度条点击监听
                 setupProgressBarPreciseClicks();
+                
+                // 视频加载成功后，在稍微延迟后将其添加到观看历史
+                setTimeout(saveToHistory, 3000);
             });
 
             dp.on('error', function() {
@@ -941,6 +944,48 @@
             
             e.stopPropagation();
             dp.seek(clickTime);
+        }
+        
+        // 在播放器初始化后添加视频到历史记录
+        function saveToHistory() {
+            // 尝试从URL中获取参数
+            const urlParams = new URLSearchParams(window.location.search);
+            const sourceName = urlParams.get('source') || '';
+
+            // 构建要保存的视频信息对象
+            const videoInfo = {
+                title: currentVideoTitle,
+                url: window.location.href, // 保存完整URL以便能直接打开
+                episodeIndex: currentEpisodeIndex,
+                sourceName: sourceName,
+                timestamp: Date.now()
+            };
+            
+            // 如果外部定义了addToViewingHistory函数，则调用它
+            if (typeof addToViewingHistory === 'function') {
+                addToViewingHistory(videoInfo);
+            } else {
+                // 否则直接使用本地实现
+                try {
+                    const history = JSON.parse(localStorage.getItem('viewingHistory') || '[]');
+                    
+                    // 检查是否已经存在相同的项目
+                    const existingIndex = history.findIndex(item => item.url === videoInfo.url);
+                    if (existingIndex !== -1) {
+                        history.splice(existingIndex, 1);
+                    }
+                    
+                    // 添加新记录到最前面
+                    history.unshift(videoInfo);
+                    
+                    // 限制历史记录数量为50条
+                    if (history.length > 50) history.splice(50);
+                    
+                    localStorage.setItem('viewingHistory', JSON.stringify(history));
+                } catch (e) {
+                    console.error('保存观看历史失败:', e);
+                }
+            }
         }
     </script>
 </body>

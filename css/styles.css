@@ -598,3 +598,96 @@ body {
     font-weight: 500;
     margin-right: 0.35rem;
 }
+
+/* 历史记录面板样式 */
+.history-panel {
+    box-shadow: 2px 0 10px rgba(0,0,0,0.5);
+    transition: transform 0.3s ease-in-out;
+}
+
+.history-panel.show {
+    transform: translateX(0);
+}
+
+.history-item {
+    background: #1a1a1a;
+    border-radius: 8px;
+    border: 1px solid #333;
+    overflow: hidden;
+    transition: all 0.2s ease;
+    padding: 12px;
+}
+
+.history-item:hover {
+    transform: translateY(-2px);
+    border-color: #444;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.history-info {
+    padding: 0;
+}
+
+.history-title {
+    font-weight: 500;
+    font-size: 1rem;
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.history-meta {
+    color: #bbb;
+    font-size: 0.8rem;
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.history-episode {
+    color: #3b82f6;
+}
+
+.history-source {
+    color: #10b981;
+}
+
+.history-time {
+    color: #888;
+    font-size: 0.75rem;
+    margin-top: 4px;
+}
+
+.history-separator {
+    color: #666;
+}
+
+.history-thumbnail {
+    width: 100%;
+    height: 90px;
+    background-color: #222;
+    overflow: hidden;
+}
+
+.history-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.history-info {
+    padding: 10px;
+}
+
+.history-time {
+    color: #888;
+    font-size: 0.8rem;
+    margin-top: 4px;
+}
+
+.history-title {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
