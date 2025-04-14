@@ -881,19 +881,23 @@ function playVideo(url, vod_name, episodeIndex = 0) {
     localStorage.setItem('currentEpisodes', JSON.stringify(currentEpisodes));
     localStorage.setItem('episodesReversed', episodesReversed);
     
+    // 构建视频信息对象，使用标题作为唯一标识
+    const videoTitle = vod_name || currentVideoTitle;
+    const videoInfo = {
+        title: videoTitle,
+        url: url,
+        episodeIndex: episodeIndex,
+        sourceName: sourceName,
+        timestamp: Date.now()
+    };
+    
     // 保存到观看历史，添加sourceName
     if (typeof addToViewingHistory === 'function') {
-        addToViewingHistory({
-            title: vod_name || currentVideoTitle,
-            url: url,
-            episodeIndex: episodeIndex,
-            sourceName: sourceName,
-            timestamp: Date.now()
-        });
+        addToViewingHistory(videoInfo);
     }
     
     // 构建播放页面URL，传递必要参数
-    const playerUrl = `player.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(vod_name)}&index=${episodeIndex}`;
+    const playerUrl = `player.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(videoTitle)}&index=${episodeIndex}&source=${encodeURIComponent(sourceName)}`;
     
     // 在新标签页中打开播放页面
     window.open(playerUrl, '_blank');
