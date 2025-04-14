@@ -326,12 +326,29 @@ function loadViewingHistory() {
         const episodeText = item.episodeIndex !== undefined ? 
             `第${item.episodeIndex + 1}集` : '';
         
+        // 格式化进度信息
+        let progressHtml = '';
+        if (item.playbackPosition && item.duration && item.playbackPosition > 10 && item.playbackPosition < item.duration * 0.95) {
+            const percent = Math.round((item.playbackPosition / item.duration) * 100);
+            const formattedTime = formatPlaybackTime(item.playbackPosition);
+            const formattedDuration = formatPlaybackTime(item.duration);
+            
+            progressHtml = `
+                <div class="history-progress">
+                    <div class="progress-bar">
+                        <div class="progress-filled" style="width:${percent}%"></div>
+                    </div>
+                    <div class="progress-text">${formattedTime} / ${formattedDuration}</div>
+                </div>
+            `;
+        }
+        
         // 为防止XSS，使用encodeURIComponent编码URL
         const safeURL = encodeURIComponent(item.url);
         
         // 构建历史记录项HTML，添加删除按钮，需要放在position:relative的容器中
         return `
-            <div class="history-item cursor-pointer relative group" onclick="playFromHistory('${item.url}', '${safeTitle}', ${item.episodeIndex || 0})">
+            <div class="history-item cursor-pointer relative group" onclick="playFromHistory('${item.url}', '${safeTitle}', ${item.episodeIndex || 0}, ${item.playbackPosition || 0})">
                 <button onclick="event.stopPropagation(); deleteHistoryItem('${safeURL}')" 
                         class="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-gray-400 hover:text-red-400 p-1 rounded-full hover:bg-gray-800 z-10"
                         title="删除记录">
@@ -346,6 +363,7 @@ function loadViewingHistory() {
                         ${episodeText ? '<span class="history-separator mx-1">·</span>' : ''}
                         <span class="history-source">${safeSource}</span>
                     </div>
+                    ${progressHtml}
                     <div class="history-time">${formatTimestamp(item.timestamp)}</div>
                 </div>
             </div>
@@ -356,6 +374,16 @@ function loadViewingHistory() {
     if (history.length > 5) {
         historyList.classList.add('pb-4');
     }
+}
+
+// 格式化播放时间为 mm:ss 格式
+function formatPlaybackTime(seconds) {
+    if (!seconds || isNaN(seconds)) return '00:00';
+    
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
 // 删除单个历史记录项
@@ -385,16 +413,28 @@ function deleteHistoryItem(encodedUrl) {
 }
 
 // 从历史记录播放
-function playFromHistory(url, title, episodeIndex) {
-    // 构造播放页面URL并跳转
-    // 检查URL是否已经包含必要参数
+function playFromHistory(url, title, episodeIndex, playbackPosition = 0) {
+    // 构造带播放进度参数的URL
+    const positionParam = playbackPosition > 10 ? `&position=${Math.floor(playbackPosition)}` : '';
+    
     if (url.includes('?')) {
-        // URL已有参数，添加&index=
-        const playUrl = `${url}${url.includes('index=') ? '' : `&index=${episodeIndex}`}`;
+        // URL已有参数，确保包含必要参数
+        let playUrl = url;
+        
+        // 添加集数参数（如果没有）
+        if (!url.includes('index=') && episodeIndex > 0) {
+            playUrl += `&index=${episodeIndex}`;
+        }
+        
+        // 添加播放位置参数
+        if (playbackPosition > 10) {
+            playUrl += positionParam;
+        }
+        
         window.open(playUrl, '_blank');
     } else {
         // 原始URL，添加完整参数
-        const playerUrl = `player.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&index=${episodeIndex}`;
+        const playerUrl = `player.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&index=${episodeIndex}${positionParam}`;
         window.open(playerUrl, '_blank');
     }
 }
@@ -415,6 +455,12 @@ function addToViewingHistory(videoInfo) {
             // 确保来源信息保留
             if (videoInfo.sourceName && !existingItem.sourceName) {
                 existingItem.sourceName = videoInfo.sourceName;
+            }
+            
+            // 更新播放进度信息，仅当新进度有效且大于10秒时
+            if (videoInfo.playbackPosition && videoInfo.playbackPosition > 10) {
+                existingItem.playbackPosition = videoInfo.playbackPosition;
+                existingItem.duration = videoInfo.duration || existingItem.duration;
             }
             
             // 更新URL，确保能够跳转到正确的集数
