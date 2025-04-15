@@ -11,7 +11,7 @@ jobs:
     name: 'Build LibreTV image'
     runs-on: ubuntu-latest
     # Add condition to only run on original repository
-    if: github.repository == 'bestzwei/LibreTV'
+    if: github.repository == 'LibreSpark/LibreTV'
     env:
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
 

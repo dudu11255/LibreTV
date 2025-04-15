@@ -59,9 +59,7 @@ LibreTV播放器支持以下键盘快捷键：
 
 ## 🚀 一键部署
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FbestZwei%2FLibreTV)
-
-[![Deploy to Cloudflare Pages](https://img.shields.io/badge/Deploy%20to-Cloudflare%20Pages-blue?style=for-the-badge&logo=cloudflare)](https://dash.cloudflare.com/)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLibreSpark%2FLibreTV)
 
 ## 🚀 部署指南
 
@@ -130,7 +128,7 @@ services:
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=bestZwei/LibreTV&type=Date)](https://www.star-history.com/#bestZwei/LibreTV&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=LibreSpark/LibreTV&type=Date)](https://www.star-history.com/#LibreSpark/LibreTV&Date)
 
 ## ⚠️ 免责声明
 
