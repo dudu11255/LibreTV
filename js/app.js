@@ -961,3 +961,15 @@ function toggleEpisodeOrder() {
         }
     }
 }
+
+// app.js 或路由文件中
+const authMiddleware = require('./middleware/auth');
+const config = require('./config');
+
+// 对所有请求启用鉴权（按需调整作用范围）
+if (config.auth.enabled) {
+  app.use(authMiddleware);
+}
+
+// 或者针对特定路由
+app.use('/api', authMiddleware);
