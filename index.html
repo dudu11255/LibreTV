@@ -34,13 +34,17 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body class="page-bg text-white">
-    <div class="fixed top-4 right-4 z-50 flex items-center space-x-4">
-        <!-- 添加历史记录按钮 -->
+    <!-- 将历史记录按钮移到左上角 -->
+    <div class="fixed top-4 left-4 z-50">
         <button onclick="toggleHistory(event)" class="bg-[#222] hover:bg-[#333] border border-[#333] hover:border-white rounded-lg px-4 py-2 transition-colors" aria-label="观看历史">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
         </button>
+    </div>
+
+    <!-- 设置按钮保留在右上角 -->
+    <div class="fixed top-4 right-4 z-50">
         <button onclick="toggleSettings(event)" class="bg-[#222] hover:bg-[#333] border border-[#333] hover:border-white rounded-lg px-4 py-2 transition-colors" aria-label="打开设置">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
@@ -49,11 +53,12 @@
         </button>
     </div>
     
-    <!-- 历史记录面板 -->
+    <!-- 历史记录面板 - 标题居中 -->
     <div id="historyPanel" class="history-panel fixed left-0 top-0 h-full bg-[#111] border-r border-[#333] p-6 z-40 transform -translate-x-full transition-transform duration-300" aria-label="观看历史" aria-hidden="true">
         <div class="flex justify-between items-center mb-6">
-            <h3 class="text-xl font-bold gradient-text">观看历史</h3>
             <button onclick="toggleHistory()" class="text-gray-400 hover:text-white" aria-label="关闭历史">&times;</button>
+            <h3 class="text-xl font-bold gradient-text mx-auto">观看历史</h3>
+            <div class="w-4"></div> <!-- 添加一个占位元素以确保标题居中 -->
         </div>
         <div id="historyList" class="pb-4">
             <!-- 历史记录将在这里动态显示 -->
@@ -263,7 +268,7 @@
                     <strong class="text-blue-400">用户责任：</strong> 用户在使用本站服务时，须遵守相关法律法规，不得利用搜索结果从事侵权行为，如下载、传播未经授权的作品等。
                 </p>
                 <p>
-                    <strong class="text-blue-400">侵权投诉：</strong> 若您是版权方或相关权利人，发现搜索结果中存在侵犯您合法权益的内容，请通过 <a href="mailto:xx2131x@gmail.com" class="text-blue-400 hover:underline">xx2131x@gmail.com</a> 向我们反馈。我们将在收到投诉后尽快核实处理。
+                    <strong class="text-blue-400">侵权投诉：</strong> 若您是版权方或相关权利人，发现搜索结果中存在侵犯您合法权益的内容，请通过 <a href="mailto:troll@pissmail.com" class="text-blue-400 hover:underline">troll@pissmail.com</a> 向我们反馈。我们将在收到投诉后尽快核实处理。
                 </p>
             </div>
             <div class="mt-6 flex justify-center">
