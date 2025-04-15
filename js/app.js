@@ -56,9 +56,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 初始检查成人API选中状态
     setTimeout(checkAdultAPIsSelected, 100);
-
-    // 检查并显示免责声明弹窗
-    checkAndShowDisclaimer();
 });
 
 // 初始化API复选框
@@ -262,6 +259,9 @@ function editCustomApi(index) {
         // 替换表单按钮操作
         const buttonContainer = form.querySelector('div:last-child');
         buttonContainer.innerHTML = `
+            <button onclick="updateCustomApi(${index})" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs">更新</button>
+            <button onclick="cancelEditCustomApi()" class="bg-[#444] hover:bg-[#555] text-white px-3 py-1 rounded text-xs">取消</button>
+        `;
     }
 }
 
