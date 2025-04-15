@@ -234,6 +234,29 @@
         </div>
     </footer>
 
+    <!-- 免责声明弹窗 -->
+    <div id="disclaimerModal" class="fixed inset-0 bg-black/95 hidden flex items-center justify-center z-[60] transition-opacity duration-300">
+        <div class="bg-[#111] p-8 rounded-lg w-11/12 max-w-2xl border border-[#333] max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4 flex-none">
+                <h2 class="text-xl font-bold gradient-text">免责声明</h2>
+                <button onclick="closeDisclaimerModal()" class="text-gray-400 hover:text-white text-2xl transition-colors flex-shrink-0">&times;</button>
+            </div>
+            <div class="overflow-auto flex-1 min-h-0 text-gray-300">
+                <div class="space-y-4">
+                    <p>欢迎使用 LibreTV，请您在使用本站前仔细阅读以下内容：</p>
+                    <p>1. LibreTV 仅提供视频搜索服务，不直接提供、存储或上传任何视频内容。所有搜索结果均来自第三方公开接口。</p>
+                    <p>2. 用户在使用本站服务时，须遵守相关法律法规，不得利用搜索结果从事侵权行为，如下载、传播未经授权的作品等。</p>
+                    <p>3. 若您发现搜索结果中存在侵犯您合法权益的内容，请通过邮箱 xx2131x@gmail.com 向我们反馈，我们将及时处理。</p>
+                </div>
+                <div class="mt-6 flex justify-center">
+                    <button onclick="acceptDisclaimer()" class="px-6 py-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-medium rounded-lg hover:opacity-90 transition-opacity">
+                        我已阅读并同意
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 详情模态框 -->
     <div id="modal" class="fixed inset-0 bg-black/95 hidden flex items-center justify-center transition-opacity duration-300">
         <div class="bg-[#111] p-8 rounded-lg w-11/12 max-w-4xl border border-[#333] max-h-[90vh] flex flex-col">
