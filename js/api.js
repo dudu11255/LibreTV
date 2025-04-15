@@ -309,7 +309,8 @@ async function handleSpecialSourceDetail(id, sourceCode) {
             const generalPattern = /\$(https?:\/\/[^"'\s]+?\.m3u8)/g;
             matches = html.match(generalPattern) || [];
         }
-        
+        // 去重处理，避免一个播放源多集显示
+        matches = [...new Set(matches)];
         // 处理链接
         matches = matches.map(link => {
             link = link.substring(1, link.length);
