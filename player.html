@@ -557,7 +557,28 @@
                     }
                 }
             });
-
+            // 全屏模式下锁定横屏
+            dp.on('fullscreen', () => {
+                if (window.screen.orientation && window.screen.orientation.lock) {
+                    window.screen.orientation.lock('landscape')
+                    .then(() => {
+                        console.log('屏幕已锁定为横向模式');
+                    })
+                    .catch((error) => {
+                        console.warn('无法锁定屏幕方向，请手动旋转设备:', error);
+                    });
+                } else {
+                    console.warn('当前浏览器不支持锁定屏幕方向，请手动旋转设备。');
+                }
+            });
+            
+            // 全屏取消时解锁屏幕方向
+            dp.on('fullscreen_cancel', () => {
+                if (window.screen.orientation && window.screen.orientation.unlock) {
+                    window.screen.orientation.unlock();
+                }
+            });
+            
             dp.on('loadedmetadata', function() {
                 document.getElementById('loading').style.display = 'none';
                 videoHasEnded = false; // 视频加载时重置结束标志
