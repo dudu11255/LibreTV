@@ -34,13 +34,17 @@
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body class="page-bg text-white">
-    <div class="fixed top-4 right-4 z-50 flex items-center space-x-4">
-        <!-- 添加历史记录按钮 -->
+    <!-- 将历史记录按钮移到左上角 -->
+    <div class="fixed top-4 left-4 z-50">
         <button onclick="toggleHistory(event)" class="bg-[#222] hover:bg-[#333] border border-[#333] hover:border-white rounded-lg px-4 py-2 transition-colors" aria-label="观看历史">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
         </button>
+    </div>
+
+    <!-- 设置按钮保留在右上角 -->
+    <div class="fixed top-4 right-4 z-50">
         <button onclick="toggleSettings(event)" class="bg-[#222] hover:bg-[#333] border border-[#333] hover:border-white rounded-lg px-4 py-2 transition-colors" aria-label="打开设置">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
@@ -49,11 +53,12 @@
         </button>
     </div>
     
-    <!-- 历史记录面板 -->
+    <!-- 历史记录面板 - 标题居中 -->
     <div id="historyPanel" class="history-panel fixed left-0 top-0 h-full bg-[#111] border-r border-[#333] p-6 z-40 transform -translate-x-full transition-transform duration-300" aria-label="观看历史" aria-hidden="true">
         <div class="flex justify-between items-center mb-6">
-            <h3 class="text-xl font-bold gradient-text">观看历史</h3>
             <button onclick="toggleHistory()" class="text-gray-400 hover:text-white" aria-label="关闭历史">&times;</button>
+            <h3 class="text-xl font-bold gradient-text mx-auto">观看历史</h3>
+            <div class="w-4"></div> <!-- 添加一个占位元素以确保标题居中 -->
         </div>
         <div id="historyList" class="pb-4">
             <!-- 历史记录将在这里动态显示 -->
@@ -248,6 +253,32 @@
         </div>
     </div>
 
+    <!-- 版权声明弹窗 -->
+    <div id="disclaimerModal" class="fixed inset-0 bg-black/90 hidden items-center justify-center z-[60]">
+        <div class="bg-[#111] p-8 rounded-lg border border-[#333] w-11/12 max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h2 class="text-2xl font-bold gradient-text mb-6 text-center">使用声明</h2>
+            <div class="text-gray-300 space-y-4">
+                <p>
+                    欢迎使用 LibreTV。在开始使用前，请您了解并同意以下条款：
+                </p>
+                <p>
+                    <strong class="text-blue-400">服务性质：</strong> LibreTV 仅提供视频搜索服务，不直接提供、存储或上传任何视频内容。所有搜索结果均来自第三方公开接口。
+                </p>
+                <p>
+                    <strong class="text-blue-400">用户责任：</strong> 用户在使用本站服务时，须遵守相关法律法规，不得利用搜索结果从事侵权行为，如下载、传播未经授权的作品等。
+                </p>
+                <p>
+                    <strong class="text-blue-400">侵权投诉：</strong> 若您是版权方或相关权利人，发现搜索结果中存在侵犯您合法权益的内容，请通过 <a href="mailto:troll@pissmail.com" class="text-blue-400 hover:underline">troll@pissmail.com</a> 向我们反馈。我们将在收到投诉后尽快核实处理。
+                </p>
+            </div>
+            <div class="mt-6 flex justify-center">
+                <button id="acceptDisclaimerBtn" class="px-6 py-3 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-300">
+                    我已了解并接受
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- 错误提示框 -->
     <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg transform transition-all duration-300 opacity-0 -translate-y-full">
         <p id="toastMessage"></p>
@@ -281,5 +312,28 @@
     <script src="js/ui.js"></script>
     <script src="js/api.js"></script>
     <script src="js/app.js"></script>
+
+    <!-- 弹窗显示脚本 -->
+    <script>
+        // 在页面加载完成后检查用户是否首次访问
+        document.addEventListener('DOMContentLoaded', function() {
+            // 检查用户是否已经看过声明
+            const hasSeenDisclaimer = localStorage.getItem('hasSeenDisclaimer');
+            
+            if (!hasSeenDisclaimer) {
+                // 显示弹窗
+                const disclaimerModal = document.getElementById('disclaimerModal');
+                disclaimerModal.style.display = 'flex';
+                
+                // 添加接受按钮事件
+                document.getElementById('acceptDisclaimerBtn').addEventListener('click', function() {
+                    // 保存用户已看过声明的状态
+                    localStorage.setItem('hasSeenDisclaimer', 'true');
+                    // 隐藏弹窗
+                    disclaimerModal.style.display = 'none';
+                });
+            }
+        });
+    </script>
 </body>
 </html>
