@@ -1,43 +1,42 @@
 // Vercel Middleware to inject environment variables
-import { NextResponse } from 'next/server';
-
-export default function middleware(request) {
-  // Get the original response
-  const response = NextResponse.next();
+export default async function middleware(request) {
+  // Get the URL from the request
+  const url = new URL(request.url);
   
-  // Modify this to intercept HTML responses only
-  // This is a simplified example - in production you'd want more robust content-type checking
-  if (request.nextUrl.pathname.endsWith('.html') || request.nextUrl.pathname.endsWith('/')) {
-    response.then(async (res) => {
-      const contentType = res.headers.get('content-type');
-      
-      if (contentType && contentType.includes('text/html')) {
-        // Get the HTML content
-        const originalHtml = await res.text();
-        
-        // Replace the placeholder with actual environment variable
-        // If PASSWORD is not set, replace with empty string
-        const password = process.env.PASSWORD || '';
-        const modifiedHtml = originalHtml.replace(
-          'window.__ENV__.PASSWORD = "{{PASSWORD}}";',
-          `window.__ENV__.PASSWORD = "${password}";`
-        );
-        
-        // Create a new response with the modified HTML
-        return new Response(modifiedHtml, {
-          status: res.status,
-          statusText: res.statusText,
-          headers: res.headers
-        });
-      }
-      
-      return res;
-    });
+  // Only process HTML pages
+  const isHtmlPage = url.pathname.endsWith('.html') || url.pathname.endsWith('/');
+  if (!isHtmlPage) {
+    return; // Let the request pass through unchanged
   }
+
+  // Fetch the original response
+  const response = await fetch(request);
   
-  return response;
+  // Check if it's an HTML response
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('text/html')) {
+    return response; // Return the original response if not HTML
+  }
+
+  // Get the HTML content
+  const originalHtml = await response.text();
+  
+  // Replace the placeholder with actual environment variable
+  // If PASSWORD is not set, replace with empty string
+  const password = process.env.PASSWORD || '';
+  const modifiedHtml = originalHtml.replace(
+    'window.__ENV__.PASSWORD = "{{PASSWORD}}";',
+    `window.__ENV__.PASSWORD = "${password}";`
+  );
+  
+  // Create a new response with the modified HTML
+  return new Response(modifiedHtml, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers
+  });
 }
 
 export const config = {
-  matcher: ['/', '/((?!api|_next/static|favicon.ico).*)'],
+  matcher: ['/', '/((?!api|_next/static|_vercel|favicon.ico).*)'],
 };
