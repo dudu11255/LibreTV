@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:80"
+      - "8899:80"
     environment:
       - PASSWORD=your_password_here  # 设置密码保护，留空则不启用密码
       # 可以添加其他环境变量
