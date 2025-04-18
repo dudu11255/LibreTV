@@ -599,3 +599,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+
+if (window.isPasswordProtected && window.isPasswordVerified) {
+    if (window.isPasswordProtected() && !window.isPasswordVerified()) {
+        return;
+    }
+}

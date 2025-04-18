@@ -38,6 +38,9 @@ function isPasswordVerified() {
     }
 }
 
+window.isPasswordProtected = isPasswordProtected;
+window.isPasswordVerified = isPasswordVerified;
+
 /**
  * 验证用户输入的密码是否正确
  */

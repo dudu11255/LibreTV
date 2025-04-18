@@ -11,6 +11,14 @@ let currentVideoTitle = '';
 // 全局变量用于倒序状态
 let episodesReversed = false;
 
+// 密码保护校验（防止弹窗被删绕过）
+if (window.isPasswordProtected && window.isPasswordVerified) {
+    if (window.isPasswordProtected() && !window.isPasswordVerified()) {
+        // 未通过验证，直接阻断后续逻辑
+        return;
+    }
+}
+
 // 页面初始化
 document.addEventListener('DOMContentLoaded', function() {
     // 初始化API复选框
