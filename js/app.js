@@ -11,14 +11,6 @@ let currentVideoTitle = '';
 // 全局变量用于倒序状态
 let episodesReversed = false;
 
-// 密码保护校验（防止弹窗被删绕过）
-if (window.isPasswordProtected && window.isPasswordVerified) {
-    if (window.isPasswordProtected() && !window.isPasswordVerified()) {
-        // 未通过验证，直接阻断后续逻辑
-        return;
-    }
-}
-
 // 页面初始化
 document.addEventListener('DOMContentLoaded', function() {
     // 初始化API复选框
@@ -574,6 +566,13 @@ function getCustomApiInfo(customApiIndex) {
 
 // 搜索功能 - 修改为支持多选API
 async function search() {
+    // 密码保护校验
+    if (window.isPasswordProtected && window.isPasswordVerified) {
+        if (window.isPasswordProtected() && !window.isPasswordVerified()) {
+            showPasswordModal && showPasswordModal();
+            return;
+        }
+    }
     const query = document.getElementById('searchInput').value.trim();
     
     if (!query) {
@@ -776,6 +775,13 @@ async function search() {
 
 // 显示详情 - 修改为支持自定义API
 async function showDetails(id, vod_name, sourceCode) {
+    // 密码保护校验
+    if (window.isPasswordProtected && window.isPasswordVerified) {
+        if (window.isPasswordProtected() && !window.isPasswordVerified()) {
+            showPasswordModal && showPasswordModal();
+            return;
+        }
+    }
     if (!id) {
         showToast('视频ID无效', 'error');
         return;
@@ -863,6 +869,13 @@ async function showDetails(id, vod_name, sourceCode) {
 
 // 更新播放视频函数，修改为在新标签页中打开播放页面，并保存到历史记录
 function playVideo(url, vod_name, episodeIndex = 0) {
+    // 密码保护校验
+    if (window.isPasswordProtected && window.isPasswordVerified) {
+        if (window.isPasswordProtected() && !window.isPasswordVerified()) {
+            showPasswordModal && showPasswordModal();
+            return;
+        }
+    }
     if (!url) {
         showToast('无效的视频链接', 'error');
         return;
