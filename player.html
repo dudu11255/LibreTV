@@ -634,6 +634,32 @@
                             hls.on(Hls.Events.LEVEL_LOADED, function() {
                                 document.getElementById('loading').style.display = 'none';
                             });
+
+                            // --- 体验加强版：黑屏快进跳广告 ---
+                            let tmp_time_add = 0.1;
+                            const tmp_max_buffer_length = hls.config.maxBufferLength;
+                            hls.on(Hls.Events.FRAG_PARSED, (event, data) => {
+                                if (data.frag.endList) {
+                                    const cur = hls.media.currentTime;
+                                    const dur = hls.media.duration || 0;
+                                    if (cur < dur) {
+                                        data.frag.endList = undefined;
+                                        // 根据 tmp_time_add 调整 buffer 长度
+                                        hls.config.maxBufferLength = tmp_time_add < 1
+                                            ? 2
+                                            : tmp_max_buffer_length;
+                                        // 重新加载并跳转
+                                        hls.loadSource(video.src);
+                                        hls.attachMedia(video);
+                                        hls.media.currentTime = cur + tmp_time_add;
+                                        // 切换下次跳转时长：0.1 ↔ 5
+                                        tmp_time_add = tmp_time_add < 1 ? 5 : 0.1;
+                                        player.video.play().catch(() => {});
+                                    } else {
+                                        player.video.pause();
+                                    }
+                                }
+                            });
                         }
                     }
                 }
