@@ -1,20 +1,3 @@
-// Password protection configuration
-const PASSWORD_CONFIG = {
-    localStorageKey: 'libretv_password_verification',
-    verificationTTL: 90 * 24 * 60 * 60 * 1000, // 90 days in milliseconds
-};
-
-// Store the hashed password
-let hashedStoredPassword = '';
-
-// Initialize the hashed password
-async function initializeHashedPassword() {
-    const password = window.__ENV__ && window.__ENV__.PASSWORD;
-    if (password && password.trim() !== '') {
-        hashedStoredPassword = await sha256(password);
-    }
-}
-
 // 密码保护功能
 
 /**
@@ -59,41 +42,29 @@ window.isPasswordProtected = isPasswordProtected;
 window.isPasswordVerified = isPasswordVerified;
 
 /**
- * 验证用户输入的密码是否正确
+ * 验证用户输入的密码是否正确（异步，使用SHA-256哈希）
  */
 async function verifyPassword(password) {
-    if (!hashedStoredPassword) {
-        return true; // 如果没有设置密码，认为验证成功
-    }
-    
-    // 对输入的密码进行哈希处理
-    const inputPasswordHash = await sha256(password);
-    const isValid = inputPasswordHash === hashedStoredPassword;
-    
+    const correctHash = window.__ENV__ && window.__ENV__.PASSWORD;
+    if (!correctHash) return false;
+    const inputHash = await sha256(password);
+    const isValid = inputHash === correctHash;
     if (isValid) {
-        // 保存验证状态到localStorage
         const verificationData = {
             verified: true,
             timestamp: Date.now()
         };
         localStorage.setItem(PASSWORD_CONFIG.localStorageKey, JSON.stringify(verificationData));
     }
-    
     return isValid;
 }
 
-/**
- * 将字符串转换为SHA-256哈希
- */
+// SHA-256实现，可用Web Crypto API
 async function sha256(message) {
-    // 编码为 UTF-8
-    const msgBuffer = new TextEncoder().encode(message);                    
-    // 哈希消息
+    const msgBuffer = new TextEncoder().encode(message);
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    // 转换为十六进制字符串
-    return Array.from(new Uint8Array(hashBuffer))
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 /**
@@ -145,19 +116,16 @@ function hidePasswordError() {
 }
 
 /**
- * 处理密码提交事件
+ * 处理密码提交事件（异步）
  */
 async function handlePasswordSubmit() {
     const passwordInput = document.getElementById('passwordInput');
     const password = passwordInput ? passwordInput.value.trim() : '';
-    
-    const isValid = await verifyPassword(password);
-    if (isValid) {
+    if (await verifyPassword(password)) {
         hidePasswordError();
         hidePasswordModal();
     } else {
         showPasswordError();
-        // 清空密码输入框
         if (passwordInput) {
             passwordInput.value = '';
             passwordInput.focus();
@@ -166,12 +134,9 @@ async function handlePasswordSubmit() {
 }
 
 /**
- * 初始化密码验证系统
+ * 初始化密码验证系统（需适配异步事件）
  */
-async function initPasswordProtection() {
-    // 首先初始化哈希密码
-    await initializeHashedPassword();
-    
+function initPasswordProtection() {
     if (!isPasswordProtected()) {
         return; // 如果未设置密码保护，则不进行任何操作
     }

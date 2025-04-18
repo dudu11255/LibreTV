@@ -1,3 +1,5 @@
+import { sha256 } from '../js/sha256.js'; // 需新建或引入SHA-256实现
+
 // Cloudflare Pages Middleware to inject environment variables
 export async function onRequest(context) {
   const { request, env, next } = context;
@@ -12,14 +14,15 @@ export async function onRequest(context) {
     // Get the original HTML content
     let html = await response.text();
     
-    // Get the password from environment variables
+    // Replace the placeholder with actual environment variable value
+    // If PASSWORD is not set, replace with empty string
     const password = env.PASSWORD || "";
-    
-    // Inject the password directly to be hashed client-side
-    html = html.replace(
-      'window.__ENV__.PASSWORD = "{{PASSWORD}}";', 
-      `window.__ENV__.PASSWORD = "${password}"; // This will be hashed client-side before comparison`
-    );
+    let passwordHash = "";
+    if (password) {
+      passwordHash = await sha256(password);
+    }
+    html = html.replace('window.__ENV__.PASSWORD = "{{PASSWORD}}";', 
+                        `window.__ENV__.PASSWORD = "${passwordHash}"; // SHA-256 hash`);
     
     // Create a new response with the modified HTML
     return new Response(html, {
@@ -31,16 +34,4 @@ export async function onRequest(context) {
   
   // Return the original response for non-HTML content
   return response;
-}
-
-// Simple SHA-256 hash function
-async function sha256(message) {
-  // Encode as UTF-8
-  const msgBuffer = new TextEncoder().encode(message);                    
-  // Hash the message
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  // Convert to hex string
-  return Array.from(new Uint8Array(hashBuffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
 }
