@@ -511,15 +511,38 @@ function addToViewingHistory(videoInfo) {
             // 更新URL，确保能够跳转到正确的集数
             existingItem.url = videoInfo.url;
             
+            // 重要：确保episodes数据与当前视频匹配
+            // 只有当videoInfo中包含有效的episodes数据时才更新
+            if (videoInfo.episodes && Array.isArray(videoInfo.episodes) && videoInfo.episodes.length > 0) {
+                // 如果传入的集数数据与当前保存的不同，则更新
+                if (!existingItem.episodes || 
+                    !Array.isArray(existingItem.episodes) || 
+                    existingItem.episodes.length !== videoInfo.episodes.length) {
+                    console.log(`更新 "${videoInfo.title}" 的剧集数据: ${videoInfo.episodes.length}集`);
+                    existingItem.episodes = [...videoInfo.episodes]; // 使用深拷贝
+                }
+            }
+            
             // 移到最前面
             history.splice(existingIndex, 1);
             history.unshift(existingItem);
         } else {
-            // 添加新记录到最前面
-            history.unshift({
+            // 添加新记录到最前面，确保包含剧集数据
+            const newItem = {
                 ...videoInfo,
                 timestamp: Date.now()
-            });
+            };
+            
+            // 确保episodes字段是一个数组
+            if (videoInfo.episodes && Array.isArray(videoInfo.episodes)) {
+                newItem.episodes = [...videoInfo.episodes]; // 使用深拷贝
+                console.log(`保存新视频 "${videoInfo.title}" 的剧集数据: ${videoInfo.episodes.length}集`);
+            } else {
+                // 如果没有提供episodes，初始化为空数组
+                newItem.episodes = [];
+            }
+            
+            history.unshift(newItem);
         }
         
         // 限制历史记录数量为50条

@@ -1078,6 +1078,11 @@
         
         // 在播放器初始化后添加视频到历史记录
         function saveToHistory() {
+            // 确保 currentEpisodes 非空
+            if (!currentEpisodes || currentEpisodes.length === 0) {
+                console.warn('没有可用的剧集列表，无法保存完整的历史记录');
+            }
+            
             // 尝试从URL中获取参数
             const urlParams = new URLSearchParams(window.location.search);
             const sourceName = urlParams.get('source') || '';
@@ -1102,13 +1107,14 @@
                 // 添加播放进度信息
                 playbackPosition: currentPosition > 10 ? currentPosition : 0,
                 duration: videoDuration,
-                // 新增：保存完整的集数列表
-                episodes: currentEpisodes
+                // 重要：保存完整的集数列表，确保进行深拷贝
+                episodes: currentEpisodes && currentEpisodes.length > 0 ? [...currentEpisodes] : []
             };
             
             // 如果外部定义了addToViewingHistory函数，则调用它
             if (typeof addToViewingHistory === 'function') {
                 addToViewingHistory(videoInfo);
+                console.log(`已保存 "${currentVideoTitle}" 的历史记录, 集数数据: ${currentEpisodes.length}集`);
             } else {
                 // 否则直接使用本地实现
                 try {
@@ -1125,9 +1131,15 @@
                         history[existingIndex].duration = videoDuration || history[existingIndex].duration;
                         // 同时更新URL以保存当前的集数状态
                         history[existingIndex].url = window.location.href;
-                        // 更新集数列表（如果有）
+                        // 更新集数列表（如果有且与当前不同）
                         if (currentEpisodes && currentEpisodes.length > 0) {
-                            history[existingIndex].episodes = currentEpisodes;
+                            // 检查是否需要更新集数数据（针对不同长度的集数列表）
+                            if (!history[existingIndex].episodes || 
+                                !Array.isArray(history[existingIndex].episodes) || 
+                                history[existingIndex].episodes.length !== currentEpisodes.length) {
+                                history[existingIndex].episodes = [...currentEpisodes]; // 深拷贝
+                                console.log(`更新 "${currentVideoTitle}" 的剧集数据: ${currentEpisodes.length}集`);
+                            }
                         }
                         
                         // 移到最前面
@@ -1136,6 +1148,7 @@
                     } else {
                         // 添加新记录到最前面，但保存完整URL以便能直接打开到正确的集数
                         videoInfo.url = window.location.href;
+                        console.log(`创建新的历史记录: "${currentVideoTitle}", ${currentEpisodes.length}集`);
                         history.unshift(videoInfo);
                     }
                     

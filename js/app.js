@@ -876,6 +876,7 @@ function playVideo(url, vod_name, episodeIndex = 0) {
     }
     
     // 保存当前状态到localStorage，让播放页面可以获取
+    const currentVideoTitle = vod_name;
     localStorage.setItem('currentVideoTitle', currentVideoTitle);
     localStorage.setItem('currentEpisodeIndex', episodeIndex);
     localStorage.setItem('currentEpisodes', JSON.stringify(currentEpisodes));
@@ -888,7 +889,9 @@ function playVideo(url, vod_name, episodeIndex = 0) {
         url: url,
         episodeIndex: episodeIndex,
         sourceName: sourceName,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        // 重要：将完整的剧集信息也添加到历史记录中
+        episodes: currentEpisodes && currentEpisodes.length > 0 ? [...currentEpisodes] : []
     };
     
     // 保存到观看历史，添加sourceName
