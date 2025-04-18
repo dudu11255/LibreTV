@@ -1,3 +1,20 @@
+// Password protection configuration
+const PASSWORD_CONFIG = {
+    localStorageKey: 'libretv_password_verification',
+    verificationTTL: 90 * 24 * 60 * 60 * 1000, // 90 days in milliseconds
+};
+
+// Store the hashed password
+let hashedStoredPassword = '';
+
+// Initialize the hashed password
+async function initializeHashedPassword() {
+    const password = window.__ENV__ && window.__ENV__.PASSWORD;
+    if (password && password.trim() !== '') {
+        hashedStoredPassword = await sha256(password);
+    }
+}
+
 // 密码保护功能
 
 /**
@@ -6,7 +23,7 @@
  */
 function isPasswordProtected() {
     // 检查页面上嵌入的环境变量
-    const passwordRequired = window.__ENV__ && window.__ENV__.PASSWORD_HASH && window.__ENV__.PASSWORD_HASH.trim() !== '';
+    const passwordRequired = window.__ENV__ && window.__ENV__.PASSWORD && window.__ENV__.PASSWORD.trim() !== '';
     return passwordRequired;
 }
 
@@ -45,16 +62,13 @@ window.isPasswordVerified = isPasswordVerified;
  * 验证用户输入的密码是否正确
  */
 async function verifyPassword(password) {
-    // 检查密码是否匹配环境变量中设置的哈希密码
-    const correctPasswordHash = window.__ENV__ && window.__ENV__.PASSWORD_HASH;
-    
-    if (!correctPasswordHash) {
+    if (!hashedStoredPassword) {
         return true; // 如果没有设置密码，认为验证成功
     }
     
     // 对输入的密码进行哈希处理
     const inputPasswordHash = await sha256(password);
-    const isValid = inputPasswordHash === correctPasswordHash;
+    const isValid = inputPasswordHash === hashedStoredPassword;
     
     if (isValid) {
         // 保存验证状态到localStorage
@@ -154,7 +168,10 @@ async function handlePasswordSubmit() {
 /**
  * 初始化密码验证系统
  */
-function initPasswordProtection() {
+async function initPasswordProtection() {
+    // 首先初始化哈希密码
+    await initializeHashedPassword();
+    
     if (!isPasswordProtected()) {
         return; // 如果未设置密码保护，则不进行任何操作
     }

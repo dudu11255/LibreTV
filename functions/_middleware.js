@@ -12,12 +12,14 @@ export async function onRequest(context) {
     // Get the original HTML content
     let html = await response.text();
     
-    // Hash the password before injecting it
+    // Get the password from environment variables
     const password = env.PASSWORD || "";
-    const hashedPassword = password ? await sha256(password) : "";
     
-    html = html.replace('window.__ENV__.PASSWORD = "{{PASSWORD}}";', 
-                        `window.__ENV__.PASSWORD_HASH = "${hashedPassword}";`);
+    // Inject the password directly to be hashed client-side
+    html = html.replace(
+      'window.__ENV__.PASSWORD = "{{PASSWORD}}";', 
+      `window.__ENV__.PASSWORD = "${password}"; // This will be hashed client-side before comparison`
+    );
     
     // Create a new response with the modified HTML
     return new Response(html, {

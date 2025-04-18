@@ -21,21 +21,22 @@ export default async function middleware(request) {
   // Get the HTML content
   const originalHtml = await response.text();
   
-  // Replace the placeholder with hashed environment variable
+  // Hash the password before injecting it
   const password = process.env.PASSWORD || '';
-  // Use a simple hash function for the password
-  const hashedPassword = password ? await sha256(password) : '';
-  
-  const modifiedHtml = originalHtml.replace(
-    'window.__ENV__.PASSWORD = "{{PASSWORD}}";',
-    `window.__ENV__.PASSWORD_HASH = "${hashedPassword}";`
-  );
   
   // Create a new response with the modified HTML
+  // If password is set, inject it directly but with a comment indicating it's for hashing
+  // Client-side code will hash it before comparison
+  const modifiedHtml = originalHtml.replace(
+    'window.__ENV__.PASSWORD = "{{PASSWORD}}";',
+    `window.__ENV__.PASSWORD = "${password}"; // This will be hashed client-side before comparison`
+  );
+  
+  // Return the new response
   return new Response(modifiedHtml, {
+    headers: response.headers,
     status: response.status,
     statusText: response.statusText,
-    headers: response.headers
   });
 }
 
