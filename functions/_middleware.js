@@ -12,11 +12,12 @@ export async function onRequest(context) {
     // Get the original HTML content
     let html = await response.text();
     
-    // Replace the placeholder with actual environment variable value
-    // If PASSWORD is not set, replace with empty string
+    // Hash the password before injecting it
     const password = env.PASSWORD || "";
+    const hashedPassword = password ? await sha256(password) : "";
+    
     html = html.replace('window.__ENV__.PASSWORD = "{{PASSWORD}}";', 
-                        `window.__ENV__.PASSWORD = "${password}";`);
+                        `window.__ENV__.PASSWORD_HASH = "${hashedPassword}";`);
     
     // Create a new response with the modified HTML
     return new Response(html, {
@@ -28,4 +29,16 @@ export async function onRequest(context) {
   
   // Return the original response for non-HTML content
   return response;
+}
+
+// Simple SHA-256 hash function
+async function sha256(message) {
+  // Encode as UTF-8
+  const msgBuffer = new TextEncoder().encode(message);                    
+  // Hash the message
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  // Convert to hex string
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
 }

@@ -6,7 +6,7 @@
  */
 function isPasswordProtected() {
     // 检查页面上嵌入的环境变量
-    const passwordRequired = window.__ENV__ && window.__ENV__.PASSWORD && window.__ENV__.PASSWORD.trim() !== '';
+    const passwordRequired = window.__ENV__ && window.__ENV__.PASSWORD_HASH && window.__ENV__.PASSWORD_HASH.trim() !== '';
     return passwordRequired;
 }
 
@@ -44,10 +44,17 @@ window.isPasswordVerified = isPasswordVerified;
 /**
  * 验证用户输入的密码是否正确
  */
-function verifyPassword(password) {
-    // 检查密码是否匹配环境变量中设置的密码
-    const correctPassword = window.__ENV__ && window.__ENV__.PASSWORD;
-    const isValid = password === correctPassword;
+async function verifyPassword(password) {
+    // 检查密码是否匹配环境变量中设置的哈希密码
+    const correctPasswordHash = window.__ENV__ && window.__ENV__.PASSWORD_HASH;
+    
+    if (!correctPasswordHash) {
+        return true; // 如果没有设置密码，认为验证成功
+    }
+    
+    // 对输入的密码进行哈希处理
+    const inputPasswordHash = await sha256(password);
+    const isValid = inputPasswordHash === correctPasswordHash;
     
     if (isValid) {
         // 保存验证状态到localStorage
@@ -59,6 +66,20 @@ function verifyPassword(password) {
     }
     
     return isValid;
+}
+
+/**
+ * 将字符串转换为SHA-256哈希
+ */
+async function sha256(message) {
+    // 编码为 UTF-8
+    const msgBuffer = new TextEncoder().encode(message);                    
+    // 哈希消息
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    // 转换为十六进制字符串
+    return Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
 }
 
 /**
@@ -112,11 +133,12 @@ function hidePasswordError() {
 /**
  * 处理密码提交事件
  */
-function handlePasswordSubmit() {
+async function handlePasswordSubmit() {
     const passwordInput = document.getElementById('passwordInput');
     const password = passwordInput ? passwordInput.value.trim() : '';
     
-    if (verifyPassword(password)) {
+    const isValid = await verifyPassword(password);
+    if (isValid) {
         hidePasswordError();
         hidePasswordModal();
     } else {
