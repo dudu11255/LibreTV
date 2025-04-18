@@ -139,6 +139,20 @@
         .shortcut-hint.show {
             opacity: 1;
         }
+
+        /* 原生全屏时，播放器容器铺满 */
+        .player-container:-webkit-full-screen,
+        .player-container:fullscreen {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 10000;
+            background-color: #000;
+        }
+        .player-container:-webkit-full-screen #player,
+        .player-container:fullscreen #player {
+            width: 100%; height: 100%;
+        }
     </style>
 </head>
 <body>
@@ -759,6 +773,21 @@
                     `;
                 }
             }, 10000);
+
+            // 绑定原生全屏：DPlayer 触发全屏时调用 requestFullscreen
+            (function(){
+                const fsContainer = document.getElementById('playerContainer');
+                dp.on('fullscreen', () => {
+                    if (fsContainer.requestFullscreen) {
+                        fsContainer.requestFullscreen().catch(err => console.warn('原生全屏失败:', err));
+                    }
+                });
+                dp.on('fullscreen_cancel', () => {
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen();
+                    }
+                });
+            })();
         }
 
         // 自定义M3U8 Loader用于过滤广告
