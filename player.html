@@ -139,6 +139,20 @@
         .shortcut-hint.show {
             opacity: 1;
         }
+
+        /* 原生全屏时，播放器容器铺满 */
+        .player-container:-webkit-full-screen,
+        .player-container:fullscreen {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 10000;
+            background-color: #000;
+        }
+        .player-container:-webkit-full-screen #player,
+        .player-container:fullscreen #player {
+            width: 100%; height: 100%;
+        }
     </style>
 </head>
 <body>
@@ -159,7 +173,7 @@
 
     <main class="container mx-auto px-4 py-4">
         <!-- 视频播放区 -->
-        <div class="player-container">
+        <div id="playerContainer" class="player-container">
             <div class="relative">
                 <div id="player"></div>
                 <div class="loading-container" id="loading">
@@ -206,6 +220,14 @@
                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd" />
                     </svg>
                     <span id="orderText">倒序排列</span>
+                </button>
+                <button id="lockToggle" onclick="toggleControlsLock()" title="锁定控制" 
+                        class="px-2 py-1 bg-[#333] hover:bg-[#444] text-white rounded-full transition">
+                    <svg id="lockIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <!-- 默认状态：未锁图标 -->
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M15 11V7a3 3 0 00-6 0v4m-3 4h12v6H6v-6z" />
+                    </svg>
                 </button>
             </div>
         </div>
@@ -612,6 +634,32 @@
                             hls.on(Hls.Events.LEVEL_LOADED, function() {
                                 document.getElementById('loading').style.display = 'none';
                             });
+
+                            // --- 体验加强版：黑屏快进跳广告 ---
+                            let tmp_time_add = 0.1;
+                            const tmp_max_buffer_length = hls.config.maxBufferLength;
+                            hls.on(Hls.Events.FRAG_PARSED, (event, data) => {
+                                if (data.frag.endList) {
+                                    const cur = hls.media.currentTime;
+                                    const dur = hls.media.duration || 0;
+                                    if (cur < dur) {
+                                        data.frag.endList = undefined;
+                                        // 根据 tmp_time_add 调整 buffer 长度
+                                        hls.config.maxBufferLength = tmp_time_add < 1
+                                            ? 2
+                                            : tmp_max_buffer_length;
+                                        // 重新加载并跳转
+                                        hls.loadSource(video.src);
+                                        hls.attachMedia(video);
+                                        hls.media.currentTime = cur + tmp_time_add;
+                                        // 切换下次跳转时长：0.1 ↔ 5
+                                        tmp_time_add = tmp_time_add < 1 ? 5 : 0.1;
+                                        player.video.play().catch(() => {});
+                                    } else {
+                                        player.video.pause();
+                                    }
+                                }
+                            });
                         }
                     }
                 }
@@ -751,6 +799,21 @@
                     `;
                 }
             }, 10000);
+
+            // 绑定原生全屏：DPlayer 触发全屏时调用 requestFullscreen
+            (function(){
+                const fsContainer = document.getElementById('playerContainer');
+                dp.on('fullscreen', () => {
+                    if (fsContainer.requestFullscreen) {
+                        fsContainer.requestFullscreen().catch(err => console.warn('原生全屏失败:', err));
+                    }
+                });
+                dp.on('fullscreen_cancel', () => {
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen();
+                    }
+                });
+            })();
         }
 
         // 自定义M3U8 Loader用于过滤广告
@@ -1322,6 +1385,18 @@
                     }, 300);
                 }, 3000);
             }, 10);
+        }
+
+        let controlsLocked = false;
+        function toggleControlsLock() {
+            const container = document.getElementById('playerContainer');
+            controlsLocked = !controlsLocked;
+            container.classList.toggle('controls-locked', controlsLocked);
+            const icon = document.getElementById('lockIcon');
+            // 切换图标：锁 / 解锁
+            icon.innerHTML = controlsLocked
+                ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d=\"M12 15v2m0-8V7a4 4 0 00-8 0v2m8 0H4v8h16v-8h-4z\"/>'
+                : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d=\"M15 11V7a3 3 0 00-6 0v4m-3 4h12v6H6v-6z\"/>';
         }
     </script>
 </body>
