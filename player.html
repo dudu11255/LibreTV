@@ -1074,7 +1074,9 @@
                 timestamp: Date.now(),
                 // 添加播放进度信息
                 playbackPosition: currentPosition > 10 ? currentPosition : 0,
-                duration: videoDuration
+                duration: videoDuration,
+                // 新增：保存完整的集数列表
+                episodes: currentEpisodes
             };
             
             // 如果外部定义了addToViewingHistory函数，则调用它
@@ -1096,6 +1098,10 @@
                         history[existingIndex].duration = videoDuration || history[existingIndex].duration;
                         // 同时更新URL以保存当前的集数状态
                         history[existingIndex].url = window.location.href;
+                        // 更新集数列表（如果有）
+                        if (currentEpisodes && currentEpisodes.length > 0) {
+                            history[existingIndex].episodes = currentEpisodes;
+                        }
                         
                         // 移到最前面
                         const updatedItem = history.splice(existingIndex, 1)[0];
