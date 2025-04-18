@@ -6,8 +6,9 @@
  */
 function isPasswordProtected() {
     // 检查页面上嵌入的环境变量
-    const passwordRequired = window.__ENV__ && window.__ENV__.PASSWORD && window.__ENV__.PASSWORD.trim() !== '';
-    return passwordRequired;
+    const pwd = window.__ENV__ && window.__ENV__.PASSWORD;
+    // 只有当密码 hash 存在且为64位（SHA-256十六进制长度）才认为启用密码保护
+    return typeof pwd === 'string' && pwd.length === 64 && !/^0+$/.test(pwd);
 }
 
 /**
