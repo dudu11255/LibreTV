@@ -255,6 +255,7 @@
             const videoUrl = urlParams.get('url');
             const title = urlParams.get('title');
             const index = parseInt(urlParams.get('index') || '0');
+            const episodesList = urlParams.get('episodes'); // 新增：从URL获取集数信息
 
             // 从localStorage获取数据
             currentVideoTitle = title || localStorage.getItem('currentVideoTitle') || '未知视频';
@@ -273,8 +274,17 @@
                 localStorage.setItem('autoplayEnabled', autoplayEnabled);
             });
             
+            // 优先使用URL传递的集数信息，否则从localStorage获取
             try {
-                currentEpisodes = JSON.parse(localStorage.getItem('currentEpisodes') || '[]');
+                if (episodesList) {
+                    // 如果URL中有集数数据，优先使用它
+                    currentEpisodes = JSON.parse(decodeURIComponent(episodesList));
+                    console.log('从URL恢复集数信息:', currentEpisodes.length);
+                } else {
+                    // 否则从localStorage获取
+                    currentEpisodes = JSON.parse(localStorage.getItem('currentEpisodes') || '[]');
+                    console.log('从localStorage恢复集数信息:', currentEpisodes.length);
+                }
                 episodesReversed = localStorage.getItem('episodesReversed') === 'true';
             } catch (e) {
                 console.error('获取集数信息失败:', e);

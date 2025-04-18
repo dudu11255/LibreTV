@@ -414,28 +414,73 @@ function deleteHistoryItem(encodedUrl) {
 
 // 从历史记录播放
 function playFromHistory(url, title, episodeIndex, playbackPosition = 0) {
-    // 构造带播放进度参数的URL
-    const positionParam = playbackPosition > 10 ? `&position=${Math.floor(playbackPosition)}` : '';
-    
-    if (url.includes('?')) {
-        // URL已有参数，确保包含必要参数
-        let playUrl = url;
+    try {
+        // 尝试从localStorage获取当前视频的集数信息
+        let episodesList = [];
         
-        // 添加集数参数（如果没有）
-        if (!url.includes('index=') && episodeIndex > 0) {
-            playUrl += `&index=${episodeIndex}`;
+        // 检查viewingHistory，查找匹配的项以获取其集数数据
+        const historyRaw = localStorage.getItem('viewingHistory');
+        if (historyRaw) {
+            const history = JSON.parse(historyRaw);
+            // 根据标题查找匹配的历史记录
+            const historyItem = history.find(item => item.title === title);
+            
+            // 如果找到了匹配的历史记录，尝试获取该条目的集数数据
+            if (historyItem && historyItem.episodes && Array.isArray(historyItem.episodes)) {
+                episodesList = historyItem.episodes;
+                console.log(`从历史记录找到视频 ${title} 的集数数据:`, episodesList.length);
+            }
         }
         
-        // 添加播放位置参数
-        if (playbackPosition > 10) {
-            playUrl += positionParam;
+        // 如果在历史记录中没找到，尝试使用上一个会话的集数数据
+        if (episodesList.length === 0) {
+            try {
+                const storedEpisodes = JSON.parse(localStorage.getItem('currentEpisodes') || '[]');
+                if (storedEpisodes.length > 0) {
+                    episodesList = storedEpisodes;
+                    console.log(`使用localStorage中的集数数据:`, episodesList.length);
+                }
+            } catch (e) {
+                console.error('解析currentEpisodes失败:', e);
+            }
         }
         
-        window.open(playUrl, '_blank');
-    } else {
-        // 原始URL，添加完整参数
-        const playerUrl = `player.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&index=${episodeIndex}${positionParam}`;
-        window.open(playerUrl, '_blank');
+        // 构造带播放进度参数的URL
+        const positionParam = playbackPosition > 10 ? `&position=${Math.floor(playbackPosition)}` : '';
+        // 构造集数参数（如果有）
+        const episodesParam = episodesList.length > 0 ? 
+            `&episodes=${encodeURIComponent(JSON.stringify(episodesList))}` : '';
+        
+        if (url.includes('?')) {
+            // URL已有参数，确保包含必要参数
+            let playUrl = url;
+            
+            // 添加集数参数（如果没有）
+            if (!url.includes('index=') && episodeIndex > 0) {
+                playUrl += `&index=${episodeIndex}`;
+            }
+            
+            // 添加播放位置参数
+            if (playbackPosition > 10) {
+                playUrl += positionParam;
+            }
+            
+            // 添加集数列表参数
+            if (episodesList.length > 0 && !url.includes('episodes=')) {
+                playUrl += episodesParam;
+            }
+            
+            window.open(playUrl, '_blank');
+        } else {
+            // 原始URL，添加完整参数
+            const playerUrl = `player.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&index=${episodeIndex}${positionParam}${episodesParam}`;
+            window.open(playerUrl, '_blank');
+        }
+    } catch (e) {
+        console.error('从历史记录播放失败:', e);
+        // 回退到原始简单URL
+        const simpleUrl = `player.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&index=${episodeIndex}`;
+        window.open(simpleUrl, '_blank');
     }
 }
 
