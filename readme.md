@@ -75,12 +75,12 @@ docker run -d \
 version: '3'
 services:
   libretv:
-    image: librespark/libretv:latest
+    image: bestzwei/libretv:latest
     container_name: libretv
     ports:
       - "8899:80"
     environment:
-      - PASSWORD=your_password_here
+      - PASSWORD=111111
     restart: unless-stopped
 ```
 
