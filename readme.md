@@ -62,7 +62,7 @@ docker run -d \
   --name libretv \
   -p 8899:80 \
   -e PASSWORD=your_password_here \
-  librespark/libretv:latest
+  bestzwei/libretv:latest
 ```
 
 访问 `http://localhost:8899` 即可使用。
