@@ -1,4 +1,4 @@
-FROM openresty/openresty:alpine
+FROM openresty/openresty:alpine-fat
 LABEL maintainer="LibreTV Team"
 LABEL description="LibreTV - 免费在线视频搜索与观看平台"
 
