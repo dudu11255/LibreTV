@@ -1,7 +1,7 @@
 version: '3'
 services:
   libretv:
-    image: librespark/libretv:latest
+    image: bestzwei/libretv:latest
     container_name: libretv
     ports:
       - "8899:80"

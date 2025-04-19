@@ -6,26 +6,6 @@
   <p><strong>自由观影，畅享精彩</strong></p>
 </div>
 
-## 📑 目录
-
-- [项目简介](#-项目简介)
-- [主要特性](#-主要特性)
-- [快速部署](#-快速部署)
-- [详细部署指南](#-详细部署)
-  - [Cloudflare Pages](#cloudflare-pages)
-  - [Vercel](#vercel)
-  - [Netlify](#netlify)
-  - [Docker](#docker)
-  - [Docker Compose](#docker-compose)
-  - [本地开发环境](#本地开发环境)
-- [自定义配置](#-自定义配置)
-  - [密码保护](#密码保护)
-  - [API兼容性](#api兼容性)
-- [键盘快捷键](#-键盘快捷键)
-- [技术栈](#-技术栈)
-- [更新日志](#-更新日志)
-- [免责声明](#-免责声明)
-
 ## 📺 项目简介
 
 LibreTV 是一个轻量级、免费的在线视频搜索与观看平台，提供来自多个视频源的内容搜索与播放服务。无需注册，即开即用，支持多种设备访问。项目结合了前端技术和后端代理功能，可部署在支持服务端功能的各类网站托管服务上。
@@ -36,6 +16,7 @@ LibreTV 是一个轻量级、免费的在线视频搜索与观看平台，提供
   <summary>点击查看项目截图</summary>
   <img src="https://testingcf.jsdelivr.net/gh/bestZwei/imgs@master/picgo/image-20250406231222216.png" alt="项目截图" style="max-width:600px">
 </details>
+
 ## 🚀 快速部署
 
 选择以下任一平台，点击一键部署按钮，即可快速创建自己的 LibreTV 实例：
@@ -94,12 +75,12 @@ docker run -d \
 version: '3'
 services:
   libretv:
-    image: librespark/libretv:latest
+    image: bestzwei/libretv:latest
     container_name: libretv
     ports:
       - "8899:80"
     environment:
-      - PASSWORD=your_password_here
+      - PASSWORD=111111
     restart: unless-stopped
 ```
 
@@ -166,6 +147,9 @@ LibreTV 支持标准的苹果 CMS V10 API 格式。添加自定义 API 时需遵
 
 ## 🔄 更新日志
 
+- **1.1.1** (2025-04-19): 
+  - 修复 docker 部署时无法搜索的问题
+  - 修复播放页面进度保存与恢复的兼容性问题  
 - **1.1.0** (2025-04-17): 添加服务端代理功能，支持 HLS 流处理和解析，支持环境变量设置访问密码
 - **1.0.3** (2025-04-13): 性能优化、UI优化、更新设置功能
 - **1.0.2** (2025-04-08): 分离播放页面，优化视频源 API 兼容性
