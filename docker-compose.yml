@@ -2,17 +2,15 @@ version: '3'
 
 services:
   libretv:
-    image: bestzwei/libretv:latest
-    container_name: libretv
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8899:80"
     environment:
-      - PASSWORD=111111  # 设置密码保护，留空则不启用密码
-      # - PROXY_API=true  # 启用内部API代理，解决跨域问题
+      - PASSWORD=your_password_here  # 设置密码保护，留空则不启用密码
+      # 可以添加其他环境变量
     restart: unless-stopped
+    # 如果您想使用外部卷存储数据
     # volumes:
     #   - ./data:/usr/share/nginx/html/data
-    # 如果希望使用构建模式而非拉取镜像
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
