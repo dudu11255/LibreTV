@@ -68,9 +68,9 @@ async function sha256(message) {
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
-    // HTTP 环境下使用 js-sha256 库兜底
-    if (typeof sha256 === 'function') {
-        return window.sha256(message);
+    // HTTP 下调用原始 js‑sha256
+    if (typeof window._jsSha256 === 'function') {
+        return window._jsSha256(message);
     }
     throw new Error('No SHA-256 implementation available.');
 }
