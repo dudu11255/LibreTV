@@ -13,7 +13,7 @@ function isPasswordProtected() {
 
 /**
  * 检查用户是否已通过密码验证
- * 检查localStorage中的验证状态和时间戳是否有效
+ * 检查localStorage中的验证状态和时间戳是否有效，并确认密码哈希未更改
  */
 function isPasswordVerified() {
     try {
@@ -23,10 +23,13 @@ function isPasswordVerified() {
         }
 
         const verificationData = JSON.parse(localStorage.getItem(PASSWORD_CONFIG.localStorageKey) || '{}');
-        const { verified, timestamp } = verificationData;
+        const { verified, timestamp, passwordHash } = verificationData;
         
-        // 验证是否已验证且未过期
-        if (verified && timestamp) {
+        // 获取当前环境中的密码哈希
+        const currentHash = window.__ENV__ && window.__ENV__.PASSWORD;
+        
+        // 验证是否已验证、未过期，且密码哈希未更改
+        if (verified && timestamp && passwordHash === currentHash) {
             const now = Date.now();
             const expiry = timestamp + PASSWORD_CONFIG.verificationTTL;
             return now < expiry;
@@ -53,7 +56,8 @@ async function verifyPassword(password) {
     if (isValid) {
         const verificationData = {
             verified: true,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            passwordHash: correctHash // 保存当前密码的哈希值
         };
         localStorage.setItem(PASSWORD_CONFIG.localStorageKey, JSON.stringify(verificationData));
     }
