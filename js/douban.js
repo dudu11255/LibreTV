@@ -77,6 +77,28 @@ function updateDoubanVisibility() {
     }
 }
 
+// 只填充搜索框，不执行搜索，让用户自主决定搜索时机
+function fillSearchInput(title) {
+    if (!title) return;
+    
+    // 安全处理标题，防止XSS
+    const safeTitle = title
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    
+    const input = document.getElementById('searchInput');
+    if (input) {
+        input.value = safeTitle;
+        
+        // 聚焦搜索框，便于用户立即使用键盘操作
+        input.focus();
+        
+        // 显示一个提示，告知用户点击搜索按钮进行搜索
+        showToast('已填充搜索内容，点击搜索按钮开始搜索', 'info');
+    }
+}
+
 // 填充搜索框并执行搜索
 function fillAndSearch(title) {
     if (!title) return;
@@ -184,14 +206,16 @@ function renderRecommend(tag, pageLimit, pageStart) {
                         .replace(/</g, '&lt;')
                         .replace(/>/g, '&gt;');
                     
-                    // 使用封面代理，确保图片能够正常加载
-                    const coverUrl = PROXY_URL + encodeURIComponent(item.cover);
+                    // 修复图片加载问题：使用备用图片URL方案
+                    // 1. 尝试使用原始图片地址但不通过代理
+                    // 2. 如果加载失败，使用备用图片
+                    const originalCoverUrl = item.cover;
                     
                     card.innerHTML = `
-                        <div class="relative w-full aspect-[2/3] overflow-hidden cursor-pointer" onclick="fillAndSearch('${safeTitle}')">
-                            <img src="${coverUrl}" alt="${safeTitle}" 
+                        <div class="relative w-full aspect-[2/3] overflow-hidden cursor-pointer" onclick="fillSearchInput('${safeTitle}')">
+                            <img src="${originalCoverUrl}" alt="${safeTitle}" 
                                 class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                                onerror="this.onerror=null; this.src='https://via.placeholder.com/300x450?text=无封面'; this.classList.add('object-contain');"
+                                onerror="this.onerror=null; this.src='https://via.placeholder.com/300x450/111111/FFFFFF?text=${encodeURIComponent(safeTitle)}'; this.classList.add('object-contain');"
                                 loading="lazy">
                             <div class="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-60"></div>
                             <div class="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-sm">
@@ -199,7 +223,7 @@ function renderRecommend(tag, pageLimit, pageStart) {
                             </div>
                         </div>
                         <div class="p-2 text-center bg-[#111]">
-                            <button onclick="fillAndSearch('${safeTitle}')" 
+                            <button onclick="fillSearchInput('${safeTitle}')" 
                                     class="text-sm font-medium text-white truncate w-full hover:text-pink-400 transition">
                                 ${safeTitle}
                             </button>
