@@ -216,7 +216,7 @@ function renderRecommend(tag, pageLimit, pageStart) {
                         <div class="relative w-full aspect-[2/3] overflow-hidden cursor-pointer" onclick="fillSearchInput('${safeTitle}')">
                             <img src="${proxiedCoverUrl}" alt="${safeTitle}" 
                                 class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                                onerror="this.onerror=null; this.src='https://via.placeholder.com/300x450/111111/FFFFFF?text=${encodeURIComponent(safeTitle)}'; this.classList.add('object-contain');"
+                                onerror="this.onerror=null; this.src='https://cors-proxy.htmldriven.com/?url=${encodeURIComponent(safeTitle)}'; this.classList.add('object-contain');"
                                 loading="lazy">
                             <div class="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-60"></div>
                             <div class="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-sm">
