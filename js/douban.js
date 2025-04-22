@@ -168,8 +168,8 @@ function renderRecommend(tag, pageLimit, pageStart) {
     
     // 显示加载状态
     container.innerHTML = `
-        <div class="col-span-full flex justify-center items-center p-10">
-            <div class="w-6 h-6 border-2 border-pink-500 border-t-transparent rounded-full animate-spin mr-2"></div>
+        <div class="col-span-full text-center py-10">
+            <div class="w-6 h-6 border-2 border-pink-500 border-t-transparent rounded-full animate-spin mr-2 inline-block"></div>
             <span class="text-pink-500">加载中...</span>
         </div>
     `;
@@ -205,7 +205,7 @@ function renderRecommend(tag, pageLimit, pageStart) {
         .catch(err => {
             console.error("豆瓣 API 请求失败（直接代理）：", err);
             
-            // 失败后尝试备用方法：使用通用JSON API作为备选
+            // 失败后尝试备用方法：作为备选
             const fallbackUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(target)}`;
             
             fetch(fallbackUrl)
@@ -266,9 +266,11 @@ function renderDoubanCards(data, container) {
             // 处理图片URL
             // 1. 直接使用豆瓣图片URL (添加no-referrer属性)
             const originalCoverUrl = item.cover;
+            
             // 2. 也准备代理URL作为备选
             const proxiedCoverUrl = PROXY_URL + encodeURIComponent(originalCoverUrl);
             
+            // 为不同设备优化卡片布局
             card.innerHTML = `
                 <div class="relative w-full aspect-[2/3] overflow-hidden cursor-pointer" onclick="fillSearchInput('${safeTitle}')">
                     <img src="${originalCoverUrl}" alt="${safeTitle}" 
@@ -282,7 +284,8 @@ function renderDoubanCards(data, container) {
                 </div>
                 <div class="p-2 text-center bg-[#111]">
                     <button onclick="fillSearchInput('${safeTitle}')" 
-                            class="text-sm font-medium text-white truncate w-full hover:text-pink-400 transition">
+                            class="text-sm font-medium text-white truncate w-full hover:text-pink-400 transition"
+                            title="${safeTitle}">
                         ${safeTitle}
                     </button>
                 </div>

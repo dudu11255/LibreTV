@@ -150,7 +150,7 @@
                 </div>
                 
                 <!-- 广告过滤开关 -->
-                <div class="flex items-center justify-between mb-3 pb-3 border-b border-[#222] relative">
+                <div class="flex items-center justify-between">
                     <div>
                         <label class="text-sm font-medium text-gray-400">分片广告过滤</label>
                         <p class="text-xs text-gray-500 mt-1">关闭可减少旧版浏览器卡顿</p>
@@ -161,6 +161,11 @@
                         <div class="toggle-dot absolute w-5 h-5 bg-white rounded-full top-0.5 left-0.5 transition-transform duration-300 ease-in-out"></div>
                     </div>
                 </div>
+            </div>
+            
+            <!-- 豆瓣设置区域 (移出内容过滤区) -->
+            <div class="mt-3 p-3 bg-[#151515] rounded-lg shadow-inner">
+                <label class="block text-sm font-medium text-gray-400 mb-3 border-b border-[#333] pb-1">内容推荐</label>
                 
                 <!-- 豆瓣热门开关 -->
                 <div class="flex items-center justify-between">
@@ -218,26 +223,27 @@
                 </div>
             </div>
             
-            <!-- 豆瓣热门推荐区域: 默认隐藏，现在位于搜索区域下方 -->
+            <!-- 豆瓣热门推荐区域: 默认隐藏，现在位于搜索区域下方，调整宽度 -->
             <div id="doubanArea" class="w-full my-8 hidden">
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center">
                         <h2 class="text-xl font-bold text-white">豆瓣热门</h2>
                         <div id="douban-tags" class="ml-4 flex flex-wrap"></div>
                     </div>
-                    <button id="douban-refresh-btn" class="px-3 py-1 bg-[#222] hover:bg-[#333] border border-[#444] text-sm rounded-full flex items-center transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <button id="douban-refresh" class="text-sm px-3 py-1 bg-pink-600 hover:bg-pink-700 text-white rounded-lg flex items-center gap-1">
+                        <span>换一批</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
-                        换一批
                     </button>
                 </div>
-                
-                <div id="douban-results" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2"></div>
+                <div class="mx-auto max-w-screen-xl px-2">
+                    <div id="douban-results" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3"></div>
+                </div>
             </div>
             
             <!-- 搜索结果：初始隐藏 -->
-            <div id="resultsArea" class="w-full hidden">
+            <div id="resultsArea" class="w-full hidden"></div>
                 <div id="results" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 </div>
             </div>
