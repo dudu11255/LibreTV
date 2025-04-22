@@ -663,6 +663,12 @@ async function search() {
             }
         });
         
+        // 更新搜索结果计数
+        const searchResultsCount = document.getElementById('searchResultsCount');
+        if (searchResultsCount) {
+            searchResultsCount.textContent = allResults.length;
+        }
+        
         // 显示结果区域，调整搜索区域
         document.getElementById('searchArea').classList.remove('flex-1');
         document.getElementById('searchArea').classList.add('mb-8');
@@ -704,7 +710,6 @@ async function search() {
 
         // 添加XSS保护，使用textContent和属性转义
         resultsDiv.innerHTML = allResults.map(item => {
-            // ...existing code for rendering results...
             const safeId = item.vod_id ? item.vod_id.toString().replace(/[^\w-]/g, '') : '';
             const safeName = (item.vod_name || '').toString()
                 .replace(/</g, '&lt;')
@@ -823,7 +828,6 @@ async function showDetails(id, vod_name, sourceCode) {
         
         const data = await response.json();
         
-        // ...existing code for showing details...
         const modal = document.getElementById('modal');
         const modalTitle = document.getElementById('modalTitle');
         const modalContent = document.getElementById('modalContent');

@@ -149,7 +149,8 @@ function renderDoubanTags() {
 
 // 设置换一批按钮事件
 function setupDoubanRefreshBtn() {
-    const btn = document.getElementById('douban-refresh-btn');
+    // 修复ID，使用正确的ID douban-refresh 而不是 douban-refresh-btn
+    const btn = document.getElementById('douban-refresh');
     if (!btn) return;
     
     btn.onclick = function() {
