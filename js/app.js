@@ -743,7 +743,7 @@ async function search() {
                             <div class="flex-grow">
                                 <h3 class="text-sm font-semibold mb-1 break-words line-clamp-2">${safeName}</h3>
                                 
-                                <div class="flex flex-wrap gap-1 mb-1">
+                                <div class="flex flex-wrap justify-center gap-1 mb-1">
                                     ${(item.type_name || '').toString().replace(/</g, '&lt;') ? 
                                       `<span class="text-xs py-0 px-1 rounded bg-opacity-20 bg-blue-500 text-blue-300">
                                           ${(item.type_name || '').toString().replace(/</g, '&lt;')}
@@ -753,7 +753,7 @@ async function search() {
                                           ${item.vod_year}
                                       </span>` : ''}
                                 </div>
-                                <p class="text-gray-400 text-xs line-clamp-1 overflow-hidden">
+                                <p class="text-gray-400 text-xs line-clamp-1 overflow-hidden text-center">
                                     ${(item.vod_remarks || '暂无介绍').toString().replace(/</g, '&lt;')}
                                 </p>
                             </div>
