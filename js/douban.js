@@ -116,6 +116,45 @@ function fillAndSearch(title) {
     }
 }
 
+// 填充搜索框，确保豆瓣资源API被选中，然后执行搜索
+function fillAndSearchWithDouban(title) {
+    if (!title) return;
+    
+    // 安全处理标题，防止XSS
+    const safeTitle = title
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    
+    // 确保豆瓣资源API被选中
+    if (typeof selectedAPIs !== 'undefined' && !selectedAPIs.includes('dbzy')) {
+        // 添加豆瓣资源API到选中列表
+        selectedAPIs.push('dbzy');
+        localStorage.setItem('selectedAPIs', JSON.stringify(selectedAPIs));
+        
+        // 更新UI上的复选框
+        const doubanCheckbox = document.querySelector('input[data-api-key="dbzy"]');
+        if (doubanCheckbox) {
+            doubanCheckbox.checked = true;
+        }
+        
+        // 更新选中API计数（如果有这个元素）
+        const countEl = document.getElementById('selectedAPICount');
+        if (countEl) {
+            countEl.textContent = selectedAPIs.length;
+        }
+        
+        showToast('已自动选择豆瓣资源API', 'info');
+    }
+    
+    // 填充搜索框并执行搜索
+    const input = document.getElementById('searchInput');
+    if (input) {
+        input.value = safeTitle;
+        search(); // 使用已有的search函数执行搜索
+    }
+}
+
 // 渲染豆瓣标签选择器
 function renderDoubanTags() {
     const tagContainer = document.getElementById('douban-tags');
@@ -274,7 +313,7 @@ function renderDoubanCards(data, container) {
             
             // 为不同设备优化卡片布局
             card.innerHTML = `
-                <div class="relative w-full aspect-[2/3] overflow-hidden cursor-pointer" onclick="fillSearchInput('${safeTitle}')">
+                <div class="relative w-full aspect-[2/3] overflow-hidden cursor-pointer" onclick="fillAndSearchWithDouban('${safeTitle}')">
                     <img src="${originalCoverUrl}" alt="${safeTitle}" 
                         class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
                         onerror="this.onerror=null; this.src='${proxiedCoverUrl}'; this.classList.add('object-contain');"
@@ -290,7 +329,7 @@ function renderDoubanCards(data, container) {
                     </div>
                 </div>
                 <div class="p-2 text-center bg-[#111]">
-                    <button onclick="fillSearchInput('${safeTitle}')" 
+                    <button onclick="fillAndSearchWithDouban('${safeTitle}')" 
                             class="text-sm font-medium text-white truncate w-full hover:text-pink-400 transition"
                             title="${safeTitle}">
                         ${safeTitle}
