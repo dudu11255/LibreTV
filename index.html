@@ -252,13 +252,15 @@
             
             <!-- 搜索结果：初始隐藏 -->
             <div id="resultsArea" class="w-full hidden">
-                <!-- 修改这里：移除旧的返回首页按钮 -->
-                <div class="flex justify-end items-center mb-4">
-                    <div class="text-sm text-gray-400">
-                        <span id="searchResultsCount">0</span> 个结果
+                <div class="mx-auto max-w-7xl px-2"> <!-- 添加最大宽度限制并居中 -->
+                    <div class="flex justify-end items-center mb-4">
+                        <div class="text-sm text-gray-400">
+                            <span id="searchResultsCount">0</span> 个结果
+                        </div>
                     </div>
-                </div>
-                <div id="results" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    <div id="results" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                        <!-- 结果将在这里动态生成 -->
+                    </div>
                 </div>
             </div>
         </div>
