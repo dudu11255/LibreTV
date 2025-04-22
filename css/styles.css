@@ -47,18 +47,44 @@ button, .card-hover {
 
 /* 确保卡片内容区域高度一致性 */
 .card-hover .flex-grow {
-    min-height: 90px;
+    height: 90px; /* 固定高度替代最小高度 */
     display: flex;
     flex-direction: column;
+    justify-content: space-between; /* 均匀分布内容 */
 }
 
 /* 针对不同长度的标题优化显示 */
 .card-hover h3 {
-    min-height: 3rem;
+    height: 3rem; /* 固定高度替代最小高度 */
     display: -webkit-box;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 2; /* 限制两行 */
+    word-break: break-word; /* 支持长单词换行 */
+    text-align: center;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+/* 添加悬停提示效果 */
+.card-hover h3:hover::after {
+    content: attr(title);
+    position: absolute;
+    left: 0;
+    top: -40px;
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 0.8rem;
+    white-space: normal;
+    max-width: 200px;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(5px);
+    animation: fadeIn 0.2s forwards 0.3s;
 }
 
 .card-hover::before {
