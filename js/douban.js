@@ -206,18 +206,18 @@ function renderRecommend(tag, pageLimit, pageStart) {
                         .replace(/</g, '&lt;')
                         .replace(/>/g, '&gt;');
                     
-                    // 关键修复：使用内置的代理功能加载豆瓣图片
+                    // 修复: 处理豆瓣图片加载的几种方案
                     // 1. 确保图片URL是安全的
-                    // 2. 使用PROXY_URL代理加载图片，避免跨域和豆瓣防盗链问题
                     const originalCoverUrl = item.cover;
+                    // 2. 正确使用代理URL (确保使用encodeURIComponent编码完整URL)
                     const proxiedCoverUrl = PROXY_URL + encodeURIComponent(originalCoverUrl);
                     
                     card.innerHTML = `
                         <div class="relative w-full aspect-[2/3] overflow-hidden cursor-pointer" onclick="fillSearchInput('${safeTitle}')">
                             <img src="${proxiedCoverUrl}" alt="${safeTitle}" 
                                 class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                                onerror="this.onerror=null; this.src='https://cors-proxy.htmldriven.com/?url=${encodeURIComponent(safeTitle)}'; this.classList.add('object-contain');"
-                                loading="lazy">
+                                onerror="this.onerror=null; this.src='${originalCoverUrl}'; this.classList.add('object-contain');"
+                                loading="lazy" referrerpolicy="no-referrer">
                             <div class="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-60"></div>
                             <div class="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-sm">
                                 <span class="text-yellow-400">★</span> ${safeRate}
