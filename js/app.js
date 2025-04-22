@@ -634,24 +634,26 @@ async function search() {
                 
                 const data = await response.json();
                 
-                if (!data || !data.list || !Array.isArray(data.list)) {
+                if (!data || !data.list || !Array.isArray(data.list) || data.list.length === 0) {
                     return [];
                 }
                 
-                // 为每个搜索结果添加来源信息和API URL
-                return data.list.map(item => ({
+                // 添加源信息到每个结果
+                const results = data.list.map(item => ({
                     ...item,
                     source_name: apiName,
                     source_code: apiId,
-                    api_url: apiUrl
+                    api_url: apiId.startsWith('custom_') ? getCustomApiInfo(apiId.replace('custom_', ''))?.url : undefined
                 }));
+                
+                return results;
             } catch (error) {
-                console.error(`API ${apiId} 搜索错误:`, error);
+                console.warn(`API ${apiId} 搜索失败:`, error);
                 return [];
             }
         });
         
-        // 并行处理所有API搜索
+        // 等待所有搜索请求完成
         const resultsArray = await Promise.all(searchPromises);
         
         // 合并所有结果
@@ -705,7 +707,7 @@ async function search() {
                 return !banned.some(keyword => typeName.includes(keyword));
             });
         }
-        
+
         // 添加XSS保护，使用textContent和属性转义
         resultsDiv.innerHTML = allResults.map(item => {
             const safeId = item.vod_id ? item.vod_id.toString().replace(/[^\w-]/g, '') : '';
@@ -739,7 +741,7 @@ async function search() {
                         
                         <div class="p-2 flex flex-col flex-grow">
                             <div class="flex-grow">
-                                <h3 class="text-sm font-semibold mb-1 break-words text-center" title="${safeName}">${safeName}</h3>
+                                <h3 class="text-sm font-semibold mb-1 break-words line-clamp-2 text-center" title="${safeName}">${safeName}</h3>
                                 
                                 <div class="flex flex-wrap justify-center gap-1 mb-1">
                                     ${(item.type_name || '').toString().replace(/</g, '&lt;') ? 
