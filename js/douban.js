@@ -125,10 +125,11 @@ function renderDoubanTags() {
     
     doubanTags.forEach(tag => {
         const btn = document.createElement('button');
-        btn.className = 'px-3 py-1 rounded text-xs font-medium mr-1 mb-1 ' + 
+        // 更新标签样式：统一高度，添加过渡效果，改进颜色对比度
+        btn.className = 'py-1.5 px-3.5 rounded text-sm font-medium transition-all duration-300 ' + 
             (tag === doubanCurrentTag ? 
-                'bg-pink-600 text-white' : 
-                'bg-[#222] text-gray-300 hover:bg-pink-700 hover:text-white transition');
+                'bg-pink-600 text-white shadow-md' : 
+                'bg-[#1a1a1a] text-gray-300 hover:bg-pink-700 hover:text-white');
         
         btn.textContent = tag;
         
