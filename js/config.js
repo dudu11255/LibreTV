@@ -31,7 +31,7 @@ const API_SITES = {
         api: 'http://ffzy5.tv',
         name: '非凡影视',
         detail: 'http://ffzy5.tv',
-        filterAdRule: '#EXT-X-DISCONTINUITY[\\r\\n]+(?:#EXTINF:\\d+\\.\\d{6},[\\r\\n]+.*?[\\r\\n]+){4,5}#EXT-X-DISCONTINUITY'
+        filterAdRule: '#EXT-X-DISCONTINUITY\\r*\\n*#EXTINF:6.666667,[\\s\\S]*?#EXT-X-DISCONTINUITY'
     },
     tyyszy: {
         api: 'https://tyyszy.com',
