@@ -1244,6 +1244,7 @@
                         // 存在则更新现有记录的集数、时间戳和URL
                         history[existingIndex].episodeIndex = currentEpisodeIndex;
                         history[existingIndex].timestamp = Date.now();
+                        history[existingIndex].sourceName = sourceName
                         // 更新播放进度信息
                         history[existingIndex].playbackPosition = currentPosition > 10 ? currentPosition : history[existingIndex].playbackPosition;
                         history[existingIndex].duration = videoDuration || history[existingIndex].duration;
