@@ -880,7 +880,7 @@ async function showDetails(id, vod_name, sourceCode) {
 }
 
 // 更新播放视频函数，修改为在新标签页中打开播放页面，并保存到历史记录
-function playVideo(url, vod_name, episodeIndex = 0, sourceCode) {
+function playVideo(url, vod_name, sourceCode, episodeIndex = 0) {
     // 密码保护校验
     if (window.isPasswordProtected && window.isPasswordVerified) {
         if (window.isPasswordProtected() && !window.isPasswordVerified()) {
@@ -944,7 +944,7 @@ function playPreviousEpisode(sourceCode) {
     if (currentEpisodeIndex > 0) {
         const prevIndex = currentEpisodeIndex - 1;
         const prevUrl = currentEpisodes[prevIndex];
-        playVideo(prevUrl, currentVideoTitle, prevIndex, sourceCode);
+        playVideo(prevUrl, currentVideoTitle, sourceCode, prevIndex);
     }
 }
 
@@ -953,7 +953,7 @@ function playNextEpisode(sourceCode) {
     if (currentEpisodeIndex < currentEpisodes.length - 1) {
         const nextIndex = currentEpisodeIndex + 1;
         const nextUrl = currentEpisodes[nextIndex];
-        playVideo(nextUrl, currentVideoTitle, nextIndex, sourceCode);
+        playVideo(nextUrl, currentVideoTitle, sourceCode, nextIndex);
     }
 }
 
@@ -970,7 +970,7 @@ function renderEpisodes(vodName, sourceCode) {
         // 根据倒序状态计算真实的剧集索引
         const realIndex = episodesReversed ? currentEpisodes.length - 1 - index : index;
         return `
-            <button id="episode-${realIndex}" onclick="playVideo('${episode}','${vodName.replace(/"/g, '&quot;')}', ${realIndex}, ${sourceCode})" 
+            <button id="episode-${realIndex}" onclick="playVideo('${episode}','${vodName.replace(/"/g, '&quot;')}', ${sourceCode}, ${realIndex})" 
                     class="px-4 py-2 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg transition-colors text-center episode-btn">
                 第${realIndex + 1}集
             </button>
