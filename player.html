@@ -331,6 +331,7 @@
             const urlParams = new URLSearchParams(window.location.search);
             const videoUrl = urlParams.get('url');
             const title = urlParams.get('title');
+            const sourceCode = urlParams.get('sourceCode');
             let index = parseInt(urlParams.get('index') || '0');
             const episodesList = urlParams.get('episodes'); // 新增：从URL获取集数信息
 
@@ -527,7 +528,7 @@
             // 配置HLS.js选项
             const hlsConfig = {
                 debug: false,
-                loader: adFilteringEnabled ? CustomHlsJsLoader : Hls.DefaultConfig.loader,
+                loader: (adFilteringEnabled && API_SITES[sourceCode].filterAd !== false) ? CustomHlsJsLoader : Hls.DefaultConfig.loader,
                 enableWorker: true,
                 lowLatencyMode: false,
                 backBufferLength: 90,

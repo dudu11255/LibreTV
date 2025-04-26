@@ -76,10 +76,12 @@ const API_SITES = {
     mdzy: {
         api: 'https://www.mdzyapi.com',
         name: '魔都资源',
+        filterAd: false,
     },
     ruyi: {
         api: 'https://cj.rycjapi.com',
         name: '如意资源',
+        filterAd: false,
     },
     jkun: {
         api: 'https://jkunzyapi.com',
