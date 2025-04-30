@@ -527,12 +527,12 @@
         function initPlayer(videoUrl, sourceCode) {
             if (!videoUrl) return;
 
-            window.filterAdPattern = API_SITES[sourceCode].filterAdRule
+            window.filterAdPattern = API_SITES[sourceCode]?.filterAdRule || null
 
             // 配置HLS.js选项
             const hlsConfig = {
                 debug: false,
-                loader: (adFilteringEnabled && API_SITES[sourceCode].filterAdRule) ? CustomHlsJsLoader : Hls.DefaultConfig.loader,
+                loader: (adFilteringEnabled && API_SITES[sourceCode]?.filterAdRule) ? CustomHlsJsLoader : Hls.DefaultConfig.loader,
                 enableWorker: true,
                 lowLatencyMode: false,
                 backBufferLength: 90,
@@ -884,9 +884,10 @@
         function filterAdsFromM3U8(m3u8Content, strictMode = false) {
             if (!m3u8Content) return '';
 
-            let pattern = window.filterAdPattern;
-            const regex = new RegExp(pattern, 'g');
-            return m3u8Content.replace(regex, '');
+            if (window.filterAdPattern) {
+                const regex = new RegExp(window.filterAdPattern, 'g');
+                return m3u8Content.replace(regex, '');
+            };
         }
         
 
