@@ -817,8 +817,8 @@ body {
 
 /* 搜索结果卡片优化：横向布局 */
 .search-card-img-container {
-    width: 80px;
-    height: 120px;
+    width: 100px;  /* 增加宽度，从80px到100px */
+    height: 150px; /* 增加高度，从120px到150px */
     overflow: hidden;
     background-color: #191919;
 }
@@ -842,6 +842,35 @@ body {
     #results {
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     }
+}
+
+/* 调整网格布局，减少每行卡片数量以适应更大尺寸的卡片 */
+@media (min-width: 769px) and (max-width: 1024px) {
+    #results {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+}
+
+@media (min-width: 1025px) {
+    #results {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    }
+}
+
+/* 优化卡片内元素间距 */
+.card-hover .p-2 {
+    padding: 0.75rem; /* 增加内边距 */
+}
+
+/* 增加卡片内字体大小 */
+.card-hover h3 {
+    font-size: 0.95rem; /* 增加标题字体大小 */
+    line-height: 1.3rem;
+    margin-bottom: 0.5rem;
+}
+
+.card-hover p {
+    font-size: 0.8rem; /* 增加描述字体大小 */
 }
 
 /* 优化卡片内元素间距 */
