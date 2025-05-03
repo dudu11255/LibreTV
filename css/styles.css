@@ -47,21 +47,21 @@ button, .card-hover {
 
 /* 确保卡片内容区域高度一致性 */
 .card-hover .flex-grow {
-    min-height: 90px;
+    min-height: unset; /* 移除最小高度限制，让内容自然流动 */
     display: flex;
     flex-direction: column;
 }
 
 /* 针对不同长度的标题优化显示 */
 .card-hover h3 {
-    min-height: 3rem;
+    min-height: unset;
+    max-height: unset;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
     -webkit-line-clamp: 2;
-    max-height: 3rem; /* 确保最多显示两行 */
-    line-height: 1.5rem; /* 设定行高以确保两行文本的一致性 */
+    line-height: 1.2rem;
     word-break: break-word; /* 允许在任何字符间断行 */
     hyphens: auto; /* 允许断词 */
 }
@@ -813,4 +813,38 @@ body {
     .custom-title-scroll {
         font-size: 1rem;
     }
+}
+
+/* 搜索结果卡片优化：横向布局 */
+.search-card-img-container {
+    width: 80px;
+    height: 120px;
+    overflow: hidden;
+    background-color: #191919;
+}
+
+/* 确保图片不会被拉伸，并且能够正确显示 */
+.search-card-img-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* 针对搜索结果卡片修改网格布局以适应横向卡片 */
+@media (max-width: 640px) {
+    #results {
+        grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+    }
+}
+
+/* 响应式调整：在小屏幕上依然保持较好的视觉效果 */
+@media (min-width: 641px) and (max-width: 768px) {
+    #results {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+}
+
+/* 优化卡片内元素间距 */
+.card-hover .p-2 {
+    padding: 0.5rem;
 }
