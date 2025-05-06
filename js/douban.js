@@ -2,7 +2,44 @@
 
 // 豆瓣标签列表
 let movieTags = ['热门', '最新', '经典', '豆瓣高分', '冷门佳片', '华语', '欧美', '韩国', '日本', '动作', '喜剧', '爱情', '科幻', '悬疑', '恐怖', '治愈'];
-let tvTags = ['热门', '美剧', '英剧', '韩剧', '日剧', '国产剧', '港剧', '日本动画', '综艺', '纪录片']
+let tvTags = ['热门', '美剧', '英剧', '韩剧', '日剧', '国产剧', '港剧', '日本动画', '综艺', '纪录片'];
+
+// 自定义标签列表
+let customMovieTags = [];
+let customTvTags = [];
+
+// 加载自定义标签
+function loadCustomTags() {
+    try {
+        const savedCustomMovieTags = localStorage.getItem('customMovieTags');
+        const savedCustomTvTags = localStorage.getItem('customTvTags');
+        
+        if (savedCustomMovieTags) {
+            customMovieTags = JSON.parse(savedCustomMovieTags);
+        }
+        
+        if (savedCustomTvTags) {
+            customTvTags = JSON.parse(savedCustomTvTags);
+        }
+    } catch (e) {
+        console.error('加载自定义标签失败：', e);
+        // 初始化为空数组，防止错误
+        customMovieTags = [];
+        customTvTags = [];
+    }
+}
+
+// 保存自定义标签
+function saveCustomTags() {
+    try {
+        localStorage.setItem('customMovieTags', JSON.stringify(customMovieTags));
+        localStorage.setItem('customTvTags', JSON.stringify(customTvTags));
+    } catch (e) {
+        console.error('保存自定义标签失败：', e);
+        showToast('保存自定义标签失败', 'error');
+    }
+}
+
 let doubanMovieTvCurrentSwitch = 'movie';
 let doubanCurrentTag = '热门';
 let doubanPageStart = 0;
@@ -45,6 +82,9 @@ function initDouban() {
         // 初始更新显示状态
         updateDoubanVisibility();
     }
+
+    // 加载自定义标签
+    loadCustomTags();
 
     // 获取豆瓣热门标签
     fetchDoubanTags();
@@ -235,13 +275,39 @@ function renderDoubanTags(tags = movieTags) {
     
     tagContainer.innerHTML = '';
 
-    tags.forEach(tag => {
+    // 确定当前应该使用的标签和自定义标签列表
+    const currentCustomTags = doubanMovieTvCurrentSwitch === 'movie' ? customMovieTags : customTvTags;
+    
+    // 合并系统标签和自定义标签
+    const allTags = [...tags, ...currentCustomTags];
+
+    // 先添加标签管理按钮
+    const manageBtn = document.createElement('button');
+    manageBtn.className = 'py-1.5 px-3.5 rounded text-sm font-medium transition-all duration-300 bg-[#1a1a1a] text-gray-300 hover:bg-pink-700 hover:text-white';
+    manageBtn.innerHTML = '<span class="flex items-center"><svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>管理标签</span>';
+    manageBtn.onclick = function() {
+        showTagManageModal();
+    };
+    tagContainer.appendChild(manageBtn);
+
+    // 添加系统标签和自定义标签
+    allTags.forEach(tag => {
         const btn = document.createElement('button');
         // 更新标签样式：统一高度，添加过渡效果，改进颜色对比度
-        btn.className = 'py-1.5 px-3.5 rounded text-sm font-medium transition-all duration-300 ' + 
-            (tag === doubanCurrentTag ? 
-                'bg-pink-600 text-white shadow-md' : 
-                'bg-[#1a1a1a] text-gray-300 hover:bg-pink-700 hover:text-white');
+        let btnClass = 'py-1.5 px-3.5 rounded text-sm font-medium transition-all duration-300 ';
+        
+        // 自定义标签使用不同的背景颜色来区分
+        const isCustomTag = currentCustomTags.includes(tag);
+        
+        if (tag === doubanCurrentTag) {
+            btnClass += 'bg-pink-600 text-white shadow-md';
+        } else {
+            btnClass += isCustomTag ? 
+                'bg-[#2a1a2a] text-gray-300 hover:bg-pink-700 hover:text-white' : 
+                'bg-[#1a1a1a] text-gray-300 hover:bg-pink-700 hover:text-white';
+        }
+        
+        btn.className = btnClass;
         
         btn.textContent = tag;
         
@@ -479,3 +545,181 @@ function resetToHome() {
 
 // 加载豆瓣首页内容
 document.addEventListener('DOMContentLoaded', initDouban);
+
+// 显示标签管理模态框
+function showTagManageModal() {
+    // 确保模态框在页面上只有一个实例
+    let modal = document.getElementById('tagManageModal');
+    if (modal) {
+        document.body.removeChild(modal);
+    }
+    
+    // 创建模态框元素
+    modal = document.createElement('div');
+    modal.id = 'tagManageModal';
+    modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50';
+    
+    // 当前使用的标签类型
+    const isMovie = doubanMovieTvCurrentSwitch === 'movie';
+    const currentCustomTags = isMovie ? customMovieTags : customTvTags;
+    const currentSystemTags = isMovie ? movieTags : tvTags;
+    
+    // 模态框内容
+    modal.innerHTML = `
+        <div class="bg-[#191919] rounded-lg p-6 max-w-md w-full max-h-[90vh] overflow-y-auto relative">
+            <button id="closeTagModal" class="absolute top-4 right-4 text-gray-400 hover:text-white text-xl">&times;</button>
+            
+            <h3 class="text-xl font-bold text-white mb-4">标签管理 (${isMovie ? '电影' : '电视剧'})</h3>
+            
+            <div class="mb-4">
+                <h4 class="text-lg font-medium text-gray-300 mb-2">系统标签</h4>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4" id="systemTagsList">
+                    ${currentSystemTags.map(tag => `
+                        <div class="bg-[#1a1a1a] text-gray-300 py-1.5 px-3 rounded text-sm font-medium flex justify-between items-center">
+                            <span>${tag}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <div class="mb-6">
+                <h4 class="text-lg font-medium text-gray-300 mb-2">自定义标签</h4>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4" id="customTagsList">
+                    ${currentCustomTags.length ? currentCustomTags.map(tag => `
+                        <div class="bg-[#2a1a2a] text-gray-300 py-1.5 px-3 rounded text-sm font-medium flex justify-between items-center group">
+                            <span>${tag}</span>
+                            <button class="delete-tag-btn text-gray-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity" 
+                                    data-tag="${tag}">✕</button>
+                        </div>
+                    `).join('') : `<div class="col-span-full text-center py-4 text-gray-500">暂无自定义标签</div>`}
+                </div>
+            </div>
+            
+            <div class="border-t border-gray-700 pt-4">
+                <h4 class="text-lg font-medium text-gray-300 mb-3">添加新标签</h4>
+                <form id="addTagForm" class="flex items-center">
+                    <input type="text" id="newTagInput" placeholder="输入标签名称..." 
+                           class="flex-1 bg-[#222] text-white border border-gray-700 rounded px-3 py-2 focus:outline-none focus:border-pink-500">
+                    <button type="submit" class="ml-2 bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded">添加</button>
+                </form>
+                <p class="text-xs text-gray-500 mt-2">提示：标签名称不能为空，不能重复，不能包含特殊字符</p>
+            </div>
+        </div>
+    `;
+    
+    // 添加模态框到页面
+    document.body.appendChild(modal);
+    
+    // 焦点放在输入框上
+    setTimeout(() => {
+        document.getElementById('newTagInput').focus();
+    }, 100);
+    
+    // 添加事件监听器 - 关闭按钮
+    document.getElementById('closeTagModal').addEventListener('click', function() {
+        document.body.removeChild(modal);
+    });
+    
+    // 添加事件监听器 - 点击模态框外部关闭
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            document.body.removeChild(modal);
+        }
+    });
+    
+    // 添加事件监听器 - 删除标签按钮
+    const deleteButtons = document.querySelectorAll('.delete-tag-btn');
+    deleteButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const tagToDelete = this.getAttribute('data-tag');
+            deleteCustomTag(tagToDelete);
+            showTagManageModal(); // 重新加载模态框
+        });
+    });
+    
+    // 添加事件监听器 - 表单提交
+    document.getElementById('addTagForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const input = document.getElementById('newTagInput');
+        const newTag = input.value.trim();
+        
+        if (newTag) {
+            addCustomTag(newTag);
+            input.value = '';
+            showTagManageModal(); // 重新加载模态框
+        }
+    });
+}
+
+// 添加自定义标签
+function addCustomTag(tag) {
+    // 安全处理标签名，防止XSS
+    const safeTag = tag
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    
+    // 确定当前使用的是电影还是电视剧标签
+    const isMovie = doubanMovieTvCurrentSwitch === 'movie';
+    
+    // 获取当前的系统标签和自定义标签
+    const currentSystemTags = isMovie ? movieTags : tvTags;
+    const currentCustomTags = isMovie ? customMovieTags : customTvTags;
+    
+    // 检查是否已存在（忽略大小写）
+    const exists = [...currentSystemTags, ...currentCustomTags].some(
+        existingTag => existingTag.toLowerCase() === safeTag.toLowerCase()
+    );
+    
+    if (exists) {
+        showToast('标签已存在', 'warning');
+        return;
+    }
+    
+    // 添加到对应的自定义标签数组
+    if (isMovie) {
+        customMovieTags.push(safeTag);
+    } else {
+        customTvTags.push(safeTag);
+    }
+    
+    // 保存到本地存储
+    saveCustomTags();
+    
+    // 重新渲染标签
+    renderDoubanTags(isMovie ? movieTags : tvTags);
+    
+    showToast('标签添加成功', 'success');
+}
+
+// 删除自定义标签
+function deleteCustomTag(tag) {
+    // 确定当前使用的是电影还是电视剧标签
+    const isMovie = doubanMovieTvCurrentSwitch === 'movie';
+    
+    // 引用当前的自定义标签数组
+    const currentCustomTags = isMovie ? customMovieTags : customTvTags;
+    
+    // 寻找标签索引
+    const index = currentCustomTags.indexOf(tag);
+    
+    // 如果找到标签，则删除
+    if (index !== -1) {
+        currentCustomTags.splice(index, 1);
+        
+        // 保存到本地存储
+        saveCustomTags();
+        
+        // 如果当前选中的是被删除的标签，则重置为"热门"
+        if (doubanCurrentTag === tag) {
+            doubanCurrentTag = '热门';
+            doubanPageStart = 0;
+            renderRecommend(doubanCurrentTag, doubanPageSize, doubanPageStart);
+        }
+        
+        // 重新渲染标签
+        renderDoubanTags(isMovie ? movieTags : tvTags);
+        
+        showToast('标签删除成功', 'success');
+    }
+}
