@@ -129,12 +129,6 @@ const API_SITES = {
         api: 'https://api.wujinapi.me',
         name: '无尽资源'
     },
-    uku: {
-        api: 'https://api.ukuapi88.com',
-        name: 'U酷资源',
-        detail: 'https://api.ukuapi88.com'
-    }
-    // 您可以按需添加更多源
 };
 
 // 添加聚合搜索的配置选项
