@@ -483,17 +483,17 @@ function playFromHistory(url, title, episodeIndex, playbackPosition = 0) {
             if (playbackPosition > 10) {
                 playUrl.searchParams.set('position', Math.floor(playbackPosition).toString());
             }
-            window.open(playUrl.toString(), '_blank');
+            window.location.href = playUrl.toString();
         } else {
             // 原始URL，构造player页面链接
             const playerUrl = `player.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&index=${episodeIndex}${positionParam}`;
-            window.open(playerUrl, '_blank');
+            window.location.href = playerUrl;
         }
     } catch (e) {
         console.error('从历史记录播放失败:', e);
         // 回退到原始简单URL
         const simpleUrl = `player.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&index=${episodeIndex}`;
-        window.open(simpleUrl, '_blank');
+        window.location.href = simpleUrl;
     }
 }
 
@@ -686,4 +686,3 @@ function clearLocalStorage() {
         }
     });
 }
-
