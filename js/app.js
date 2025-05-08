@@ -1032,6 +1032,88 @@ function toggleEpisodeOrder(sourceCode) {
     }
 }
 
+// 配置文件导入功能
+async function importConfig() {
+    showImportBox(async (file) => {
+        try {
+            // 检查文件类型
+            if (!(file.type === 'application/json' || file.name.endsWith('.json'))) throw '文件类型不正确';
+
+            // 检查文件大小
+            if(file.size > 1024 * 1024 * 10) throw new Error('文件大小超过 10MB');
+
+            // 读取文件内容
+            const content = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject('文件读取失败');
+                reader.readAsText(file);
+            });
+
+            // 解析并验证配置
+            const config = JSON.parse(content);
+            if (config.name !== 'LibreTV-Settings') throw '配置文件格式不正确';
+
+            // 验证哈希
+            const dataHash = await sha256(JSON.stringify(config.data));
+            if (dataHash !== config.hash) throw '配置文件哈希值不匹配';
+
+            // 导入配置
+            for (let item in config.data) {
+                localStorage.setItem(item, config.data[item]);
+            }
+            
+            showToast('配置文件导入成功，3 秒后自动刷新本页面。', 'success');
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        } catch (error) {
+            const message = typeof error === 'string' ? error : '配置文件格式错误';
+            showToast(`配置文件读取出错 (${message})`, 'error');
+        }
+    });
+}
+
+// 配置文件导出功能
+async function exportConfig() {
+    // 存储配置数据
+    const config = {};
+
+    // 读取全部 localStorage 项
+    const items = {};
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        items[key] = localStorage.getItem(key);
+    }
+
+    const times = Date.now().toString();
+    config['name'] = 'LibreTV-Settings';  // 配置文件名，用于校验
+    config['time'] = times;               // 配置文件生成时间
+    config['cfgVer'] = '1.0.0';           // 配置文件版本
+    config['data'] = items;               // 配置文件数据
+    config['hash'] = await sha256(JSON.stringify(config['data']));  // 计算数据的哈希值，用于校验
+
+    // 将配置数据保存为 JSON 文件
+    saveStringAsFile(JSON.stringify(config), 'LibreTV-Settings_' + times + '.json');
+}
+
+// 将字符串保存为文件
+function saveStringAsFile(content, fileName) {
+    // 创建Blob对象并指定类型
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    // 生成临时URL
+    const url = window.URL.createObjectURL(blob);
+    // 创建<a>标签并触发下载
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    // 清理临时对象
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+
 // app.js 或路由文件中
 const authMiddleware = require('./middleware/auth');
 const config = require('./config');
