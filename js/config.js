@@ -125,6 +125,11 @@ const API_SITES = {
         api: 'https://api.apibdzy.com',
         name: '百度云资源'
     },
+    dyttzy: {
+        api: 'http://caiji.dyttzyapi.com',
+        name: '电影天堂资源',
+        detail: 'http://caiji.dyttzyapi.com',
+    },
     wujin: {
         api: 'https://api.wujinapi.me',
         name: '无尽资源'
