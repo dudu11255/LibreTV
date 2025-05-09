@@ -89,8 +89,8 @@ async function handleApiRequest(url) {
                 throw new Error('无效的API来源');
             }
 
-            // 对于特殊源，使用特殊处理方式
-            if ((sourceCode === 'ffzy' || sourceCode === 'jisu' || sourceCode === 'huangcang') && API_SITES[sourceCode].detail) {
+            // 对于有detail参数的源，都使用特殊处理方式
+            if (sourceCode !== 'custom' && API_SITES[sourceCode].detail) {
                 return await handleSpecialSourceDetail(id, sourceCode);
             }
             
