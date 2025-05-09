@@ -256,18 +256,6 @@ async function handleCustomApiSpecialDetail(id, customApi) {
     }
 }
 
-// 处理极速资源详情的特殊函数
-async function handleJisuDetail(id, sourceCode) {
-    // 直接复用通用的特殊源处理函数，传入相应参数
-    return await handleSpecialSourceDetail(id, sourceCode);
-}
-
-// 处理非凡影视详情的特殊函数
-async function handleFFZYDetail(id, sourceCode) {
-    // 直接复用通用的特殊源处理函数，传入相应参数
-    return await handleSpecialSourceDetail(id, sourceCode);
-}
-
 // 通用特殊源详情处理函数
 async function handleSpecialSourceDetail(id, sourceCode) {
     try {
