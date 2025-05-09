@@ -31,7 +31,7 @@ jobs:
 
           # 指定 Actions Bot 为提交作者，避免给上游作者发邮件
           commit_user_name: github-actions[bot]
-          commit_user_email: 41898282+github-actions[bot]@users.noreply.github.com
+          commit_user_email: 110226580+bestZwei@users.noreply.github.com
 
           # Set test_mode true to run tests instead of the true action!!
           test_mode: false
