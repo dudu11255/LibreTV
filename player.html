@@ -83,7 +83,8 @@
         .episode-grid {
             max-height: 30vh;
             overflow-y: auto;
-            padding: 1rem 0;
+            padding-bottom: 1rem;
+            margin-top: 1rem;
         }
         .switch {
             position: relative;
@@ -237,24 +238,32 @@
 
         <!-- 添加自动播放开关和排序按钮 -->
         <div class="player-container">
-            <div class="flex justify-end items-center gap-2">
+            <div class="mb-2 flex justify-end items-center gap-2">
                 <span class="text-gray-400 text-sm">自动连播</span>
                 <label class="switch">
                     <input type="checkbox" id="autoplayToggle">
                     <span class="slider"></span>
                 </label>
-                <button onclick="copyLinks()" class="px-4 py-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:from-indigo-600 hover:via-purple-600 hover:to-pink-600 text-white text-xs font-semibold rounded-lg transition-all duration-300 transform items-center justify-center flex">
-                    <div class="h-5 w-0"></div>
-                    <span>复制视频链接</span>
-                </button>
                 <button onclick="toggleEpisodeOrder()" class="px-4 py-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:from-indigo-600 hover:via-purple-600 hover:to-pink-600 text-white text-xs font-semibold rounded-lg transition-all duration-300 transform items-center justify-center flex">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" id="orderIcon" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd" />
                     </svg>
                     <span id="orderText">倒序排列</span>
                 </button>
-                <button id="lockToggle" onclick="toggleControlsLock()" title="锁定控制" 
-                        class="px-2 py-1 bg-[#333] hover:bg-[#444] text-white rounded-full transition">
+                <button onclick="copyLinks()" title="复制视频链接" class="px-2 py-1 bg-[#333] hover:bg-[#444] text-white rounded-full transition">
+                    <svg viewBox="0 0 32 32" id="copyIcon" class="w-5 h-5" fill="#ffffff" xmlns="http://www.w3.org/2000/svg">
+                        <g id="SVGRepo_bgCarrier" stroke-width="0"></g>
+                        <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"></g>
+                        <g id="SVGRepo_iconCarrier">
+                            <defs> <style> .cls-1 { fill: none; } </style> </defs>
+                            <path d="M11.9474,19a4.9476,4.9476,0,0,1-3.4991-8.4465l5.1053-5.1043a4.9482,4.9482,0,0,1,6.9981,6.9976l-.5523.5526-1.4158-1.4129.5577-.5579a2.95,2.95,0,0,0-.0039-4.1653,3.02,3.02,0,0,0-4.17,0l-5.1047,5.104a2.9474,2.9474,0,0,0,0,4.1692,3.02,3.02,0,0,0,4.17,0l1.4143,1.4145A4.9176,4.9176,0,0,1,11.9474,19Z"></path>
+                            <path d="M19.9474,17a4.9476,4.9476,0,0,1-3.4991-8.4465l.5526-.5526,1.4143,1.4146-.5526.5523a2.9476,2.9476,0,0,0,0,4.1689,3.02,3.02,0,0,0,4.17,0c.26-.26,4.7293-4.7293,5.1053-5.1045a2.951,2.951,0,0,0,0-4.1687,3.02,3.02,0,0,0-4.17,0L21.5536,3.449a4.9483,4.9483,0,0,1,6.9981,6.9978c-.3765.376-4.844,4.8428-5.1038,5.1035A4.9193,4.9193,0,0,1,19.9474,17Z"></path>
+                            <path d="M24,30H4a2.0021,2.0021,0,0,1-2-2V8A2.0021,2.0021,0,0,1,4,6H8V8H4V28H24V18h2V28A2.0021,2.0021,0,0,1,24,30Z"></path>
+                            <rect id="_Transparent_Rectangle_" data-name="<Transparent Rectangle>" class="cls-1" width="32" height="32"></rect>
+                        </g>
+                    </svg>
+                </button>
+                <button id="lockToggle" onclick="toggleControlsLock()" title="锁定控制" class="px-2 py-1 bg-[#333] hover:bg-[#444] text-white rounded-full transition">
                     <svg id="lockIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <!-- 默认状态：未锁图标 -->
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -987,7 +996,7 @@
                 html += `
                     <button id="episode-${realIndex}" 
                             onclick="playEpisode(${realIndex})" 
-                            class="px-4 py-2 ${isActive ? 'episode-active' : 'bg-[#222] hover:bg-[#333]'} border ${isActive ? 'border-blue-500' : 'border-[#333]'} rounded-lg transition-colors text-center episode-btn">
+                            class="px-4 py-2 ${isActive ? 'episode-active' : '!bg-[#222] hover:!bg-[#333] hover:!shadow-none'} !border ${isActive ? '!border-blue-500' : '!border-[#333]'} rounded-lg transition-colors text-center episode-btn">
                         第${realIndex + 1}集
                     </button>
                 `;
