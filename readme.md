@@ -1,5 +1,7 @@
 # LibreTV - 免费在线视频搜索与观看平台
 
+> ⚠️ **重要提醒：所有视频内容均来自第三方采集站，请勿相信视频中的任何广告、二维码、联系方式或充值信息，谨防诈骗！**
+
 <div align="center">
   <img src="https://images.icon-icons.com/38/PNG/512/retrotv_5520.png" alt="LibreTV Logo" width="120">
   <br>
