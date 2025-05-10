@@ -173,7 +173,7 @@ function fillAndSearch(title) {
 }
 
 // 填充搜索框，确保豆瓣资源API被选中，然后执行搜索
-function fillAndSearchWithDouban(title) {
+async function fillAndSearchWithDouban(title) {
     if (!title) return;
     
     // 安全处理标题，防止XSS
@@ -212,7 +212,14 @@ function fillAndSearchWithDouban(title) {
     const input = document.getElementById('searchInput');
     if (input) {
         input.value = safeTitle;
-        search(); // 使用已有的search函数执行搜索
+        await search(); // 使用已有的search函数执行搜索
+
+        if (window.innerWidth <= 768) {
+          window.scrollTo({
+              top: 0,
+              behavior: 'smooth'
+          });
+        }
     }
 }
 
