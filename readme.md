@@ -118,6 +118,7 @@ npm run dev
 - **Vercel**: Dashboard > 您的项目 > Settings > Environment Variables
 - **Netlify**: Dashboard > 您的项目 > Site settings > Build & deploy > Environment
 - **Docker**: 使用 `-e PASSWORD=your_password` 参数
+- **本地开发**: SET PASSWORD=your_password
 
 ### API兼容性
 
