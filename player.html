@@ -1136,11 +1136,13 @@
             // 尝试从URL中获取参数
             const urlParams = new URLSearchParams(window.location.search);
             const linkUrl = urlParams.get('url') || '';
-            navigator.clipboard.writeText(linkUrl).then(() => {
-                showToast('播放链接已复制', 'success');
-            }).catch(err => {
-                showToast('复制失败，请检查浏览器权限', 'error');
-            });
+            if (linkUrl !== '') {
+                navigator.clipboard.writeText(linkUrl).then(() => {
+                    showToast('播放链接已复制', 'success');
+                }).catch(err => {
+                    showToast('复制失败，请检查浏览器权限', 'error');
+                });
+            }
         }
 
         // 切换集数排序
