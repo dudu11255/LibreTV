@@ -8,6 +8,7 @@ on:
 
 jobs:
   bump-version:
+    if: github.repository == 'bestZwei/LibreTV'
     runs-on: ubuntu-latest
     env:
       TZ: 'Asia/Shanghai'
