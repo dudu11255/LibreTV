@@ -181,7 +181,7 @@ const API_CONFIG = {
         // 修改搜索接口支持分页参数
         path: '/api.php/provide/vod/?ac=videolist&wd=',
         pagePath: '/api.php/provide/vod/?ac=videolist&wd={query}&pg={page}',
-        maxPages: 10, // 最大获取页数
+        maxPages: 50, // 最大获取页数
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Accept': 'application/json'
