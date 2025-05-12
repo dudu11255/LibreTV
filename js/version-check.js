@@ -86,7 +86,7 @@ function formatVersion(versionString) {
 // 创建错误版本信息元素
 function createErrorVersionElement(errorMessage) {
     const errorElement = document.createElement('p');
-    errorElement.className = 'text-gray-400 text-xs mt-1 text-center md:text-left';
+    errorElement.className = 'text-gray-500 text-sm mt-1 text-center md:text-left';
     errorElement.innerHTML = `版本: <span class="text-amber-500">检测失败</span>`;
     errorElement.title = errorMessage || "无法连接到 Github";
     return errorElement;
@@ -105,7 +105,7 @@ function addVersionInfoToFooter() {
         
         // 创建版本信息元素
         const versionElement = document.createElement('p');
-        versionElement.className = 'text-gray-400 text-xs mt-1 text-center md:text-left';
+        versionElement.className = 'text-gray-500 text-sm mt-1 text-center md:text-left';
         
         // 添加当前版本信息
         versionElement.innerHTML = `版本: ${result.currentFormatted}`;
