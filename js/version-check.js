@@ -31,7 +31,7 @@ async function checkForUpdates() {
         const currentVersion = await currentVersionResponse.text();
         
         // 获取最新版本
-        const latestVersionResponse = await fetch('https://raw.githubusercontent.com/JohnsonRan/LibreTV/main/VERSION.txt');
+        const latestVersionResponse = await fetch('https://raw.githubusercontent.com/LibreSpark/LibreTV/main/VERSION.txt');
         if (!latestVersionResponse.ok) {
             throw new Error('获取最新版本失败');
         }
