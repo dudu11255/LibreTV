@@ -489,13 +489,26 @@ function setupEventListeners() {
         }
     });
 
-    // 点击外部关闭设置面板
+    // 点击外部关闭设置面板和历史记录面板
     document.addEventListener('click', function(e) {
-        const panel = document.getElementById('settingsPanel');
-        const settingsButton = document.querySelector('button[onclick="toggleSettings(event)"]');
+        // 关闭设置面板
+        const settingsPanel = document.querySelector('#settingsPanel.show');
+        const settingsButton = document.querySelector('#settingsButton, button[onclick*="toggleSettings"]');
         
-        if (!panel.contains(e.target) && !settingsButton.contains(e.target) && panel.classList.contains('show')) {
-            panel.classList.remove('show');
+        if (settingsPanel && settingsButton && 
+            !settingsPanel.contains(e.target) && 
+            !settingsButton.contains(e.target)) {
+            settingsPanel.classList.remove('show');
+        }
+
+        // 关闭历史记录面板
+        const historyPanel = document.querySelector('#historyPanel.show');
+        const historyButton = document.querySelector('#historyButton, button[onclick*="toggleHistory"]');
+        
+        if (historyPanel && historyButton && 
+            !historyPanel.contains(e.target) && 
+            !historyButton.contains(e.target)) {
+            historyPanel.classList.remove('show');
         }
     });
     
