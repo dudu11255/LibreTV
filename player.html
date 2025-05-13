@@ -77,14 +77,35 @@
         .error-icon {
             font-size: 48px;
             margin-bottom: 10px;
-        }
-        .episode-active {
+        }        .episode-active {
             background-color: #3b82f6 !important;
             border-color: #60a5fa !important;
         }
         .episode-grid {
             max-height: 30vh;
             overflow-y: auto;
+        }
+        /* 恢复播放位置提示样式 */
+        .position-restore-hint {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+            font-size: 14px;
+        }
+        .position-restore-hint.show {
+            transform: translateX(-50%) translateY(0);
+        }
+        .hint-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .switch {
             position: relative;
@@ -401,9 +422,7 @@
             document.getElementById('loading').style.display = 'block';
 
             initializePageContent();
-        });
-
-        // 初始化页面内容
+        });        // 初始化页面内容
         function initializePageContent() {
             // 解析URL参数
             const urlParams = new URLSearchParams(window.location.search);
@@ -411,9 +430,9 @@
             const title = urlParams.get('title');
             const sourceCode = urlParams.get('source_code');
             let index = parseInt(urlParams.get('index') || '0');
-            const episodesList = urlParams.get('episodes'); // 新增：从URL获取集数信息
-            
-            // 解决历史记录问题：检查URL是否是player.html开头的链接
+            const episodesList = urlParams.get('episodes'); // 从URL获取集数信息
+            const savedPosition = parseInt(urlParams.get('position') || '0'); // 获取保存的播放位置
+              // 解决历史记录问题：检查URL是否是player.html开头的链接
             // 如果是，说明这是历史记录重定向，需要解析真实的视频URL
             if (videoUrl && videoUrl.includes('player.html')) {
                 console.log('检测到历史记录重定向URL:', videoUrl);
@@ -422,9 +441,22 @@
                     const nestedUrlParams = new URLSearchParams(videoUrl.split('?')[1]);
                     // 从嵌套参数中获取真实视频URL
                     const nestedVideoUrl = nestedUrlParams.get('url');
+                    // 检查嵌套URL是否包含播放位置信息
+                    const nestedPosition = nestedUrlParams.get('position');
+                    
                     if (nestedVideoUrl) {
                         videoUrl = nestedVideoUrl;
                         console.log('已修正为真实视频URL:', videoUrl);
+                        
+                        // 如果嵌套URL中有播放位置参数，且当前URL没有，则添加到当前URL
+                        if (nestedPosition && !urlParams.has('position')) {
+                            // 更新当前URL参数
+                            const url = new URL(window.location.href);
+                            url.searchParams.set('position', nestedPosition);
+                            // 替换当前URL（不刷新页面）
+                            window.history.replaceState({}, '', url);
+                            console.log('从嵌套URL提取播放位置:', nestedPosition);
+                        }
                     } else {
                         console.warn('无法从重定向URL中提取视频链接');
                         showError('历史记录链接无效，请返回首页重新访问');
@@ -802,8 +834,7 @@
                     console.warn('当前浏览器不支持锁定屏幕方向，请手动旋转设备。');
                 }
             });
-            
-            // 全屏取消时解锁屏幕方向
+              // 全屏取消时解锁屏幕方向
             dp.on('fullscreen_cancel', () => {
                 if (window.screen.orientation && window.screen.orientation.unlock) {
                     window.screen.orientation.unlock();
@@ -814,24 +845,34 @@
                 document.getElementById('loading').style.display = 'none';
                 videoHasEnded = false; // 视频加载时重置结束标志
 
-                // 新增：尝试从本地存储恢复播放进度
-                try {
-                    const progressKey = 'videoProgress_' + currentVideoUrl;
-                    const progressStr = localStorage.getItem(progressKey);
-                    if (progressStr && dp && dp.video && dp.video.duration > 0) {
-                        const progress = JSON.parse(progressStr);
-                        if (
-                            progress &&
-                            typeof progress.position === 'number' &&
-                            progress.position > 10 &&
-                            progress.position < dp.video.duration - 2
-                        ) {
-                            dp.seek(progress.position);
-                            showPositionRestoreHint(progress.position);
+                // 优先使用URL传递的position参数
+                const urlParams = new URLSearchParams(window.location.search);
+                const savedPosition = parseInt(urlParams.get('position') || '0');
+                
+                if (savedPosition > 10 && dp && dp.video && dp.video.duration > 0 && savedPosition < dp.video.duration - 2) {
+                    // 如果URL中有有效的播放位置参数，直接使用它
+                    dp.seek(savedPosition);
+                    showPositionRestoreHint(savedPosition);
+                } else {
+                    // 否则尝试从本地存储恢复播放进度
+                    try {
+                        const progressKey = 'videoProgress_' + currentVideoUrl;
+                        const progressStr = localStorage.getItem(progressKey);
+                        if (progressStr && dp && dp.video && dp.video.duration > 0) {
+                            const progress = JSON.parse(progressStr);
+                            if (
+                                progress &&
+                                typeof progress.position === 'number' &&
+                                progress.position > 10 &&
+                                progress.position < dp.video.duration - 2
+                            ) {
+                                dp.seek(progress.position);
+                                showPositionRestoreHint(progress.position);
+                            }
                         }
+                    } catch (e) {
+                        // ignore
                     }
-                } catch (e) {
-                    // ignore
                 }
 
                 // 视频加载成功后重新设置进度条点击监听
