@@ -442,7 +442,6 @@
             }
 
             initializePageContent();
-            updateGoBackButtonVisibility();
         });
 
         // 监听密码验证成功事件
@@ -455,47 +454,13 @@
         // 判断是否再框架中打开
         function inIframe() {
             try {
+                // 如果当前窗口的顶层窗口不是自身，说明在框架中
                 return window.self !== window.top;
             } catch (e) {
+                // 跨域访问会抛出错误，此时也说明在框架中
                 return true;
             }
         }
-
-        // 判断父页面是否有选集弹窗且内容区包含当前视频标题
-        function parentHasEpisodeModal() {
-            try {
-                if (!inIframe()) return false;
-                const parentDoc = window.parent.document;
-                const modal = parentDoc.getElementById('modal');
-                const modalTitle = parentDoc.getElementById('modalTitle');
-                // 判断弹窗可见且标题与当前视频标题相同
-                if (
-                    modal &&
-                    modal.style.display !== 'none' &&
-                    modalTitle &&
-                    modalTitle.textContent &&
-                    currentVideoTitle &&
-                    modalTitle.textContent.trim().replace(/\s+/g, '') === currentVideoTitle.trim().replace(/\s+/g, '')
-                ) {
-                    return true;
-                }
-            } catch (e) {
-                // 跨域或异常时忽略
-            }
-            return false;
-        }
-
-        // 控制上一页按钮显示
-        function updateGoBackButtonVisibility() {
-            const goBackBtn = document.getElementById('goBack');
-            // 如果不是iframe，或者父页面有选集弹窗，则隐藏
-            if (!inIframe() || parentHasEpisodeModal()) {
-                goBackBtn.style.display = 'none';
-            } else {
-                goBackBtn.style.display = '';
-            }
-        }
-
         // 如果播放器不是在框架中打开，则隐藏上一页按钮
         if (!inIframe()) {
             goBack = document.getElementById('goBack');
@@ -616,7 +581,6 @@
             // 设置页面标题
             document.title = currentVideoTitle + ' - LibreTV播放器';
             document.getElementById('videoTitle').textContent = currentVideoTitle;
-            updateGoBackButtonVisibility();
 
             // 初始化播放器
             if (videoUrl) {
