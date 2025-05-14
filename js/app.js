@@ -595,6 +595,23 @@ async function search() {
         return;
     }
     
+    // 更新URL以包含搜索查询，方便分享和返回
+    try {
+        // 使用URI编码确保特殊字符能够正确显示
+        const encodedQuery = encodeURIComponent(query);
+        // 使用HTML5 History API更新URL，不刷新页面
+        window.history.pushState(
+            { search: query }, 
+            `搜索: ${query} - LibreTV`, 
+            `/s=${encodedQuery}`
+        );
+        // 更新页面标题
+        document.title = `搜索: ${query} - LibreTV`;
+    } catch (e) {
+        console.error('更新浏览器历史失败:', e);
+        // 如果更新URL失败，继续执行搜索
+    }
+    
     showLoading();
     
     try {
