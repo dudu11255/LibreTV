@@ -489,7 +489,7 @@ function playFromHistory(url, title, episodeIndex, playbackPosition = 0) {
             console.log(`已将剧集列表保存到localStorage，共 ${episodesList.length} 集`);
         }
         // 构造带播放进度参数的URL
-        const positionParam = playbackPosition > 10 ? `&position=${Math.floor(playbackPosition)}` : '';
+        const positionParam = `&position=${Math.floor(playbackPosition || 0)}`;
         
         if (url.includes('?')) {
             // URL已有参数，添加索引和位置参数
@@ -497,13 +497,11 @@ function playFromHistory(url, title, episodeIndex, playbackPosition = 0) {
             if (!playUrl.searchParams.has('index') && episodeIndex > 0) {
                 playUrl.searchParams.set('index', episodeIndex);
             }
-            if (playbackPosition > 10) {
-                playUrl.searchParams.set('position', Math.floor(playbackPosition).toString());
-            }
+            playUrl.searchParams.set('position', Math.floor(playbackPosition || 0).toString());
             showVideoPlayer(playUrl.toString());
         } else {
             // 原始URL，构造player页面链接
-            const playerUrl = `player.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&index=${episodeIndex}${positionParam}`;
+            const playerUrl = `player.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&index=${episodeIndex}&position=${Math.floor(playbackPosition || 0)}`;
             showVideoPlayer(playerUrl);
         }
     } catch (e) {
