@@ -25,16 +25,21 @@
             // 如果有referrer并且包含搜索参数，保存它以便返回
             if (referrer && (referrer.includes('/s=') || referrer.includes('?s='))) {
                 // 如果已经有参数，添加&，否则添加?
-                const separator = playerUrl.includes('?') ? '&' : '?';
-                playerUrl += separator + 'referrer=' + encodeURIComponent(referrer);
+                playerUrl += playerUrl.includes('?') ? '&' : '?';
+                playerUrl += 'referrer=' + encodeURIComponent(referrer);
+                
+                // 同时保存在localStorage中，作为备用
+                localStorage.setItem('lastSearchPage', referrer);
             }
             
-            // 重定向到player.html
-            window.location.replace(playerUrl);
+            // 重定向到播放器页面
+            window.location.href = playerUrl;
         };
     </script>
 </head>
 <body>
-    <p>如果您没有被自动重定向，请<a href="player.html">点击这里</a>前往播放页面。</p>
+    <div style="text-align: center; padding-top: 100px;">
+        正在重定向到播放器...
+    </div>
 </body>
 </html>

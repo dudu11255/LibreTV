@@ -1239,7 +1239,14 @@
             if (sourceCode) {
                 newUrl.searchParams.set('source_code', sourceCode);
             }
-            window.history.pushState({}, '', newUrl);
+            
+            // 保留referrer参数，如果存在
+            const referrer = urlParams.get('referrer');
+            if (referrer) {
+                newUrl.searchParams.set('referrer', referrer);
+            }
+            
+            window.history.replaceState({}, '', newUrl);
             
             // 更新播放器
             if (dp) {
