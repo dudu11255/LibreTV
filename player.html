@@ -461,20 +461,27 @@
                     const nestedVideoUrl = nestedUrlParams.get('url');
                     // 检查嵌套URL是否包含播放位置信息
                     const nestedPosition = nestedUrlParams.get('position');
+                    const nestedIndex = nestedUrlParams.get('index');
+                    const nestedTitle = nestedUrlParams.get('title');
                     
                     if (nestedVideoUrl) {
                         videoUrl = nestedVideoUrl;
                         console.log('已修正为真实视频URL:', videoUrl);
                         
-                        // 如果嵌套URL中有播放位置参数，且当前URL没有，则添加到当前URL
-                        if (nestedPosition && !urlParams.has('position')) {
-                            // 更新当前URL参数
-                            const url = new URL(window.location.href);
+                        // 更新当前URL参数
+                        const url = new URL(window.location.href);
+                        if (!urlParams.has('position') && nestedPosition) {
                             url.searchParams.set('position', nestedPosition);
-                            // 替换当前URL（不刷新页面）
-                            window.history.replaceState({}, '', url);
-                            console.log('从嵌套URL提取播放位置:', nestedPosition);
                         }
+                        if (!urlParams.has('index') && nestedIndex) {
+                            url.searchParams.set('index', nestedIndex);
+                        }
+                        if (!urlParams.has('title') && nestedTitle) {
+                            url.searchParams.set('title', nestedTitle);
+                        }
+                        // 替换当前URL
+                        window.history.replaceState({}, '', url);
+                        console.log('从嵌套URL提取参数:', {position: nestedPosition, index: nestedIndex});
                     } else {
                         console.warn('无法从重定向URL中提取视频链接');
                         showError('历史记录链接无效，请返回首页重新访问');
@@ -1401,13 +1408,13 @@
                 title: currentVideoTitle,
                 // 直接保存原始视频链接，而非播放页面链接
                 directVideoUrl: currentVideoUrl,
-                // 完整的播放器URL，修改格式确保正确传递视频链接
-                url: `player.html?url=${encodeURIComponent(currentVideoUrl)}&title=${encodeURIComponent(currentVideoTitle)}&source=${encodeURIComponent(sourceName)}&source_code=${encodeURIComponent(sourceCode)}&index=${currentEpisodeIndex}`,
+                // 完整的播放器URL
+                url: `player.html?url=${encodeURIComponent(currentVideoUrl)}&title=${encodeURIComponent(currentVideoTitle)}&source=${encodeURIComponent(sourceName)}&source_code=${encodeURIComponent(sourceCode)}&index=${currentEpisodeIndex}&position=${Math.floor(currentPosition || 0)}`,
                 episodeIndex: currentEpisodeIndex,
                 sourceName: sourceName,
                 timestamp: Date.now(),
                 // 添加播放进度信息
-                playbackPosition: currentPosition > 10 ? currentPosition : 0,
+                playbackPosition: currentPosition,
                 duration: videoDuration,
                 // 重要：保存完整的集数列表，确保进行深拷贝
                 episodes: currentEpisodes && currentEpisodes.length > 0 ? [...currentEpisodes] : []
