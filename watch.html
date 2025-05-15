@@ -5,6 +5,7 @@
     <meta http-equiv="refresh" content="0; url=player.html">
     <title>重定向到播放器</title>
     <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="css/watch.css">
     <script>
         // 获取当前URL的参数，并将它们传递给player.html
         window.onload = function() {
@@ -54,8 +55,10 @@
     </script>
 </head>
 <body>
-    <div style="text-align: center; padding-top: 100px;">
-        正在重定向到播放器...
+    <div class="redirect-container">
+        <div class="loading-animation"></div>
+        <div class="redirect-message">正在重定向到播放器...</div>
+        <p class="redirect-hint">如果页面没有自动跳转，请<a href="player.html" style="color: #00ccff;">点击这里</a></p>
     </div>
 </body>
 </html>
