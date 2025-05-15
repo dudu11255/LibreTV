@@ -490,7 +490,14 @@ function playFromHistory(url, title, episodeIndex, playbackPosition = 0) {
         }
         
         // 保存当前页面URL作为返回地址
-        const currentPath = window.location.href;
+        // 优先使用 location.origin + location.pathname + location.search，避免 hash 干扰
+        let currentPath;
+        if (window.location.pathname.startsWith('/player.html') || window.location.pathname.startsWith('/watch.html')) {
+            // 如果当前在 player/watch 页面，优先取 localStorage.lastPageUrl 或回退到首页
+            currentPath = localStorage.getItem('lastPageUrl') || '/';
+        } else {
+            currentPath = window.location.origin + window.location.pathname + window.location.search;
+        }
         localStorage.setItem('lastPageUrl', currentPath);
         
         // 构造带播放进度参数的URL

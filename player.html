@@ -220,13 +220,13 @@
         </a>
         
         <script>
-            // 改进返回功能 - 修复从搜索页返回问题
+            // 改进返回功能
             function goBack(e) {
                 e.preventDefault();
                 
-                // 1. 首先尝试从URL参数获取返回地址 (优先使用returnUrl或back参数)
+                // 1. 首先尝试从URL参数获取返回地址
                 const urlParams = new URLSearchParams(window.location.search);
-                const returnUrl = urlParams.get('returnUrl') || urlParams.get('back');
+                const returnUrl = urlParams.get('returnUrl');
                 
                 if (returnUrl) {
                     // 存在明确的返回地址
@@ -234,33 +234,14 @@
                     return;
                 }
                 
-                // 2. 检查是否是从搜索页面进入的播放器
-                const referrer = document.referrer;
-                if (referrer && (referrer.includes('/s=') || referrer.includes('?s='))) {
-                    // 如果是从搜索页面来的，返回到搜索页面
-                    window.location.href = referrer;
-                    return;
-                }
-                
-                // 3. 其次尝试从localStorage中获取上一页URL
+                // 2. 其次尝试从localStorage中获取上一页URL
                 const lastPageUrl = localStorage.getItem('lastPageUrl');
                 if (lastPageUrl && lastPageUrl !== window.location.href) {
                     window.location.href = lastPageUrl;
                     return;
                 }
                 
-                // 4. 如果是在iframe中打开的，尝试关闭iframe
-                if (window.self !== window.top) {
-                    try {
-                        // 尝试调用父窗口的关闭播放器函数
-                        window.parent.closeVideoPlayer && window.parent.closeVideoPlayer();
-                        return;
-                    } catch (e) {
-                        console.error('调用父窗口closeVideoPlayer失败:', e);
-                    }
-                }
-                
-                // 5. 最后使用浏览器历史记录
+                // 3. 最后使用浏览器历史记录
                 if (document.referrer && document.referrer !== window.location.href) {
                     window.location.href = document.referrer;
                 } else {
@@ -280,13 +261,6 @@
                     // 保存当前播放状态，以便其他页面可以返回
                     localStorage.setItem('currentPlayingId', videoId);
                     localStorage.setItem('currentPlayingSource', sourceCode);
-                }
-                
-                // 保存上一页的URL到localStorage(如果不是从播放器页面来的)
-                if (document.referrer && 
-                    !document.referrer.includes('player.html') && 
-                    document.referrer !== window.location.href) {
-                    localStorage.setItem('lastPageUrl', document.referrer);
                 }
             });
         </script>
@@ -319,7 +293,7 @@
                     <div class="loading-spinner"></div>
                     <div>正在加载视频...</div>
                 </div>
-                <div class="error-container" id="error"></div>
+                <div class="error-container" id="error">
                     <div class="error-icon">⚠️</div>
                     <div id="error-message">视频加载失败</div>
                     <div style="margin-top: 10px; font-size: 14px; color: #aaa;">请尝试其他视频源或稍后重试</div>
@@ -361,7 +335,7 @@
                 <!-- 把各种功能按钮放在右侧 - 在小屏幕上各自占一行 -->
                 <div class="flex flex-wrap justify-end gap-2">
                     <!-- 倒序排列按钮 -->
-                    <button onclick="toggleEpisodeOrder()" class="px-3 py-1 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg transition-colors flex items-center space-x-1 flex-shrink-0"></button>
+                    <button onclick="toggleEpisodeOrder()" class="px-3 py-1 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg transition-colors flex items-center space-x-1 flex-shrink-0">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" id="orderIcon" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd" />
                         </svg>
@@ -371,7 +345,7 @@
                     <!-- 复制链接按钮 -->
                     <button title="复制播放链接" onclick="copyLinks()" class="px-2 py-1 bg-[#222] hover:bg-[#333] border border-[#333] text-white rounded-lg transition">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 012-2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
                         </svg>
                     </button>
                     
@@ -533,13 +507,6 @@
             let index = parseInt(urlParams.get('index') || '0');
             const episodesList = urlParams.get('episodes'); // 从URL获取集数信息
             const savedPosition = parseInt(urlParams.get('position') || '0'); // 获取保存的播放位置
-            
-            // 检查并保存返回地址，确保页面内其他地方可以访问
-            const returnUrl = urlParams.get('returnUrl') || urlParams.get('back');
-            if (returnUrl) {
-                window.returnToPage = returnUrl;
-                console.log('已保存返回地址:', returnUrl);
-            }
               // 解决历史记录问题：检查URL是否是player.html开头的链接
             // 如果是，说明这是历史记录重定向，需要解析真实的视频URL
             if (videoUrl && videoUrl.includes('player.html')) {
