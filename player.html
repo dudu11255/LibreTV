@@ -497,22 +497,6 @@
             initializePageContent();
         });
 
-        // 判断是否再框架中打开
-        function inIframe() {
-            try {
-                // 如果当前窗口的顶层窗口不是自身，说明在框架中
-                return window.self !== window.top;
-            } catch (e) {
-                // 跨域访问会抛出错误，此时也说明在框架中
-                return true;
-            }
-        }
-        // 如果播放器不是在框架中打开，则隐藏上一页按钮
-        if (!inIframe()) {
-            goBack = document.getElementById('goBack');
-            goBack.style.display = 'none';
-        }
-
         // 初始化页面内容
         function initializePageContent() {
             // 解析URL参数
@@ -1271,7 +1255,7 @@
             videoHasEnded = false; // 重置视频结束标志
             
             // 获取当前URL参数，保留source参数
-            const urlParams = new URLSearchParams(window.location.search);
+            const urlParams = new URL(window.location.href);
             const sourceName = urlParams.get('source') || '';
             const sourceCode = urlParams.get('source_code') || '';
             

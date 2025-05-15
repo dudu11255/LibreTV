@@ -33,6 +33,9 @@
             } else if (referrer && (referrer.includes('/s=') || referrer.includes('?s='))) {
                 // 来源是搜索页面
                 returnUrl = referrer;
+            } else if (referrer && referrer.trim() !== '') {
+                // 如果有referrer但不是搜索页，也使用它
+                returnUrl = referrer;
             } else {
                 // 默认回到首页
                 returnUrl = '/';
