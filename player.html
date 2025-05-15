@@ -471,11 +471,29 @@
         
         // 注入服务器端环境变量 (将由服务器端替换)
         // PASSWORD 变量将在这里被服务器端注入
-        window.__ENV__.PASSWORD = "{{PASSWORD}}";
-
-        // 改进返回上一页功能
-        function goBack() {
-            // 检查是否是从搜索页面进入的播放器
+        window.__ENV__.PASSWORD = "{{PASSWORD}}";        // 改进返回上一页功能
+        function goBack(event) {
+            // 防止默认链接行为
+            if (event) event.preventDefault();
+            
+            // 1. 优先检查URL参数中的returnUrl
+            const urlParams = new URLSearchParams(window.location.search);
+            const returnUrl = urlParams.get('returnUrl');
+            
+            if (returnUrl) {
+                // 如果URL中有returnUrl参数，优先使用
+                window.location.href = decodeURIComponent(returnUrl);
+                return;
+            }
+            
+            // 2. 检查localStorage中保存的lastPageUrl
+            const lastPageUrl = localStorage.getItem('lastPageUrl');
+            if (lastPageUrl && lastPageUrl !== window.location.href) {
+                window.location.href = lastPageUrl;
+                return;
+            }
+            
+            // 3. 检查是否是从搜索页面进入的播放器
             const referrer = document.referrer;
             
             // 检查 referrer 是否包含搜索参数
@@ -485,7 +503,7 @@
                 return;
             }
             
-            // 如果是在iframe中打开的，尝试关闭iframe
+            // 4. 如果是在iframe中打开的，尝试关闭iframe
             if (window.self !== window.top) {
                 try {
                     // 尝试调用父窗口的关闭播放器函数
@@ -496,7 +514,13 @@
                 }
             }
             
-            // 默认行为：返回上一页
+            // 5. 无法确定上一页，则返回首页
+            if (!referrer || referrer === '') {
+                window.location.href = '/';
+                return;
+            }
+            
+            // 6. 以上都不满足，使用默认行为：返回上一页
             window.history.back();
         }
 
