@@ -6,6 +6,31 @@ window.onload = function() {
     // 创建player.html的URL
     let playerUrl = "player.html";
     
+    // 更新状态文本
+    const statusElement = document.getElementById('redirect-status');
+    const manualRedirect = document.getElementById('manual-redirect');
+    let statusMessages = [
+        "准备视频数据中...",
+        "正在加载视频信息...",
+        "即将开始播放...",
+    ];
+    let currentStatus = 0;
+    
+    // 状态文本动画
+    let statusInterval = setInterval(() => {
+        if (currentStatus >= statusMessages.length) {
+            currentStatus = 0;
+        }
+        if (statusElement) {
+            statusElement.textContent = statusMessages[currentStatus];
+            statusElement.style.opacity = 0.7;
+            setTimeout(() => {
+                if (statusElement) statusElement.style.opacity = 1;
+            }, 300);
+        }
+        currentStatus++;
+    }, 1000);
+    
     // 如果有查询参数，添加到player.html的URL
     if (currentParams.toString()) {
         playerUrl += "?" + currentParams.toString();
@@ -34,12 +59,26 @@ window.onload = function() {
     }
     
     // 将返回URL添加到player.html的参数中
-    playerUrl += playerUrl.includes('?') ? '&' : '?';
-    playerUrl += 'returnUrl=' + encodeURIComponent(returnUrl);
+    const separator = playerUrl.includes('?') ? '&' : '?';
+    playerUrl += separator + 'returnUrl=' + encodeURIComponent(returnUrl);
     
     // 同时保存在localStorage中，作为备用
     localStorage.setItem('lastPageUrl', returnUrl);
     
+    // 标记来自搜索页面
+    if (returnUrl.includes('/s=') || returnUrl.includes('?s=')) {
+        localStorage.setItem('cameFromSearch', 'true');
+        localStorage.setItem('searchPageUrl', returnUrl);
+    }
+    
+    // 更新手动重定向链接
+    if (manualRedirect) {
+        manualRedirect.href = playerUrl;
+    }
+    
     // 重定向到播放器页面
-    window.location.href = playerUrl;
+    setTimeout(() => {
+        clearInterval(statusInterval);
+        window.location.href = playerUrl;
+    }, 2800); // 稍微早于meta refresh的时间，确保我们的JS控制重定向
 };
