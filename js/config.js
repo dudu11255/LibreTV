@@ -38,10 +38,6 @@ const API_SITES = {
         api: 'https://tyyszy.com/api.php/provide/vod',
         name: '天涯资源',
     },
-    subo: {
-        api: 'https://subocaiji.com/api.php/provide/vod',
-        name: '速播资源'
-    },
     // xiaomaomi: {
     //     api: 'https://zy.xiaomaomi.cc/api.php/provide/vod',
     //     name: '小猫咪资源',
@@ -166,6 +162,20 @@ const API_SITES = {
     //     api: 'https://yutuzy10.com',
     //     name: '玉兔资源',
     //     adult: true
+    // },
+
+    // 下面是资源失效率高的API源，不建议使用
+    // subo: {
+    //     api: 'https://subocaiji.com/api.php/provide/vod',
+    //     name: '速播资源'
+    // },
+    // fczy: {
+    //     api: 'https://api.fczy888.me/api.php/provide/vod',
+    //     name: '蜂巢资源'
+    // },
+    // ukzy: {
+    //     api: 'https://api.ukuapi88.com/api.php/provide/vod',
+    //     name: 'U酷资源'
     // },
 };
 
