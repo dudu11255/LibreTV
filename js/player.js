@@ -906,10 +906,17 @@ function playEpisode(index) {
     // 更新播放器
     if (dp) {
         try {
-            dp.switchVideo({
+            const switchPromise = dp.switchVideo({
                 url: url,
                 type: 'hls'
             });
+            if (switchPromise !== undefined) {
+                switchPromise.catch(error => {
+                    console.warn('切换视频失败，尝试重新初始化:', error);
+                    // 如果切换视频失败，重新初始化播放器
+                    initPlayer(url, sourceCode);
+                });
+            }
             
             // 确保播放开始
             const playPromise = dp.play();
