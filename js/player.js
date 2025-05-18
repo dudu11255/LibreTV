@@ -905,6 +905,7 @@ function playEpisode(index) {
     
     // 更新播放器
     if (dp) {
+        console.log('正在切换视频到:', url);
         try {
             const switchPromise = dp.switchVideo({
                 url: url,
