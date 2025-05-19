@@ -601,6 +601,12 @@ function initPlayer(videoUrl, sourceCode) {
     });
 
     dp.on('error', function() {
+        // 如果正在切换视频，忽略错误
+        if (window.isSwitchingVideo) {
+            console.log('正在切换视频，忽略错误');
+            return;
+        }
+        
         // 检查视频是否已经在播放
         if (dp.video && dp.video.currentTime > 1) {
             console.log('发生错误，但视频已在播放中，忽略');
@@ -921,6 +927,9 @@ function playEpisode(index) {
             if (isSafari || isIOS) {
                 // Safari或iOS设备：完全重新初始化播放器
                 console.log('检测到Safari或iOS设备，重新初始化播放器');
+
+                // 标记正在切换视频，避免错误处理
+                window.isSwitchingVideo = true;
                 
                 // 如果存在旧的播放器实例，先销毁它
                 if (dp && dp.destroy) {
@@ -933,6 +942,11 @@ function playEpisode(index) {
                 
                 // 重新初始化播放器
                 initPlayer(url, sourceCode);
+
+                // 延迟重置标记
+                setTimeout(() => {
+                    window.isSwitchingVideo = false;
+                }, 1000);
 
                 if (dp) {
                     const playPromise = dp.play();
