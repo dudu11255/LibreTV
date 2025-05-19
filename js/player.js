@@ -947,17 +947,6 @@ function playEpisode(index) {
                 setTimeout(() => {
                     window.isSwitchingVideo = false;
                 }, 1000);
-
-                if (dp) {
-                    const playPromise = dp.play();
-                    if (playPromise !== undefined) {
-                        playPromise.catch(error => {
-                            console.warn('播放失败，尝试重新初始化:', error);
-                            // 如果切换视频失败，重新初始化播放器
-                            initPlayer(url, sourceCode);
-                        });
-                    }
-                }
             } else {
                 // 其他浏览器使用正常的switchVideo方法
                 if (dp.video) {
@@ -970,8 +959,10 @@ function playEpisode(index) {
                     url: url,
                     type: 'hls'
                 });
-                
-                // 确保播放开始
+            }
+            
+            // 确保播放开始
+            if (dp) {
                 const playPromise = dp.play();
                 if (playPromise !== undefined) {
                     playPromise.catch(error => {
