@@ -914,39 +914,58 @@ function playEpisode(index) {
     // 更新播放器
     if (dp) {
         try {
-            if (dp.video) {
-                // 更新source元素 - 使用移除并重新添加的方式
-                const sources = dp.video.querySelectorAll('source');
-                sources.forEach(source => {
-                    // 移除旧的source元素
-                    source.parentNode.removeChild(source);
-                });
-                
-                // 创建并添加新的source元素
-                const newSource = document.createElement('source');
-                newSource.src = url;
-                dp.video.appendChild(newSource);
-                
-                // 确保video元素本身的src也被更新
-                dp.video.src = url;
-                
-                // 在iOS上，可能需要显式加载
-                dp.video.load();
-            }
-
-            dp.switchVideo({
-                url: url,
-                type: 'hls'
-            });
+            // 检测是否为Safari浏览器或iOS设备
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
             
-            // 确保播放开始
-            const playPromise = dp.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.warn('播放失败，尝试重新初始化:', error);
-                    // 如果切换视频失败，重新初始化播放器
-                    initPlayer(url, sourceCode);
+            if (isSafari || isIOS) {
+                // Safari或iOS设备：完全重新初始化播放器
+                console.log('检测到Safari或iOS设备，重新初始化播放器');
+                
+                // 如果存在旧的播放器实例，先销毁它
+                if (dp && dp.destroy) {
+                    try {
+                        dp.destroy();
+                    } catch (e) {
+                        console.warn('销毁旧播放器实例出错:', e);
+                    }
+                }
+                
+                // 重新初始化播放器
+                initPlayer(url, sourceCode);
+
+                if (dp) {
+                    const playPromise = dp.play();
+                    if (playPromise !== undefined) {
+                        playPromise.catch(error => {
+                            console.warn('播放失败，尝试重新初始化:', error);
+                            // 如果切换视频失败，重新初始化播放器
+                            initPlayer(url, sourceCode);
+                        });
+                    }
+                }
+            } else {
+                // 其他浏览器使用正常的switchVideo方法
+                if (dp.video) {
+                    // 更新source元素
+                    const sources = dp.video.querySelectorAll('source');
+                    sources.forEach(source => source.src = url);
+                }
+                
+                dp.switchVideo({
+                    url: url,
+                    type: 'hls'
                 });
+                
+                // 确保播放开始
+                const playPromise = dp.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.warn('播放失败，尝试重新初始化:', error);
+                        // 如果切换视频失败，重新初始化播放器
+                        initPlayer(url, sourceCode);
+                    });
+                }
             }
         } catch (e) {
             console.error('切换视频出错，尝试重新初始化:', e);
