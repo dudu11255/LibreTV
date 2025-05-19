@@ -915,14 +915,29 @@ function playEpisode(index) {
     if (dp) {
         try {
             if (dp.video) {
+                // 更新source元素 - 使用移除并重新添加的方式
                 const sources = dp.video.querySelectorAll('source');
-                sources.forEach(source => source.src = url);
+                sources.forEach(source => {
+                    // 移除旧的source元素
+                    source.parentNode.removeChild(source);
+                });
+                
+                // 创建并添加新的source元素
+                const newSource = document.createElement('source');
+                newSource.src = url;
+                dp.video.appendChild(newSource);
+                
+                // 确保video元素本身的src也被更新
+                dp.video.src = url;
+                
+                // 在iOS上，可能需要显式加载
+                dp.video.load();
             }
 
             dp.switchVideo({
                 url: url,
                 type: 'hls'
-            })
+            });
             
             // 确保播放开始
             const playPromise = dp.play();
