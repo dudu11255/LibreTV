@@ -994,30 +994,25 @@ async function showDetails(id, vod_name, sourceCode) {
             // 构建详情信息HTML
             let detailInfoHtml = '';
             if (data.videoInfo) {
-                const info = data.videoInfo;
-                
-                // 检查简介是否存在且不为空
-                const hasDesc = info.desc && 
-                    info.desc.trim() !== '' && 
-                    info.desc.replace(/<[^>]*>/g, '').trim() !== '';
-                
+                // Prepare description text, strip HTML and trim whitespace
+                const descriptionText = data.videoInfo.desc ? data.videoInfo.desc.replace(/<[^>]+>/g, '').trim() : '';
+
                 detailInfoHtml = `
-                    <div class="mb-6 p-4 bg-[#0a0a0a] rounded-lg border border-[#222]">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                            ${info.type ? `<div><span class="text-gray-400">类型：</span><span class="text-white">${info.type}</span></div>` : ''}
-                            ${info.year ? `<div><span class="text-gray-400">年份：</span><span class="text-white">${info.year}</span></div>` : ''}
-                            ${info.area ? `<div><span class="text-gray-400">地区：</span><span class="text-white">${info.area}</span></div>` : ''}
-                            ${info.remarks ? `<div><span class="text-gray-400">状态：</span><span class="text-white">${info.remarks}</span></div>` : ''}
-                            ${info.director ? `<div class="md:col-span-2"><span class="text-gray-400">导演：</span><span class="text-white">${info.director}</span></div>` : ''}
-                            ${info.actor ? `<div class="md:col-span-2"><span class="text-gray-400">演员：</span><span class="text-white">${info.actor}</span></div>` : ''}
-                        </div>
-                        ${hasDesc ? `
-                            <div class="mt-4 pt-4 border-t border-[#333]">
-                                <div class="text-gray-400 mb-2">剧情简介：</div>
-                                <div class="text-gray-200 text-sm leading-relaxed max-h-32 overflow-y-auto">${info.desc.replace(/<[^>]*>/g, '').trim()}</div>
-                            </div>
-                        ` : ''}
+                <div class="modal-detail-info">
+                    <div class="detail-grid">
+                        ${data.videoInfo.type ? `<div class="detail-item"><span class="detail-label">类型:</span> <span class="detail-value">${data.videoInfo.type}</span></div>` : ''}
+                        ${data.videoInfo.year ? `<div class="detail-item"><span class="detail-label">年份:</span> <span class="detail-value">${data.videoInfo.year}</span></div>` : ''}
+                        ${data.videoInfo.area ? `<div class="detail-item"><span class="detail-label">地区:</span> <span class="detail-value">${data.videoInfo.area}</span></div>` : ''}
+                        ${data.videoInfo.director ? `<div class="detail-item"><span class="detail-label">导演:</span> <span class="detail-value">${data.videoInfo.director}</span></div>` : ''}
+                        ${data.videoInfo.actor ? `<div class="detail-item"><span class="detail-label">主演:</span> <span class="detail-value">${data.videoInfo.actor}</span></div>` : ''}
+                        ${data.videoInfo.remarks ? `<div class="detail-item"><span class="detail-label">备注:</span> <span class="detail-value">${data.videoInfo.remarks}</span></div>` : ''}
                     </div>
+                    ${descriptionText ? `
+                    <div class="detail-desc">
+                        <p class="detail-label">简介:</p>
+                        <p class="detail-desc-content">${descriptionText}</p>
+                    </div>` : ''}
+                </div>
                 `;
             }
             
