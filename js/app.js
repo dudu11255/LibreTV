@@ -997,8 +997,13 @@ async function showDetails(id, vod_name, sourceCode) {
                 // Prepare description text, strip HTML and trim whitespace
                 const descriptionText = data.videoInfo.desc ? data.videoInfo.desc.replace(/<[^>]+>/g, '').trim() : '';
 
-                detailInfoHtml = `
+                // Check if there's any actual grid content
+                const hasGridContent = data.videoInfo.type || data.videoInfo.year || data.videoInfo.area || data.videoInfo.director || data.videoInfo.actor || data.videoInfo.remarks;
+
+                if (hasGridContent || descriptionText) { // Only build if there's something to show
+                    detailInfoHtml = `
                 <div class="modal-detail-info">
+                    ${hasGridContent ? `
                     <div class="detail-grid">
                         ${data.videoInfo.type ? `<div class="detail-item"><span class="detail-label">类型:</span> <span class="detail-value">${data.videoInfo.type}</span></div>` : ''}
                         ${data.videoInfo.year ? `<div class="detail-item"><span class="detail-label">年份:</span> <span class="detail-value">${data.videoInfo.year}</span></div>` : ''}
@@ -1006,7 +1011,7 @@ async function showDetails(id, vod_name, sourceCode) {
                         ${data.videoInfo.director ? `<div class="detail-item"><span class="detail-label">导演:</span> <span class="detail-value">${data.videoInfo.director}</span></div>` : ''}
                         ${data.videoInfo.actor ? `<div class="detail-item"><span class="detail-label">主演:</span> <span class="detail-value">${data.videoInfo.actor}</span></div>` : ''}
                         ${data.videoInfo.remarks ? `<div class="detail-item"><span class="detail-label">备注:</span> <span class="detail-value">${data.videoInfo.remarks}</span></div>` : ''}
-                    </div>
+                    </div>` : ''}
                     ${descriptionText ? `
                     <div class="detail-desc">
                         <p class="detail-label">简介:</p>
@@ -1014,6 +1019,7 @@ async function showDetails(id, vod_name, sourceCode) {
                     </div>` : ''}
                 </div>
                 `;
+                }
             }
             
             currentEpisodes = data.episodes;
