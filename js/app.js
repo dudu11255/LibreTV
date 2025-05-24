@@ -995,6 +995,12 @@ async function showDetails(id, vod_name, sourceCode) {
             let detailInfoHtml = '';
             if (data.videoInfo) {
                 const info = data.videoInfo;
+                
+                // 检查简介是否存在且不为空
+                const hasDesc = info.desc && 
+                    info.desc.trim() !== '' && 
+                    info.desc.replace(/<[^>]*>/g, '').trim() !== '';
+                
                 detailInfoHtml = `
                     <div class="mb-6 p-4 bg-[#0a0a0a] rounded-lg border border-[#222]">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -1005,7 +1011,7 @@ async function showDetails(id, vod_name, sourceCode) {
                             ${info.director ? `<div class="md:col-span-2"><span class="text-gray-400">导演：</span><span class="text-white">${info.director}</span></div>` : ''}
                             ${info.actor ? `<div class="md:col-span-2"><span class="text-gray-400">演员：</span><span class="text-white">${info.actor}</span></div>` : ''}
                         </div>
-                        ${info.desc ? `
+                        ${hasDesc ? `
                             <div class="mt-4 pt-4 border-t border-[#333]">
                                 <div class="text-gray-400 mb-2">剧情简介：</div>
                                 <div class="text-gray-200 text-sm leading-relaxed max-h-32 overflow-y-auto">${info.desc.replace(/<[^>]*>/g, '').trim()}</div>
