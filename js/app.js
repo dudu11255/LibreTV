@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
         localStorage.setItem('hasInitializedDefaults', 'true');
     }
     
-    // 设置黄色内容过滤开关初始状态
+    // 设置黄色内容过滤器开关初始状态
     const yellowFilterToggle = document.getElementById('yellowFilterToggle');
     if (yellowFilterToggle) {
         yellowFilterToggle.checked = localStorage.getItem('yellowFilterEnabled') === 'true';
@@ -1151,7 +1151,7 @@ function renderEpisodes(vodName, sourceCode, vodId) {
         return `
             <button id="episode-${realIndex}" onclick="playVideo('${episode}','${vodName.replace(/"/g, '&quot;')}', '${sourceCode}', ${realIndex}, '${vodId}')" 
                     class="px-4 py-2 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg transition-colors text-center episode-btn">
-                第${realIndex + 1}集
+                ${realIndex + 1}
             </button>
         `;
     }).join('');
