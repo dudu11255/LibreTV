@@ -991,33 +991,48 @@ async function showDetails(id, vod_name, sourceCode) {
         currentVideoTitle = vod_name || '未知视频';
         
         if (data.episodes && data.episodes.length > 0) {
-            // 安全处理集数URL
-            const safeEpisodes = data.episodes.map(url => {
-                try {
-                    // 确保URL是有效的并且是http或https开头
-                    return url && (url.startsWith('http://') || url.startsWith('https://'))
-                        ? url.replace(/"/g, '&quot;')
-                        : '';
-                } catch (e) {
-                    return '';
-                }
-            }).filter(url => url); // 过滤掉空URL
+            // 构建详情信息HTML
+            let detailInfoHtml = '';
+            if (data.videoInfo) {
+                const info = data.videoInfo;
+                detailInfoHtml = `
+                    <div class="mb-6 p-4 bg-[#0a0a0a] rounded-lg border border-[#222]">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            ${info.type ? `<div><span class="text-gray-400">类型：</span><span class="text-white">${info.type}</span></div>` : ''}
+                            ${info.year ? `<div><span class="text-gray-400">年份：</span><span class="text-white">${info.year}</span></div>` : ''}
+                            ${info.area ? `<div><span class="text-gray-400">地区：</span><span class="text-white">${info.area}</span></div>` : ''}
+                            ${info.remarks ? `<div><span class="text-gray-400">状态：</span><span class="text-white">${info.remarks}</span></div>` : ''}
+                            ${info.director ? `<div class="md:col-span-2"><span class="text-gray-400">导演：</span><span class="text-white">${info.director}</span></div>` : ''}
+                            ${info.actor ? `<div class="md:col-span-2"><span class="text-gray-400">演员：</span><span class="text-white">${info.actor}</span></div>` : ''}
+                        </div>
+                        ${info.desc ? `
+                            <div class="mt-4 pt-4 border-t border-[#333]">
+                                <div class="text-gray-400 mb-2">剧情简介：</div>
+                                <div class="text-gray-200 text-sm leading-relaxed max-h-32 overflow-y-auto">${info.desc.replace(/<[^>]*>/g, '').trim()}</div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
             
-            // 保存当前视频的所有集数
-            currentEpisodes = safeEpisodes;
-            episodesReversed = false; // 默认正序
+            currentEpisodes = data.episodes;
+            currentEpisodeIndex = 0;
+            
             modalContent.innerHTML = `
-                <div class="flex justify-end mb-2">
-                    <button onclick="toggleEpisodeOrder('${sourceCode}', '${id}')" class="px-4 py-1 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg transition-colors flex items-center space-x-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd" />
-                        </svg>
-                        <span>倒序排列</span>
-                    </button>
-                    <button title="批量复制播放链接" onclick="copyLinks()" class="ml-2 px-2 py-1 bg-[#222] hover:bg-[#333] border border-[#333] text-white rounded-lg transition">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                        </svg>
+                ${detailInfoHtml}
+                <div class="flex flex-wrap items-center justify-between mb-4 gap-2">
+                    <div class="flex items-center gap-2">
+                        <button onclick="toggleEpisodeOrder('${sourceCode}', '${id}')" 
+                                class="px-3 py-1.5 bg-[#333] hover:bg-[#444] border border-[#444] rounded text-sm transition-colors flex items-center gap-1">
+                            <svg class="w-4 h-4 transform ${episodesReversed ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+                            </svg>
+                            <span>${episodesReversed ? '正序排列' : '倒序排列'}</span>
+                        </button>
+                        <span class="text-gray-400 text-sm">共 ${data.episodes.length} 集</span>
+                    </div>
+                    <button onclick="copyLinks()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition-colors">
+                        复制链接
                     </button>
                 </div>
                 <div id="episodesGrid" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
@@ -1025,7 +1040,12 @@ async function showDetails(id, vod_name, sourceCode) {
                 </div>
             `;
         } else {
-            modalContent.innerHTML = '<p class="text-center text-gray-400 py-8">没有找到可播放的视频</p>';
+            modalContent.innerHTML = `
+                <div class="text-center py-8">
+                    <div class="text-red-400 mb-2">❌ 未找到播放资源</div>
+                    <div class="text-gray-500 text-sm">该视频可能暂时无法播放，请尝试其他视频</div>
+                </div>
+            `;
         }
         
         modal.classList.remove('hidden');
