@@ -812,12 +812,18 @@ function renderEpisodes() {
         // 根据倒序状态计算真实的剧集索引
         const realIndex = episodesReversed ? currentEpisodes.length - 1 - index : index;
         const isActive = realIndex === currentEpisodeIndex;
+        // 尝试获取集数标题，如果没有则显示集数
+        const episodeTitle = typeof episode === 'object' && episode.name 
+            ? episode.name 
+            : `第${realIndex + 1}集`;
+        const episodeUrl = typeof episode === 'object' ? episode.url : episode;
 
         html += `
             <button id="episode-${realIndex}" 
                     onclick="playEpisode(${realIndex})" 
-                    class="px-4 py-2 ${isActive ? 'episode-active' : '!bg-[#222] hover:!bg-[#333] hover:!shadow-none'} !border ${isActive ? '!border-blue-500' : '!border-[#333]'} rounded-lg transition-colors text-center episode-btn">
-                ${realIndex + 1}
+                    class="px-4 py-2 ${isActive ? 'episode-active' : '!bg-[#222] hover:!bg-[#333] hover:!shadow-none'} !border ${isActive ? '!border-blue-500' : '!border-[#333]'} rounded-lg transition-colors text-center episode-btn whitespace-normal break-words" 
+                    title="${episodeTitle}">
+                ${episodeTitle}
             </button>
         `;
     });

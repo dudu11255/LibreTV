@@ -1177,15 +1177,24 @@ function renderEpisodes(vodName, sourceCode, vodId) {
     return episodes.map((episode, index) => {
         // 根据倒序状态计算真实的剧集索引
         const realIndex = episodesReversed ? currentEpisodes.length - 1 - index : index;
+        // 尝试获取集数标题，如果没有则显示集数
+        const episodeTitle = typeof episode === 'object' && episode.name 
+            ? episode.name 
+            : `第${realIndex + 1}集`;
+        const episodeUrl = typeof episode === 'object' ? episode.url : episode;
+        
         return `
-            <button id="episode-${realIndex}" onclick="playVideo('${episode}','${vodName.replace(/"/g, '"')}', '${sourceCode}', ${realIndex}, '${vodId}')" 
-                    class="px-4 py-2 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg transition-colors text-center episode-btn">
-                ${realIndex + 1}
+            <button id="episode-${realIndex}" 
+                    onclick="playVideo('${episodeUrl}','${vodName.replace(/"/g, '&quot;')}', '${sourceCode}', ${realIndex}, '${vodId}')" 
+                    class="px-4 py-2 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg transition-colors text-center episode-btn whitespace-normal break-words"
+                    title="${episodeTitle}">
+                ${episodeTitle}
             </button>
         `;
     }).join('');
 }
 
+// ...
 // 复制视频链接到剪贴板
 function copyLinks() {
     const episodes = episodesReversed ? [...currentEpisodes].reverse() : currentEpisodes;
