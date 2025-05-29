@@ -20,7 +20,7 @@ LibreTV 是一个轻量级、免费的在线视频搜索与观看平台，提供
 ## 🥇 感谢赞助
 
 - **[YXVM](https://yxvm.com)**  
-- **[VTEXS](https://zmto.com)**
+- **[ZMTO/VTEXS](https://zmto.com)**
 
 ## 🚀 快速部署
 
