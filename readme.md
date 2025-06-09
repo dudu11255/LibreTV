@@ -103,18 +103,16 @@ docker run -d \
 
 ### Docker Compose
 
- `docker-compose.yml` 文件：
+获取最新 `docker-compose.yml`：
 
-```yaml
-services:
-  libretv:
-    image: bestzwei/libretv:latest
-    container_name: libretv
-    ports:
-      - "8899:8080"
-    environment:
-      - PASSWORD=${PASSWORD:-111111}
-    restart: unless-stopped
+```bash
+curl -kLo docker-compose.yml https://raw.githubusercontent.com/LibreSpark/LibreTV/main/docker-compose.yml
+```
+启动 LibreTV：
+
+```bash
+mkdir data
+docker-compose up -d
 ```
 
 ### 本地开发环境
