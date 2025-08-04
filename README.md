@@ -17,12 +17,6 @@ LibreTV 是一个轻量级、免费的在线视频搜索与观看平台，提供
   <img src="https://github.com/user-attachments/assets/df485345-e83b-4564-adf7-0680be92d3c7" alt="项目截图" style="max-width:600px">
 </details>
 
-## 🥇 感谢赞助
-
-- **[YXVM](https://yxvm.com)**  
-- **[ZMTO/VTEXS](https://zmto.com)**
-- **[DreamCloud](https://as211392.com/)**
-
 ## 🚀 快速部署
 
 选择以下任一平台，点击一键部署按钮，即可快速创建自己的 LibreTV 实例：
@@ -183,3 +177,15 @@ LibreTV 仅作为视频搜索工具，不存储、上传或分发任何视频内
 
 本项目开发者不对使用本项目产生的任何后果负责。使用本项目时，您必须遵守当地的法律法规。
 
+## 🤝 衍生项目
+
+它们提供了更多丰富的自定义功能，欢迎体验~
+
+- **[MoonTV](https://github.com/senshinya/MoonTV)**  
+- **[OrionTV](https://github.com/zimplexing/OrionTV)**  
+
+## 🥇 感谢赞助
+
+- **[YXVM](https://yxvm.com)**  
+- **[ZMTO/VTEXS](https://zmto.com)**
+- **[DreamCloud](https://as211392.com/)**
