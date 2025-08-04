@@ -23,7 +23,12 @@ async function searchByAPIAndKeyWord(apiId, query) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8000);
         
-        const response = await fetch(PROXY_URL + encodeURIComponent(apiUrl), {
+        // 添加鉴权参数到代理URL
+        const proxiedUrl = await window.ProxyAuth?.addAuthToProxyUrl ? 
+            await window.ProxyAuth.addAuthToProxyUrl(PROXY_URL + encodeURIComponent(apiUrl)) :
+            PROXY_URL + encodeURIComponent(apiUrl);
+        
+        const response = await fetch(proxiedUrl, {
             headers: API_CONFIG.search.headers,
             signal: controller.signal
         });
@@ -69,7 +74,12 @@ async function searchByAPIAndKeyWord(apiId, query) {
                         const pageController = new AbortController();
                         const pageTimeoutId = setTimeout(() => pageController.abort(), 8000);
                         
-                        const pageResponse = await fetch(PROXY_URL + encodeURIComponent(pageUrl), {
+                        // 添加鉴权参数到代理URL
+                        const proxiedPageUrl = await window.ProxyAuth?.addAuthToProxyUrl ? 
+                            await window.ProxyAuth.addAuthToProxyUrl(PROXY_URL + encodeURIComponent(pageUrl)) :
+                            PROXY_URL + encodeURIComponent(pageUrl);
+                        
+                        const pageResponse = await fetch(proxiedPageUrl, {
                             headers: API_CONFIG.search.headers,
                             signal: pageController.signal
                         });
