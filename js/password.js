@@ -15,9 +15,26 @@ function isPasswordProtected() {
 /**
  * 检查是否强制要求设置密码
  * 如果没有设置有效的 PASSWORD，则认为需要强制设置密码
+ * 为了安全考虑，所有部署都必须设置密码
  */
 function isPasswordRequired() {
     return !isPasswordProtected();
+}
+
+/**
+ * 强制密码保护检查 - 防止绕过
+ * 在关键操作前都应该调用此函数
+ */
+function ensurePasswordProtection() {
+    if (isPasswordRequired()) {
+        showPasswordModal();
+        throw new Error('Password protection is required');
+    }
+    if (isPasswordProtected() && !isPasswordVerified()) {
+        showPasswordModal();
+        throw new Error('Password verification required');
+    }
+    return true;
 }
 
 window.isPasswordProtected = isPasswordProtected;
@@ -72,6 +89,7 @@ window.isPasswordProtected = isPasswordProtected;
 window.isPasswordRequired = isPasswordRequired;
 window.isPasswordVerified = isPasswordVerified;
 window.verifyPassword = verifyPassword;
+window.ensurePasswordProtection = ensurePasswordProtection;
 
 // SHA-256实现，可用Web Crypto API
 async function sha256(message) {
