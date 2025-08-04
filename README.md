@@ -32,7 +32,7 @@ LibreTV 是一个轻量级、免费的在线视频搜索与观看平台，提供
 - 如因公开分享导致的任何法律问题，用户需自行承担责任
 - 项目开发者不对用户的使用行为承担任何法律责任
 
-## ⚠️ 请勿使用 Pull Bot 自动同步
+## ⚠️ 同步与升级
 
 Pull Bot 会反复触发无效的 PR 和垃圾邮件，严重干扰项目维护。作者可能会直接拉黑所有 Pull Bot 自动发起的同步请求的仓库所有者。
 
@@ -41,6 +41,8 @@ Pull Bot 会反复触发无效的 PR 和垃圾邮件，严重干扰项目维护�
 建议在 fork 的仓库中启用本仓库自带的 GitHub Actions 自动同步功能（见 `.github/workflows/sync.yml`）。 
 
 如需手动同步主仓库更新，也可以使用 GitHub 官方的 [Sync fork](https://docs.github.com/cn/github/collaborating-with-issues-and-pull-requests/syncing-a-fork) 功能。
+
+对于更新后可能会出现的错误和异常，在设置中备份配置后，首先清除页面Cookie，然后 Ctrl + F5 刷新页面。再次访问网页检查是否解决问题。
 
 
 ## 📋 详细部署指南
@@ -169,5 +171,6 @@ LibreTV 仅作为视频搜索工具，不存储、上传或分发任何视频内
 
 ## 🥇 感谢支持
 
-- **[YXVM](https://yxvm.com)**  
+- **[Sharon](https://sharon.io)**
 - **[ZMTO](https://zmto.com)**
+- **[YXVM](https://yxvm.com)**  
