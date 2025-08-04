@@ -120,14 +120,6 @@ function isValidUrl(urlString) {
   }
 }
 
-// 修复反向代理处理过的路径
-app.use('/proxy', (req, res, next) => {
-  const targetUrl = req.url.replace(/^\//, '').replace(/(https?:)\/([^/])/, '$1//$2');
-  req.url = '/' + encodeURIComponent(targetUrl);
-  next();
-});
-
-// 代理路由
 // 验证代理请求的鉴权
 function validateProxyAuth(req) {
   const authHash = req.query.auth;
@@ -145,6 +137,7 @@ function validateProxyAuth(req) {
   
   if (!authHash || authHash !== serverPasswordHash) {
     console.warn('代理请求鉴权失败：密码哈希不匹配');
+    console.warn(`期望: ${serverPasswordHash}, 收到: ${authHash}`);
     return false;
   }
   
