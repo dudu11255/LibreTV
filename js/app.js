@@ -484,21 +484,9 @@ function toggleSettings(e) {
     const settingsPanel = document.getElementById('settingsPanel');
     if (!settingsPanel) return;
 
-    // 检查是否有管理员密码
-    const hasAdminPassword = window.__ENV__?.ADMINPASSWORD && 
-                           window.__ENV__.ADMINPASSWORD.length === 64 && 
-                           !/^0+$/.test(window.__ENV__.ADMINPASSWORD);
-
     if (settingsPanel.classList.contains('show')) {
         settingsPanel.classList.remove('show');
     } else {
-        // 只有设置了管理员密码且未验证时才拦截
-        if (hasAdminPassword && !isAdminVerified()) {
-            e.preventDefault();
-            e.stopPropagation();
-            showAdminPasswordModal();
-            return;
-        }
         settingsPanel.classList.add('show');
     }
 

@@ -15,7 +15,6 @@ const __dirname = path.dirname(__filename);
 const config = {
   port: process.env.PORT || 8080,
   password: process.env.PASSWORD || '',
-  adminpassword: process.env.ADMINPASSWORD || '',
   corsOrigin: process.env.CORS_ORIGIN || '*',
   timeout: parseInt(process.env.REQUEST_TIMEOUT || '5000'),
   maxRetries: parseInt(process.env.MAX_RETRIES || '2'),
@@ -58,12 +57,11 @@ async function renderPage(filePath, password) {
   if (password !== '') {
     const sha256 = await sha256Hash(password);
     content = content.replace('{{PASSWORD}}', sha256);
+  } else {
+    content = content.replace('{{PASSWORD}}', '');
   }
-  // 添加ADMINPASSWORD注入
-  if (config.adminpassword !== '') {
-      const adminSha256 = await sha256Hash(config.adminpassword);
-      content = content.replace('{{ADMINPASSWORD}}', adminSha256);
-  } 
+  // 移除 ADMINPASSWORD 占位符
+  content = content.replace('{{ADMINPASSWORD}}', '');
   return content;
 }
 
@@ -210,12 +208,11 @@ app.listen(config.port, () => {
   console.log(`服务器运行在 http://localhost:${config.port}`);
   if (config.password !== '') {
     console.log('用户登录密码已设置');
-  }
-  if (config.adminpassword !== '') {
-    console.log('管理员登录密码已设置');
+  } else {
+    console.log('警告: 未设置 PASSWORD 环境变量，用户将被要求设置密码');
   }
   if (config.debug) {
     console.log('调试模式已启用');
-    console.log('配置:', { ...config, password: config.password ? '******' : '', adminpassword: config.adminpassword? '******' : '' });
+    console.log('配置:', { ...config, password: config.password ? '******' : '' });
   }
 });

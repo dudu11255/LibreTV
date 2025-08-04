@@ -75,19 +75,16 @@ Pull Bot 会反复触发无效的 PR 和垃圾邮件，严重干扰项目维护�
 4. 使用以下设置：
    - 构建命令：留空（无需构建）
    - 输出目录：留空（默认为根目录）
-5. **⚠️ 重要：在"设置" > "环境变量"中添加 `PASSWORD` 变量**
-6. **可选：在"Settings" > "Environment Variables"中添加 `ADMINPASSWORD` 变量**
-7. 点击"保存并部署"
+5. **⚠️ 重要：在"设置" > "环境变量"中添加 `PASSWORD` 变量（必须设置）**
+6. 点击"保存并部署"
 
 ### Vercel
 
 1. Fork 或克隆本仓库到您的 GitHub/GitLab 账户
 2. 登录 [Vercel](https://vercel.com/)，点击"New Project"
 3. 导入您的仓库，使用默认设置
-4. **⚠️ 重要：在"Settings" > "Environment Variables"中添加 `PASSWORD` 变量**
-5. **可选：在"Settings" > "Environment Variables"中添加 `ADMINPASSWORD` 变量**
-6. 点击"Deploy"
-7. 可选：在"Settings" > "Environment Variables"中配置密码保护和设置按钮密码保护
+4. **⚠️ 重要：在"Settings" > "Environment Variables"中添加 `PASSWORD` 变量（必须设置）**
+5. 点击"Deploy"
 
 ### Render
 
@@ -98,7 +95,7 @@ Pull Bot 会反复触发无效的 PR 和垃圾邮件，严重干扰项目维护�
 5. 点击 "Create Web Service"，等待部署完成
 6. 部署成功后即可访问您的 LibreTV 实例
 
-> 如需启用密码保护，可在 Render 控制台的环境变量中手动添加 `PASSWORD` 和/或 `ADMINPASSWORD`。
+> 如需启用密码保护，必须在 Render 控制台的环境变量中添加 `PASSWORD`。
 
 ### Docker
 ```
@@ -107,7 +104,6 @@ docker run -d \
   --restart unless-stopped \
   -p 8899:8080 \
   -e PASSWORD=your_password \
-  -e ADMINPASSWORD=your_adminpassword \
   bestzwei/libretv:latest
 ```
 
@@ -124,7 +120,6 @@ services:
       - "8899:8080" # 将内部 8080 端口映射到主机的 8899 端口
     environment:
       - PASSWORD=${PASSWORD:-your_password} # 可将 your_password 修改为你想要的密码，默认为 your_password
-      - ADMINPASSWORD=${PASSWORD:-your_adminpassword} # 可将 your_adminpassword 修改为你想要的密码，默认为 your_adminpassword
     restart: unless-stopped
 ```
 启动 LibreTV：
@@ -157,13 +152,12 @@ npm run dev
 
 ### 密码保护
 
-要为您的 LibreTV 实例添加密码保护，可以在部署平台上设置环境变量：
+**重要提示**: 为确保安全，所有部署都必须设置 PASSWORD 环境变量，否则用户将看到设置密码的提示。
+
+要为您的 LibreTV 实例添加密码保护，在部署平台上设置环境变量：
 
 **环境变量名**: `PASSWORD` 
-**值**: 您想设置的密码
-
-**环境变量名**: `ADMINPASSWORD` 
-**值**: 您想设置的密码
+**值**: 您想设置的密码（强制必须设置）
 
 各平台设置方法：
 
