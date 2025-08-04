@@ -24,27 +24,10 @@ LibreTV 是一个轻量级、免费的在线视频搜索与观看平台，提供
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FLibreSpark%2FLibreTV)  
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/LibreSpark/LibreTV)  
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/LibreSpark/LibreTV)
-[![使用 EdgeOne Pages 部署](https://cdnstatic.tencentcs.com/edgeone/pages/deploy.svg)](https://edgeone.ai/pages/new?repository-url=https://github.com/LibreSpark/LibreTV)
 
-## ⚠️ 安全与隐私提醒
+## 🚨 重要声明
 
-### 🔒 强烈建议设置密码保护
-
-为了您的安全和避免潜在的法律风险，我们**强烈建议**在部署时设置密码保护：
-
-- **避免公开访问**：不设置密码的实例任何人都可以访问，可能被恶意利用
-- **防范版权风险**：公开的视频搜索服务可能面临版权方的投诉举报
-- **保护个人隐私**：设置密码可以限制访问范围，保护您的使用记录
-
-### 📝 部署建议
-
-1. **必须设置环境变量 `PASSWORD`**：为您的实例设置一个密码
-2. **仅供个人使用**：请勿将您的实例链接公开分享或传播
-3. **遵守当地法律**：请确保您的使用行为符合当地法律法规
-
-### 🚨 重要声明
-
-- 本项目仅供学习和个人使用
+- 本项目仅供学习和个人使用，为避免版权纠纷，必须设置PASSWORD环境变量
 - 请勿将部署的实例用于商业用途或公开服务
 - 如因公开分享导致的任何法律问题，用户需自行承担责任
 - 项目开发者不对用户的使用行为承担任何法律责任
@@ -104,7 +87,7 @@ services:
     ports:
       - "8899:8080" # 将内部 8080 端口映射到主机的 8899 端口
     environment:
-      - PASSWORD=${PASSWORD:-your_password} # 可将 your_password 修改为你想要的密码，默认为 your_password
+      - PASSWORD=${PASSWORD:-111111} # 可将 111111 修改为你想要的密码，默认为 your_password
     restart: unless-stopped
 ```
 启动 LibreTV：
@@ -184,8 +167,7 @@ LibreTV 仅作为视频搜索工具，不存储、上传或分发任何视频内
 - **[MoonTV](https://github.com/senshinya/MoonTV)**  
 - **[OrionTV](https://github.com/zimplexing/OrionTV)**  
 
-## 🥇 感谢赞助
+## 🥇 感谢支持
 
 - **[YXVM](https://yxvm.com)**  
-- **[ZMTO/VTEXS](https://zmto.com)**
-- **[DreamCloud](https://as211392.com/)**
+- **[ZMTO](https://zmto.com)**
