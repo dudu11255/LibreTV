@@ -24,7 +24,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           ai-base-url: ${{ secrets.AI_BASE_URL }}
           ai-api-key: ${{ secrets.AI_API_KEY }}
-          ai-model: 'openai/qwen3-235b-a22b'
+          ai-model: 'qwen3-235b-a22b'
           labels: 'bug,enhancement,question'
           analyze-file-changes: 'true'
           max-analysis-depth: 'normal'
