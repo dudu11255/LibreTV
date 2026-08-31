@@ -299,10 +299,15 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
       'content-security-policy,cookie,set-cookie,x-frame-options,access-control-allow-origin'
     ).split(',');
     sensitiveHeaders.forEach(header => delete headers[header]);
+    // axios 已自动解压响应体（decompress:true），必须移除内容编码/长度相关头，
+    // 否则浏览器会按 Content-Encoding 二次解压，导致 JSON/文本乱码（如 "Unterminated string in JSON"）
+    delete headers['content-encoding'];
+    delete headers['content-length'];
+    delete headers['transfer-encoding'];
     res.set(headers);
     res.set('Access-Control-Allow-Origin', '*');
 
-    // m3u8 文本：重写内部绝对地址为 /proxy/...，使自托管与 Vercel/CF 行为一致（修复分片直连导致 CORS 失败）
+    // m3u8 文本：重写内部绝对地址为 /proxy/...，使自托管后端行为一致（修复分片直连导致 CORS 失败）
     if (isM3u8) {
       const chunks = [];
       for await (const chunk of response.data) chunks.push(chunk);
@@ -349,7 +354,7 @@ app.get('/api/proxy-token', (req, res) => {
 // 防止将服务端源码（server.mjs / 配置 / 函数目录等）当作静态文件暴露
 app.use((req, res, next) => {
   const p = req.path.split('?')[0];
-  if (/\/(server\.mjs|package\.json|package-lock\.json|Dockerfile|docker-compose\.yml|README\.md|LICENSE|api|functions|netlify|node_modules|\.env|VERSION\.txt)/i.test(p)) {
+  if (/\/(server\.mjs|package\.json|package-lock\.json|Dockerfile|docker-compose\.yml|README\.md|LICENSE|node_modules|\.env|VERSION\.txt)/i.test(p)) {
     return res.status(404).send('Not Found');
   }
   next();
