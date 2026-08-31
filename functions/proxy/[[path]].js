@@ -19,6 +19,35 @@ const MEDIA_FILE_EXTENSIONS = [
 const MEDIA_CONTENT_TYPES = ['video/', 'audio/', 'image/'];
 // --- 常量结束 ---
 
+// --- SSRF 防护 ---
+function isPrivateIP(ip) {
+  if (/^(127\.|0\.0\.0\.0$|::1$|fe80:|fc|fd)/i.test(ip)) return true;
+  if (ip.startsWith('10.')) return true;
+  if (ip.startsWith('192.168.')) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return true;
+  if (ip.startsWith('169.254.')) return true;        // 链路本地（含云元数据 169.254.169.254）
+  if (ip.startsWith('100.64.')) return true;         // CGNAT
+  if (ip.startsWith('192.0.0.')) return true;        // 协议分配块
+  return false;
+}
+
+function isBlockedTarget(targetUrl) {
+  try {
+    const { hostname } = new URL(targetUrl);
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || hostname.includes(':')) {
+      return isPrivateIP(hostname);
+    }
+    if (hostname === 'localhost' || hostname.endsWith('.internal') || hostname.startsWith('metadata') || hostname === '169.254.169.254') return true;
+  } catch { return false; }
+  return false;
+}
+
+async function sha256Hex(message) {
+  const data = new TextEncoder().encode(message);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 
 /**
  * 主要的 Pages Function 处理函数
@@ -72,60 +101,42 @@ export async function onRequest(context) {
 
     // --- 辅助函数 ---
 
-    // 验证代理请求的鉴权
+    // 验证代理请求的鉴权（优先 token，兼容旧静态哈希）
     async function validateAuth(request, env) {
         const url = new URL(request.url);
         const authHash = url.searchParams.get('auth');
-        const timestamp = url.searchParams.get('t');
+        const token = url.searchParams.get('token');
+        const t = url.searchParams.get('t');
         
-        // 获取服务器端密码
         const serverPassword = env.PASSWORD;
         if (!serverPassword) {
             console.error('服务器未设置 PASSWORD 环境变量，代理访问被拒绝');
             return false;
         }
         
-        // 使用 SHA-256 哈希算法（与其他平台保持一致）
-        // 在 Cloudflare Workers 中使用 crypto.subtle
-        try {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(serverPassword);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const serverPasswordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-            
-            if (!authHash || authHash !== serverPasswordHash) {
-                console.warn('代理请求鉴权失败：密码哈希不匹配');
-                return false;
-            }
-        } catch (error) {
-            console.error('计算密码哈希失败:', error);
-            return false;
-        }
+        // 服务端签名密钥：优先 PROXY_SECRET，否则由密码派生
+        const secret = env.PROXY_SECRET || await sha256Hex(serverPassword + ':libretv::proxy-salt');
         
-        // 验证时间戳（10分钟有效期）
-        if (timestamp) {
+        // 优先校验服务端签发的短时效 token
+        if (token && t) {
+            const expected = await sha256Hex(secret + ':' + t);
             const now = Date.now();
-            const maxAge = 10 * 60 * 1000; // 10分钟
-            if (now - parseInt(timestamp) > maxAge) {
-                console.warn('代理请求鉴权失败：时间戳过期');
-                return false;
+            if (token === expected && Math.abs(now - parseInt(t, 10)) <= 10 * 60 * 1000) {
+                return true;
             }
         }
         
-        return true;
-    }
-
-    // 验证鉴权（主函数调用）
-    if (!validateAuth(request, env)) {
-        return new Response('Unauthorized', { 
-            status: 401,
-            headers: {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
-                'Access-Control-Allow-Headers': '*'
+        // 兼容旧模式：静态哈希
+        const serverPasswordHash = await sha256Hex(serverPassword);
+        if (authHash && authHash === serverPasswordHash) {
+            if (t) {
+                const now = Date.now();
+                if (now - parseInt(t, 10) > 10 * 60 * 1000) return false;
             }
-        });
+            return true;
+        }
+        
+        return false;
     }
 
     // 输出调试日志 (需要设置 DEBUG: true 环境变量)
@@ -498,6 +509,11 @@ export async function onRequest(context) {
         }
 
         logDebug(`收到代理请求: ${targetUrl}`);
+
+        // SSRF 防护：拒绝内网/保留地址（Cloudflare Workers 无 dns 模块，采用启发式拦截）
+        if (isBlockedTarget(targetUrl)) {
+            return createResponse("不允许访问私有/保留网络地址", 403);
+        }
 
         // --- 缓存检查 (KV) ---
         const cacheKey = `proxy_raw:${targetUrl}`; // 使用原始内容的缓存键

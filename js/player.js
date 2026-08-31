@@ -243,10 +243,7 @@ function initializePageContent() {
     // 更新排序按钮状态
     updateOrderButton();
 
-    // 添加对进度条的监听，确保点击准确跳转
-    setTimeout(() => {
-        setupProgressBarPreciseClicks();
-    }, 1000);
+    // 进度条精确点击由 ArtPlayer 原生支持，无需自定义监听
 
     // 添加键盘快捷键事件监听
     document.addEventListener('keydown', handleKeyboardShortcuts);
@@ -681,9 +678,6 @@ function initPlayer(videoUrl) {
             }
         }
 
-        // 设置进度条点击监听
-        setupProgressBarPreciseClicks();
-
         // 视频加载成功后，在稍微延迟后将其添加到观看历史
         setTimeout(saveToHistory, 3000);
 
@@ -729,9 +723,8 @@ function initPlayer(videoUrl) {
         }
     });
 
-    // 添加双击全屏支持
-    art.on('video:playing', () => {
-        // 绑定双击事件到视频容器
+    // 添加双击全屏支持（仅在 ready 时绑定一次，避免每次 playing 重复添加监听造成泄漏）
+    art.on('ready', () => {
         if (art.video) {
             art.video.addEventListener('dblclick', () => {
                 art.fullscreen = !art.fullscreen;
@@ -1003,74 +996,8 @@ function updateOrderButton() {
     }
 }
 
-// 设置进度条准确点击处理
-function setupProgressBarPreciseClicks() {
-    // 查找DPlayer的进度条元素
-    const progressBar = document.querySelector('.dplayer-bar-wrap');
-    if (!progressBar || !art || !art.video) return;
-
-    // 移除可能存在的旧事件监听器
-    progressBar.removeEventListener('mousedown', handleProgressBarClick);
-
-    // 添加新的事件监听器
-    progressBar.addEventListener('mousedown', handleProgressBarClick);
-
-    // 在移动端也添加触摸事件支持
-    progressBar.removeEventListener('touchstart', handleProgressBarTouch);
-    progressBar.addEventListener('touchstart', handleProgressBarTouch);
-
-    // 处理进度条点击
-    function handleProgressBarClick(e) {
-        if (!art || !art.video) return;
-
-        // 计算点击位置相对于进度条的比例
-        const rect = e.currentTarget.getBoundingClientRect();
-        const percentage = (e.clientX - rect.left) / rect.width;
-
-        // 计算点击位置对应的视频时间
-        const duration = art.video.duration;
-        let clickTime = percentage * duration;
-
-        // 处理视频接近结尾的情况
-        if (duration - clickTime < 1) {
-            // 如果点击位置非常接近结尾，稍微往前移一点
-            clickTime = Math.min(clickTime, duration - 1.5);
-
-        }
-
-        // 记录用户点击的位置
-        userClickedPosition = clickTime;
-
-        // 阻止默认事件传播，避免DPlayer内部逻辑将视频跳至末尾
-        e.stopPropagation();
-
-        // 直接设置视频时间
-        art.seek(clickTime);
-    }
-
-    // 处理移动端触摸事件
-    function handleProgressBarTouch(e) {
-        if (!art || !art.video || !e.touches[0]) return;
-
-        const touch = e.touches[0];
-        const rect = e.currentTarget.getBoundingClientRect();
-        const percentage = (touch.clientX - rect.left) / rect.width;
-
-        const duration = art.video.duration;
-        let clickTime = percentage * duration;
-
-        // 处理视频接近结尾的情况
-        if (duration - clickTime < 1) {
-            clickTime = Math.min(clickTime, duration - 1.5);
-        }
-
-        // 记录用户点击的位置
-        userClickedPosition = clickTime;
-
-        e.stopPropagation();
-        art.seek(clickTime);
-    }
-}
+// 进度条精确点击处理已移除：ArtPlayer 原生支持点击进度条跳转，
+// 原 setupProgressBarPreciseClicks 依赖不存在的 .dplayer-bar-wrap 元素，属无效死代码。
 
 // 在播放器初始化后添加视频到历史记录
 function saveToHistory() {
@@ -1291,10 +1218,7 @@ function setupLongPressSpeedControl() {
 
         // 只在移动设备上禁用右键
         if (isMobile) {
-            const dplayerMenu = document.querySelector(".dplayer-menu");
-            const dplayerMask = document.querySelector(".dplayer-mask");
-            if (dplayerMenu) dplayerMenu.style.display = "none";
-            if (dplayerMask) dplayerMask.style.display = "none";
+            // 移动端禁用右键菜单（DPlayer 相关元素已不存在，无需处理）
             return false;
         }
         return true; // 在桌面设备上允许右键菜单
@@ -1527,41 +1451,15 @@ async function testVideoSourceSpeed(sourceKey, vodId) {
             return { speed: -1, error: '无播放源' };
         }
         
-        // 测试第一个播放链接的响应速度
-        const firstEpisodeUrl = data.episodes[0];
-        if (!firstEpisodeUrl) {
-            return { speed: -1, error: '链接无效' };
-        }
-        
-        // 测试视频链接响应时间
-        const videoTestStart = performance.now();
-        try {
-            const videoResponse = await fetch(firstEpisodeUrl, {
-                method: 'HEAD',
-                mode: 'no-cors',
-                cache: 'no-cache',
-                signal: AbortSignal.timeout(5000) // 5秒超时
-            });
-            
-            const videoTestEnd = performance.now();
-            const totalTime = videoTestEnd - startTime;
-            
-            // 返回总响应时间（毫秒）
-            return { 
-                speed: Math.round(totalTime),
-                episodes: data.episodes.length,
-                error: null 
-            };
-        } catch (videoError) {
-            // 如果视频链接测试失败，只返回API响应时间
-            const apiTime = performance.now() - startTime;
-            return { 
-                speed: Math.round(apiTime),
-                episodes: data.episodes.length,
-                error: null,
-                note: 'API响应' 
-            };
-        }
+        // 直接以「获取详情接口的耗时」作为速率参考（不再对分片做 no-cors HEAD 探测，
+        // 因为多数 CDN 不允许跨域 HEAD 且 HEAD 结果不可靠，反而拖慢换源弹窗）
+        const apiTime = performance.now() - startTime;
+        return { 
+            speed: Math.round(apiTime),
+            episodes: data.episodes.length,
+            error: null,
+            note: '详情接口' 
+        };
         
     } catch (error) {
         return { 

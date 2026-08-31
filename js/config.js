@@ -17,18 +17,13 @@ const SITE_CONFIG = {
     url: 'https://libretv.is-an.org',
     description: '免费在线视频搜索与观看平台',
     logo: 'image/logo.png',
-    version: '1.0.3'
+    version: '1.1.0'
 };
 
 // API站点配置
-const API_SITES = {
-    testSource: {
-        api: 'https://www.example.com/api.php/provide/vod',
-        name: '空内容测试源',
-        adult: true
-    }
-    //ARCHIVE https://telegra.ph/APIs-08-12
-};
+// 空壳设计：不内置任何数据源，部署者需在「设置 → 自定义API」中添加自己的采集站。
+// 这样避免内置源失效/违规带来的维护与合规风险（参考 LunaTV 的空壳思路）。
+const API_SITES = {};
 
 // 定义合并方法
 function extendAPISites(newSites) {

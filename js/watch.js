@@ -80,15 +80,13 @@ window.onload = function() {
         manualRedirect.href = finalPlayerUrl;
     }
 
-    // 更新meta refresh标签
+    // 更新meta refresh标签（兜底，正常由下方 JS 立即跳转）
     const metaRefresh = document.querySelector('meta[http-equiv="refresh"]');
     if (metaRefresh) {
-        metaRefresh.content = `3; url=${finalPlayerUrl}`;
+        metaRefresh.content = `0; url=${finalPlayerUrl}`;
     }
-    
-    // 重定向到播放器页面
-    setTimeout(() => {
-        clearInterval(statusInterval);
-        window.location.href = finalPlayerUrl;
-    }, 2800); // 稍微早于meta refresh的时间，确保我们的JS控制重定向
+
+    // 立即跳转到播放器页面，去除原先人为增加的 2.8s 加载动画延迟
+    clearInterval(statusInterval);
+    window.location.href = finalPlayerUrl;
 };

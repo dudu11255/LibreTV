@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
+import dns from 'node:dns';
 
 dotenv.config();
 
@@ -60,6 +61,9 @@ async function renderPage(filePath, password) {
   } else {
     content = content.replace('{{PASSWORD}}', '');
   }
+  // 注入代理鉴权模式：配置了 PROXY_SECRET 即启用服务端签发的短时效 token（前端不再持有可伪造的静态哈希）
+  const tokenMode = process.env.PROXY_SECRET ? '1' : '';
+  content = content.replace('{{PROXY_TOKEN_MODE}}', tokenMode);
   return content;
 }
 
@@ -94,62 +98,137 @@ app.get('/s=:keyword', async (req, res) => {
   }
 });
 
+function isPrivateIP(ip) {
+  // 拒绝私有/回环/链路本地/保留地址，防止 SSRF
+  if (/^(127\.|0\.0\.0\.0$|::1$|fe80:|fc|fd)/i.test(ip)) return true;
+  if (ip.startsWith('10.')) return true;
+  if (ip.startsWith('192.168.')) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return true;
+  if (ip.startsWith('169.254.')) return true;        // 链路本地（含云元数据 169.254.169.254）
+  if (ip.startsWith('100.64.')) return true;         // CGNAT
+  if (ip.startsWith('192.0.0.')) return true;        // 协议分配块
+  return false;
+}
+
 function isValidUrl(urlString) {
   try {
     const parsed = new URL(urlString);
     const allowedProtocols = ['http:', 'https:'];
+    if (!allowedProtocols.includes(parsed.protocol)) return false;
     
     // 从环境变量获取阻止的主机名列表
     const blockedHostnames = (process.env.BLOCKED_HOSTS || 'localhost,127.0.0.1,0.0.0.0,::1').split(',');
-    
-    // 从环境变量获取阻止的 IP 前缀
-    const blockedPrefixes = (process.env.BLOCKED_IP_PREFIXES || '192.168.,10.,172.').split(',');
-    
-    if (!allowedProtocols.includes(parsed.protocol)) return false;
     if (blockedHostnames.includes(parsed.hostname)) return false;
     
+    // 从环境变量获取阻止的 IP 前缀（保留原逻辑，作为字面量 IP 的快速拦截）
+    const blockedPrefixes = (process.env.BLOCKED_IP_PREFIXES || '192.168.,10.,172.').split(',');
     for (const prefix of blockedPrefixes) {
       if (parsed.hostname.startsWith(prefix)) return false;
     }
     
+    // 字面量 IP 直接判定
+    const host = parsed.hostname;
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.includes(':')) {
+      if (isPrivateIP(host)) return false;
+    }
     return true;
   } catch {
     return false;
   }
 }
 
+// 通过 DNS 解析目标主机名，拒绝解析到内网/保留地址的域名（SSRF 深度防护）
+async function isBlockedByDNS(urlString) {
+  try {
+    const { hostname } = new URL(urlString);
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || hostname.includes(':')) {
+      return isPrivateIP(hostname);
+    }
+    const result = await dns.lookup(hostname, { all: true });
+    return result.some(r => isPrivateIP(r.address));
+  } catch {
+    return false; // 解析失败不阻断，交给后续请求处理
+  }
+}
+
+// 将 m3u8 中的绝对地址改写为经过本代理的地址（分片/key/map 同样改写），便于跨域播放
+function makeAbsolute(url, base) {
+  try {
+    return new URL(url, base).href;
+  } catch {
+    return url;
+  }
+}
+
+function rewriteM3u8(content, baseUrl, depth = 0) {
+  if (depth > 5) return content;
+  const lines = content.split('\n');
+  const out = lines.map(line => {
+    // #EXT-X-KEY / #EXT-X-MAP 内的 URI="..."
+    if (line.startsWith('#EXT-X-KEY') || line.startsWith('#EXT-X-MAP')) {
+      return line.replace(/(URI=")([^"]+)(")/g, (m, p1, uri, p2) => {
+        if (uri.startsWith('/proxy/')) return m;
+        return p1 + '/proxy/' + encodeURIComponent(makeAbsolute(uri, baseUrl)) + p2;
+      });
+    }
+    if (line.startsWith('#') || line.trim() === '') return line;
+    if (line.startsWith('/proxy/')) return line;
+    return '/proxy/' + encodeURIComponent(makeAbsolute(line, baseUrl));
+  });
+  return out.join('\n');
+}
+
+// 代理鉴权密钥：优先使用服务端独享的 PROXY_SECRET；否则由访问密码派生（客户端仅持有 sha256(password)，无法反推）
+function getProxySecret() {
+  if (process.env.PROXY_SECRET) return process.env.PROXY_SECRET;
+  if (config.password) return crypto.createHash('sha256').update(config.password + ':libretv::proxy-salt').digest('hex');
+  return '';
+}
+
+// 签发/校验短时效 token：token = sha256(secret + ':' + t)
+function signProxyToken(t) {
+  const secret = getProxySecret();
+  if (!secret) return '';
+  return crypto.createHash('sha256').update(secret + ':' + t).digest('hex');
+}
+
+function verifyProxyToken(token, t) {
+  if (!token || !t) return false;
+  const expected = signProxyToken(t);
+  const a = Buffer.from(token);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  if (!crypto.timingSafeEqual(a, b)) return false;
+  const now = Date.now();
+  const maxAge = 10 * 60 * 1000; // 10分钟
+  return Math.abs(now - parseInt(t, 10)) <= maxAge;
+}
+
 // 验证代理请求的鉴权
+// 配置了 PROXY_SECRET 时：必须使用服务端签发的短时效 token，拒绝前端持有的静态哈希（修复可被伪造的鉴权）
+// 未配置时：回退为静态哈希（兼容旧部署；该哈希暴露在页面中，安全性较弱）
 function validateProxyAuth(req) {
-  const authHash = req.query.auth;
-  const timestamp = req.query.t;
-  
-  // 获取服务器端密码哈希
   const serverPassword = config.password;
   if (!serverPassword) {
     console.error('服务器未设置 PASSWORD 环境变量，代理访问被拒绝');
     return false;
   }
-  
-  // 使用 crypto 模块计算 SHA-256 哈希
-  const serverPasswordHash = crypto.createHash('sha256').update(serverPassword).digest('hex');
-  
-  if (!authHash || authHash !== serverPasswordHash) {
-    console.warn('代理请求鉴权失败：密码哈希不匹配');
-    console.warn(`期望: ${serverPasswordHash}, 收到: ${authHash}`);
-    return false;
-  }
-  
-  // 验证时间戳（10分钟有效期）
-  if (timestamp) {
-    const now = Date.now();
-    const maxAge = 10 * 60 * 1000; // 10分钟
-    if (now - parseInt(timestamp) > maxAge) {
-      console.warn('代理请求鉴权失败：时间戳过期');
-      return false;
+  const token = req.query.token;
+  const t = req.query.t;
+  if (verifyProxyToken(token, t)) return true;
+
+  if (!process.env.PROXY_SECRET) {
+    const authHash = req.query.auth;
+    const serverHash = crypto.createHash('sha256').update(serverPassword).digest('hex');
+    if (authHash && authHash === serverHash) {
+      if (t) {
+        const now = Date.now();
+        if (now - parseInt(t, 10) > 10 * 60 * 1000) return false;
+      }
+      return true;
     }
   }
-  
-  return true;
+  return false;
 }
 
 app.get('/proxy/:encodedUrl', async (req, res) => {
@@ -158,7 +237,7 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
     if (!validateProxyAuth(req)) {
       return res.status(401).json({
         success: false,
-        error: '代理访问未授权：请检查密码配置或鉴权参数'
+        error: '代理访问未授权：请先通过 /api/proxy-token 获取 token'
       });
     }
 
@@ -168,6 +247,11 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
     // 安全验证
     if (!isValidUrl(targetUrl)) {
       return res.status(400).send('无效的 URL');
+    }
+
+    // SSRF 深度防护：解析域名后拦截内网/保留地址
+    if (await isBlockedByDNS(targetUrl)) {
+      return res.status(403).send('不允许访问私有/保留网络地址');
     }
 
     log(`代理请求: ${targetUrl}`);
@@ -199,27 +283,71 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
 
     const response = await makeRequest();
 
+    const contentType = response.headers['content-type'] || '';
+    const isM3u8 = contentType.includes('mpegurl') || contentType.includes('x-mpegurl') ||
+                  targetUrl.toLowerCase().endsWith('.m3u8');
+
     // 转发响应头（过滤敏感头）
     const headers = { ...response.headers };
     const sensitiveHeaders = (
-      process.env.FILTERED_HEADERS || 
+      process.env.FILTERED_HEADERS ||
       'content-security-policy,cookie,set-cookie,x-frame-options,access-control-allow-origin'
     ).split(',');
-    
     sensitiveHeaders.forEach(header => delete headers[header]);
     res.set(headers);
+    res.set('Access-Control-Allow-Origin', '*');
 
-    // 管道传输响应流
+    // m3u8 文本：重写内部绝对地址为 /proxy/...，使自托管与 Vercel/CF 行为一致（修复分片直连导致 CORS 失败）
+    if (isM3u8) {
+      const chunks = [];
+      for await (const chunk of response.data) chunks.push(chunk);
+      const text = Buffer.concat(chunks).toString('utf8');
+      res.set('Content-Type', 'application/vnd.apple.mpegurl');
+      res.send(rewriteM3u8(text, targetUrl));
+      return;
+    }
+
+    // 其余（JSON / 分片 / key 等）直接透传
     response.data.pipe(res);
   } catch (error) {
     console.error('代理请求错误:', error.message);
     if (error.response) {
       res.status(error.response.status || 500);
-      error.response.data.pipe(res);
+      if (error.response.data && typeof error.response.data.pipe === 'function') {
+        error.response.data.pipe(res);
+      } else {
+        res.send(`请求失败: ${error.message}`);
+      }
     } else {
       res.status(500).send(`请求失败: ${error.message}`);
     }
   }
+});
+
+// 签发代理短时效 token：需提供访问密码（明文），校验通过后用服务端密钥签名
+app.get('/api/proxy-token', (req, res) => {
+  const password = req.query.password || '';
+  const serverPassword = config.password;
+  if (!serverPassword) {
+    return res.status(401).json({ success: false, error: '服务器未设置 PASSWORD' });
+  }
+  const hash = crypto.createHash('sha256').update(password).digest('hex');
+  const serverHash = crypto.createHash('sha256').update(serverPassword).digest('hex');
+  if (hash !== serverHash) {
+    return res.status(401).json({ success: false, error: '密码错误' });
+  }
+  const t = Date.now();
+  const token = signProxyToken(t);
+  res.json({ success: true, token, t });
+});
+
+// 防止将服务端源码（server.mjs / 配置 / 函数目录等）当作静态文件暴露
+app.use((req, res, next) => {
+  const p = req.path.split('?')[0];
+  if (/\/(server\.mjs|package\.json|package-lock\.json|Dockerfile|docker-compose\.yml|README\.md|LICENSE|api|functions|netlify|node_modules|\.env|VERSION\.txt)/i.test(p)) {
+    return res.status(404).send('Not Found');
+  }
+  next();
 });
 
 app.use(express.static(path.join(__dirname), {

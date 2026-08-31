@@ -3,6 +3,7 @@
 import fetch from 'node-fetch';
 import { URL } from 'url'; // 使用 Node.js 内置 URL 处理
 import crypto from 'crypto'; // 导入 crypto 模块用于密码哈希
+import dns from 'node:dns';
 
 // --- 配置 (从环境变量读取) ---
 const DEBUG_ENABLED = process.env.DEBUG === 'true';
@@ -123,6 +124,37 @@ function resolveUrl(baseUrl, relativeUrl) {
             return `${baseUrl.substring(0, baseUrl.lastIndexOf('/') + 1)}${relativeUrl}`;
         }
     }
+}
+
+// --- SSRF 防护 ---
+function isPrivateIP(ip) {
+  if (/^(127\.|0\.0\.0\.0$|::1$|fe80:|fc|fd)/i.test(ip)) return true;
+  if (ip.startsWith('10.')) return true;
+  if (ip.startsWith('192.168.')) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return true;
+  if (ip.startsWith('169.254.')) return true;        // 链路本地（含云元数据 169.254.169.254）
+  if (ip.startsWith('100.64.')) return true;         // CGNAT
+  if (ip.startsWith('192.0.0.')) return true;        // 协议分配块
+  return false;
+}
+
+function isBlockedHostname(host) {
+  if (host === 'localhost' || host.endsWith('.internal') || host.startsWith('metadata') || host === '169.254.169.254') return true;
+  return false;
+}
+
+async function isBlockedByDNS(urlString) {
+  try {
+    const { hostname } = new URL(urlString);
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || hostname.includes(':')) {
+      return isPrivateIP(hostname);
+    }
+    if (isBlockedHostname(hostname)) return true;
+    const result = await dns.lookup(hostname, { all: true });
+    return result.some(r => isPrivateIP(r.address));
+  } catch {
+    return false;
+  }
 }
 
 // ** 已修正：确保生成 /proxy/ 前缀的链接 **
@@ -301,38 +333,43 @@ async function processMasterPlaylist(url, content, recursionDepth) {
 }
 
 /**
- * 验证代理请求的鉴权
+ * 验证代理请求的鉴权（优先 token，兼容旧静态哈希）
  */
 async function validateAuth(req) {
     const authHash = req.query.auth;
-    const timestamp = req.query.t;
-    
-    // 获取服务器端密码哈希
+    const token = req.query.token;
+    const t = req.query.t;
+
     const serverPassword = process.env.PASSWORD;
     if (!serverPassword) {
         console.error('服务器未设置 PASSWORD 环境变量，代理访问被拒绝');
         return false;
     }
-    
-    // 使用 crypto 模块计算 SHA-256 哈希
-    const serverPasswordHash = crypto.createHash('sha256').update(serverPassword).digest('hex');
-    
-    if (!authHash || authHash !== serverPasswordHash) {
-        console.warn('代理请求鉴权失败：密码哈希不匹配');
-        return false;
-    }
-    
-    // 验证时间戳（10分钟有效期）
-    if (timestamp) {
+
+    // 服务端签名密钥：优先 PROXY_SECRET，否则由密码派生（客户端仅持有 sha256(password)，无法反推）
+    const secret = process.env.PROXY_SECRET ||
+        crypto.createHash('sha256').update(serverPassword + ':libretv::proxy-salt').digest('hex');
+
+    // 优先校验服务端签发的短时效 token
+    if (token && t) {
+        const expected = crypto.createHash('sha256').update(secret + ':' + t).digest('hex');
         const now = Date.now();
-        const maxAge = 10 * 60 * 1000; // 10分钟
-        if (now - parseInt(timestamp) > maxAge) {
-            console.warn('代理请求鉴权失败：时间戳过期');
-            return false;
+        if (token === expected && Math.abs(now - parseInt(t, 10)) <= 10 * 60 * 1000) {
+            return true;
         }
     }
-    
-    return true;
+
+    // 兼容旧模式：使用页面中的静态哈希（安全性较弱，建议配置 PROXY_SECRET）
+    const serverPasswordHash = crypto.createHash('sha256').update(serverPassword).digest('hex');
+    if (authHash && authHash === serverPasswordHash) {
+        if (t) {
+            const now = Date.now();
+            if (now - parseInt(t, 10) > 10 * 60 * 1000) return false;
+        }
+        return true;
+    }
+
+    return false;
 }
 
 // --- Vercel Handler 函数 ---
@@ -411,6 +448,12 @@ export default async function handler(req, res) {
         }
 
         console.info(`开始处理目标 URL 的代理请求: ${targetUrl}`);
+
+        // SSRF 深度防护：拒绝内网/保留地址
+        if (await isBlockedByDNS(targetUrl)) {
+            res.status(403).json({ success: false, error: '不允许访问私有/保留网络地址' });
+            return;
+        }
 
         // --- 获取并处理目标内容 ---
         const { content, contentType, responseHeaders } = await fetchContentWithType(targetUrl, req.headers);

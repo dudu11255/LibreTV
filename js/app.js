@@ -1,5 +1,5 @@
 // 全局变量
-let selectedAPIs = JSON.parse(localStorage.getItem('selectedAPIs') || '["tyyszy","dyttzy", "bfzy", "ruyi"]'); // 默认选中资源
+let selectedAPIs = JSON.parse(localStorage.getItem('selectedAPIs') || '[]'); // 默认选中资源（空壳：默认不预选任何源，由用户添加）
 let customAPIs = JSON.parse(localStorage.getItem('customAPIs') || '[]'); // 存储自定义API列表
 
 // 添加当前播放的集数索引
@@ -25,10 +25,10 @@ document.addEventListener('DOMContentLoaded', function () {
     // 渲染搜索历史
     renderSearchHistory();
 
-    // 设置默认API选择（如果是第一次加载）
+    // 设置默认选项（如果是第一次加载）
     if (!localStorage.getItem('hasInitializedDefaults')) {
-        // 默认选中资源
-        selectedAPIs = ["tyyszy", "bfzy", "dyttzy", "ruyi"];
+        // 空壳设计：默认不预选任何数据源，首屏提示用户先添加自定义API
+        selectedAPIs = [];
         localStorage.setItem('selectedAPIs', JSON.stringify(selectedAPIs));
 
         // 默认选中过滤开关
@@ -59,6 +59,22 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // 初始检查成人API选中状态
     setTimeout(checkAdultAPIsSelected, 100);
+
+    // 事件委托：详情卡片 / 剧集按钮改用 data-* 绑定，避免内联 onclick 拼接 URL 带来的 XSS 风险
+    document.addEventListener('click', function (e) {
+        const epEl = e.target.closest('[data-episode]');
+        if (epEl) {
+            e.preventDefault();
+            playVideo(epEl.dataset.episode, currentVideoTitle, epEl.dataset.source, parseInt(epEl.dataset.index, 10) || 0, epEl.dataset.vodid);
+            return;
+        }
+        const detEl = e.target.closest('[data-details-id]');
+        if (detEl) {
+            e.preventDefault();
+            showDetails(detEl.dataset.detailsId, detEl.dataset.detailsName, detEl.dataset.detailsSource);
+            return;
+        }
+    });
 });
 
 // 初始化API复选框
@@ -110,8 +126,9 @@ function initAPICheckboxes() {
 
 // 添加成人API列表
 function addAdultAPI() {
-    // 仅在隐藏设置为false时添加成人API组
-    if (!HIDE_BUILTIN_ADULT_APIS && (localStorage.getItem('yellowFilterEnabled') === 'false')) {
+    // 仅在隐藏设置为false、且存在成人API源时添加成人API组
+    const hasAdultSites = Object.values(API_SITES).some(api => api && api.adult);
+    if (!HIDE_BUILTIN_ADULT_APIS && (localStorage.getItem('yellowFilterEnabled') === 'false') && hasAdultSites) {
         const container = document.getElementById('apiCheckboxes');
 
         // 添加成人API组标题
@@ -656,6 +673,21 @@ async function search() {
             }
         });
 
+        // 跨源去重：相同 source_code + vod_id 视为同一资源（解决多源同名重复）
+        const seenKeys = new Set();
+        allResults = allResults.filter(item => {
+            const key = (item.source_code || '') + '_' + (item.vod_id || '');
+            if (seenKeys.has(key)) return false;
+            seenKeys.add(key);
+            return true;
+        });
+
+        // 限制最大结果数量（避免一次渲染过多卡片）
+        const maxResults = (typeof AGGREGATED_SEARCH_CONFIG !== 'undefined' && AGGREGATED_SEARCH_CONFIG.maxResults) || 10000;
+        if (allResults.length > maxResults) {
+            allResults = allResults.slice(0, maxResults);
+        }
+
         // 对搜索结果进行排序：按名称优先，名称相同时按接口源排序
         allResults.sort((a, b) => {
             // 首先按照视频名称排序
@@ -748,7 +780,7 @@ async function search() {
 
             return `
                 <div class="card-hover bg-[#111] rounded-lg overflow-hidden cursor-pointer transition-all hover:scale-[1.02] h-full shadow-sm hover:shadow-md" 
-                     onclick="showDetails('${safeId}','${safeName}','${sourceCode}')" ${apiUrlAttr}>
+                     data-details-id="${safeId}" data-details-name="${safeName}" data-details-source="${sourceCode}" ${apiUrlAttr} role="button" tabindex="0">
                     <div class="flex h-full">
                         ${hasCover ? `
                         <div class="relative flex-shrink-0 search-card-img-container">
@@ -1024,48 +1056,8 @@ function playVideo(url, vod_name, sourceCode, episodeIndex = 0, vodId = '') {
     window.location.href = watchUrl;
 }
 
-// 弹出播放器页面
-function showVideoPlayer(url) {
-    // 在打开播放器前，隐藏详情弹窗
-    const detailModal = document.getElementById('modal');
-    if (detailModal) {
-        detailModal.classList.add('hidden');
-    }
-    // 临时隐藏搜索结果和豆瓣区域，防止高度超出播放器而出现滚动条
-    document.getElementById('resultsArea').classList.add('hidden');
-    document.getElementById('doubanArea').classList.add('hidden');
-    // 在框架中打开播放页面
-    videoPlayerFrame = document.createElement('iframe');
-    videoPlayerFrame.id = 'VideoPlayerFrame';
-    videoPlayerFrame.className = 'fixed w-full h-screen z-40';
-    videoPlayerFrame.src = url;
-    document.body.appendChild(videoPlayerFrame);
-    // 将焦点移入iframe
-    videoPlayerFrame.focus();
-}
-
-// 关闭播放器页面
-function closeVideoPlayer(home = false) {
-    videoPlayerFrame = document.getElementById('VideoPlayerFrame');
-    if (videoPlayerFrame) {
-        videoPlayerFrame.remove();
-        // 恢复搜索结果显示
-        document.getElementById('resultsArea').classList.remove('hidden');
-        // 关闭播放器时也隐藏详情弹窗
-        const detailModal = document.getElementById('modal');
-        if (detailModal) {
-            detailModal.classList.add('hidden');
-        }
-        // 如果启用豆瓣区域则显示豆瓣区域
-        if (localStorage.getItem('doubanEnabled') === 'true') {
-            document.getElementById('doubanArea').classList.remove('hidden');
-        }
-    }
-    if (home) {
-        // 刷新主页
-        window.location.href = '/'
-    }
-}
+// 注意：原 showVideoPlayer/closeVideoPlayer（iframe 内嵌播放方案）已移除。
+// 当前播放统一通过 watch.html → player.html 全页跳转，逻辑更清晰，返回由 player.js 的 goBack 处理。
 
 // 播放上一集
 function playPreviousEpisode(sourceCode) {
@@ -1098,7 +1090,7 @@ function renderEpisodes(vodName, sourceCode, vodId) {
         // 根据倒序状态计算真实的剧集索引
         const realIndex = episodesReversed ? currentEpisodes.length - 1 - index : index;
         return `
-            <button id="episode-${realIndex}" onclick="playVideo('${episode}','${vodName.replace(/"/g, '&quot;')}', '${sourceCode}', ${realIndex}, '${vodId}')" 
+            <button id="episode-${realIndex}" data-episode="${episode.replace(/"/g, '&quot;')}" data-index="${realIndex}" data-source="${sourceCode}" data-vodid="${vodId}" 
                     class="px-4 py-2 bg-[#222] hover:bg-[#333] border border-[#333] rounded-lg transition-colors text-center episode-btn">
                 ${realIndex + 1}
             </button>

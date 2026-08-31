@@ -209,6 +209,10 @@ async function handlePasswordSubmit() {
     const passwordInput = document.getElementById('passwordInput');
     const password = passwordInput ? passwordInput.value.trim() : '';
     if (await verifyPassword(password)) {
+        // 密码校验通过后用明文密码向服务端换取短时效代理 token（安全模式，需等待完成再放行）
+        if (window.ProxyAuth && window.ProxyAuth.ensureToken) {
+            await window.ProxyAuth.ensureToken(password);
+        }
         hidePasswordModal();
 
         // 触发密码验证成功事件
