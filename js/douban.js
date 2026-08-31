@@ -506,16 +506,20 @@ function renderDoubanCards(data, container) {
             // 处理图片URL
             // 1. 直接使用豆瓣图片URL (添加no-referrer属性)
             const originalCoverUrl = item.cover;
-            
-            // 2. 也准备代理URL作为备选
-            const proxiedCoverUrl = PROXY_URL + encodeURIComponent(originalCoverUrl);
-            
+
+            // 2. 兜底1：内置代理（带上鉴权 token，需后端且已配置密码）
+            const proxiedCoverUrl = window.ProxyAuth?.addAuthToProxyUrl
+                ? window.ProxyAuth.addAuthToProxyUrl(PROXY_URL + encodeURIComponent(originalCoverUrl))
+                : PROXY_URL + encodeURIComponent(originalCoverUrl);
+            // 3. 兜底2：公共 CORS 代理（无需鉴权，任何部署环境可用）
+            const fallbackCoverUrl = (window.FALLBACK_CORS_PROXY || '') + encodeURIComponent(originalCoverUrl);
+
             // 为不同设备优化卡片布局
             card.innerHTML = `
                 <div class="relative w-full aspect-[2/3] overflow-hidden cursor-pointer" onclick="fillAndSearchWithDouban('${safeTitle}')">
                     <img src="${originalCoverUrl}" alt="${safeTitle}" 
                         class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                        onerror="this.onerror=null; this.src='${proxiedCoverUrl}'; this.classList.add('object-contain');"
+                        onerror="if(!this.dataset.proxyTried){this.dataset.proxyTried=1;this.src='${proxiedCoverUrl}';}else{this.onerror=null;this.src='${fallbackCoverUrl}';}"
                         loading="lazy" referrerpolicy="no-referrer">
                     <div class="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-60"></div>
                     <div class="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-sm">
