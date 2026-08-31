@@ -123,6 +123,19 @@
                 </div>
             </div>
             
+            <!-- 图片加载方式设置区域 -->
+            <div class="p-3 bg-[#151515] rounded-lg shadow-inner">
+                <label class="block text-sm font-medium text-gray-400 mb-2 border-b border-[#333] pb-1">图片加载方式</label>
+                <select id="imageProxyMode" class="w-full bg-[#222] border border-[#333] text-white px-2 py-1 rounded mb-2">
+                    <option value="direct">直连（默认，速度最快）</option>
+                    <option value="builtin">内置代理 /proxy/（需后端+密码）</option>
+                    <option value="cors">公共 CORS 代理（ciao-cors）</option>
+                    <option value="custom">自定义代理</option>
+                </select>
+                <input type="text" id="customImageProxy" placeholder="自定义代理地址，如 https://proxy.com/?url= 或含 {url} 占位符" class="w-full bg-[#222] border border-[#333] text-white px-2 py-1 rounded mb-1 text-xs">
+                <p class="text-xs text-gray-500 leading-relaxed">自定义代理：直接拼接编码后的图片地址；或写 <span class="text-gray-300">{url}</span> 占位符由系统替换。切换后即时刷新。</p>
+            </div>
+
             <!-- 内容过滤设置区域 -->
             <div class="p-3 bg-[#151515] rounded-lg shadow-inner">
                 <label class="block text-sm font-medium text-gray-400 mb-3 border-b border-[#333] pb-1">功能开关</label>

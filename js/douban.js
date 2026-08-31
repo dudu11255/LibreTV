@@ -1,3 +1,95 @@
+// ===== 图片加载方式（可选：直连 / 内置代理 / CORS代理 / 自定义代理）=====
+// 各模式的 URL 构造器
+const IMAGE_PROXY_BUILDERS = {
+    // 直连：原图地址
+    direct: u => u,
+    // 内置代理：/proxy/ 并附带鉴权 token（需后端+密码）
+    builtin: u => (window.ProxyAuth && window.ProxyAuth.addAuthToProxyUrl)
+        ? window.ProxyAuth.addAuthToProxyUrl(PROXY_URL + encodeURIComponent(u))
+        : PROXY_URL + encodeURIComponent(u),
+    // 公共 CORS 代理：ciao-cors
+    cors: u => (window.FALLBACK_CORS_PROXY || '') + encodeURIComponent(u),
+    // 自定义代理：模板支持 {url} 占位符
+    custom: u => {
+        const tpl = (window.CUSTOM_IMAGE_PROXY || '').trim();
+        if (!tpl) return null;
+        return tpl.indexOf('{url}') !== -1 ? tpl.replace('{url}', encodeURIComponent(u)) : tpl + encodeURIComponent(u);
+    }
+};
+
+const IMAGE_PROXY_ORDER = ['direct', 'builtin', 'cors', 'custom'];
+
+// 根据当前设置生成主图 URL 与兜底链（其余模式依次尝试）
+function buildImageProxyConfig(u) {
+    const mode = window.IMAGE_PROXY_MODE || 'direct';
+    let primary = IMAGE_PROXY_BUILDERS[mode] ? IMAGE_PROXY_BUILDERS[mode](u) : null;
+    if (!primary) primary = u; // 模式无效或自定义代理为空时回退直连
+    const candidates = IMAGE_PROXY_ORDER
+        .filter(m => m !== mode)
+        .map(m => IMAGE_PROXY_BUILDERS[m](u))
+        .filter(Boolean);
+    return { primary, fallback: encodeURIComponent(JSON.stringify(candidates)) };
+}
+
+// HTML 属性转义，避免 url 中的 & 或 " 破坏标签
+function escapeHtmlAttr(s) {
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+// 图片加载失败时按兜底链依次切换（由 img 的 onerror 调用）
+window.handleImageError = function (img) {
+    try {
+        const arr = JSON.parse(decodeURIComponent(img.getAttribute('data-fallback') || ''));
+        if (Array.isArray(arr) && arr.length) {
+            img.src = arr.shift();
+            img.setAttribute('data-fallback', encodeURIComponent(JSON.stringify(arr)));
+        } else {
+            img.onerror = null; // 链已耗尽，停止重试
+        }
+    } catch (e) {
+        img.onerror = null;
+    }
+};
+
+// 初始化「图片加载方式」设置项
+function initImageProxySettings() {
+    const sel = document.getElementById('imageProxyMode');
+    const inp = document.getElementById('customImageProxy');
+    if (!sel) return;
+
+    sel.value = window.IMAGE_PROXY_MODE || 'direct';
+    if (inp) inp.value = window.CUSTOM_IMAGE_PROXY || '';
+
+    const refresh = () => {
+        if (localStorage.getItem('doubanEnabled') === 'true') {
+            renderRecommend(doubanCurrentTag, doubanPageSize, doubanPageStart);
+        }
+    };
+    const apply = () => {
+        window.IMAGE_PROXY_MODE = sel.value;
+        if (inp) window.CUSTOM_IMAGE_PROXY = inp.value.trim();
+        try {
+            localStorage.setItem('imageProxyMode', sel.value);
+            if (inp) localStorage.setItem('customImageProxy', inp.value.trim());
+        } catch (e) { /* 忽略 */ }
+        refresh();
+    };
+
+    sel.addEventListener('change', apply);
+    if (inp) {
+        // 输入时实时保存（不刷新），失焦/回车时应用并刷新
+        inp.addEventListener('input', () => {
+            window.CUSTOM_IMAGE_PROXY = inp.value.trim();
+            try { localStorage.setItem('customImageProxy', inp.value.trim()); } catch (e) { /* 忽略 */ }
+        });
+        inp.addEventListener('change', apply);
+    }
+}
+
 // 豆瓣热门电影电视剧推荐功能
 
 // 豆瓣标签列表 - 修改为默认标签
@@ -93,6 +185,9 @@ function initDouban() {
         // 滚动到页面顶部
         window.scrollTo(0, 0);
     }
+
+    // 初始化图片加载方式设置项（读取并绑定「设置 → 图片加载方式」）
+    initImageProxySettings();
 
     // 加载用户标签
     loadUserTags();
@@ -503,23 +598,17 @@ function renderDoubanCards(data, container) {
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
             
-            // 处理图片URL
-            // 1. 直接使用豆瓣图片URL (添加no-referrer属性)
+            // 处理图片URL：根据设置中的「图片加载方式」生成主图与兜底链
             const originalCoverUrl = item.cover;
-
-            // 2. 兜底1：内置代理（带上鉴权 token，需后端且已配置密码）
-            const proxiedCoverUrl = window.ProxyAuth?.addAuthToProxyUrl
-                ? window.ProxyAuth.addAuthToProxyUrl(PROXY_URL + encodeURIComponent(originalCoverUrl))
-                : PROXY_URL + encodeURIComponent(originalCoverUrl);
-            // 3. 兜底2：公共 CORS 代理（无需鉴权，任何部署环境可用）
-            const fallbackCoverUrl = (window.FALLBACK_CORS_PROXY || '') + encodeURIComponent(originalCoverUrl);
+            const imgCfg = buildImageProxyConfig(originalCoverUrl);
 
             // 为不同设备优化卡片布局
             card.innerHTML = `
                 <div class="relative w-full aspect-[2/3] overflow-hidden cursor-pointer" onclick="fillAndSearchWithDouban('${safeTitle}')">
-                    <img src="${originalCoverUrl}" alt="${safeTitle}" 
+                    <img src="${escapeHtmlAttr(imgCfg.primary)}" alt="${safeTitle}" 
                         class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
-                        onerror="if(!this.dataset.proxyTried){this.dataset.proxyTried=1;this.src='${proxiedCoverUrl}';}else{this.onerror=null;this.src='${fallbackCoverUrl}';}"
+                        onerror="window.handleImageError(this)"
+                        data-fallback="${imgCfg.fallback}"
                         loading="lazy" referrerpolicy="no-referrer">
                     <div class="absolute inset-0 bg-gradient-to-t from-black to-transparent opacity-60"></div>
                     <div class="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-sm">

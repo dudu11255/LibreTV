@@ -38,6 +38,17 @@ window.extendAPISites = extendAPISites;
 const FALLBACK_CORS_PROXY = 'https://ciao-cors.is-an.org/';
 window.FALLBACK_CORS_PROXY = FALLBACK_CORS_PROXY;
 
+// 豆瓣/视频海报图片加载方式（可选）：
+//   'direct'  = 直连（默认，速度最快，但部分网络/代理下会被 418）
+//   'builtin' = 内置 /proxy/（需后端已部署且已配置密码）
+//   'cors'    = 公共 CORS 代理（ciao-cors，任何部署环境可用）
+//   'custom'  = 用户自定义代理
+const IMAGE_PROXY_MODE = 'direct';
+// 自定义代理模板：直接拼接编码后的图片地址，或写 {url} 占位符由系统替换
+const CUSTOM_IMAGE_PROXY = '';
+window.IMAGE_PROXY_MODE = localStorage.getItem('imageProxyMode') || IMAGE_PROXY_MODE;
+try { window.CUSTOM_IMAGE_PROXY = localStorage.getItem('customImageProxy') || CUSTOM_IMAGE_PROXY; } catch (e) {}
+
 
 // 添加聚合搜索的配置选项
 const AGGREGATED_SEARCH_CONFIG = {
