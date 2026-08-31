@@ -1,3 +1,34 @@
+// 通过代理请求目标 URL：优先使用内置 /proxy/（带鉴权），失败则回退公共 CORS 代理
+async function fetchViaProxy(targetUrl, options = {}) {
+    const urls = [];
+
+    // 1) 首选内置代理（带鉴权参数）
+    let builtin = PROXY_URL + encodeURIComponent(targetUrl);
+    if (window.ProxyAuth && typeof window.ProxyAuth.addAuthToProxyUrl === 'function') {
+        builtin = await window.ProxyAuth.addAuthToProxyUrl(builtin);
+    }
+    urls.push(builtin);
+
+    // 2) 兜底公共 CORS 代理（无需鉴权）
+    if (window.FALLBACK_CORS_PROXY) {
+        urls.push(window.FALLBACK_CORS_PROXY + encodeURIComponent(targetUrl));
+    }
+
+    let lastError;
+    for (const url of urls) {
+        try {
+            const response = await fetch(url, options);
+            if (response.ok) {
+                return response;
+            }
+            lastError = new Error(`代理请求失败: ${response.status}`);
+        } catch (e) {
+            lastError = e;
+        }
+    }
+    throw lastError || new Error('所有代理均不可用');
+}
+
 // 改进的API请求处理函数
 async function handleApiRequest(url) {
     const customApi = url.searchParams.get('customApi') || '';
@@ -29,12 +60,8 @@ async function handleApiRequest(url) {
             const timeoutId = setTimeout(() => controller.abort(), 10000);
             
             try {
-                // 添加鉴权参数到代理URL
-                const proxiedUrl = await window.ProxyAuth?.addAuthToProxyUrl ? 
-                    await window.ProxyAuth.addAuthToProxyUrl(PROXY_URL + encodeURIComponent(apiUrl)) :
-                    PROXY_URL + encodeURIComponent(apiUrl);
-                    
-                const response = await fetch(proxiedUrl, {
+                // 添加鉴权参数到代理URL（内置代理失败时回退公共 CORS 代理）
+                const response = await fetchViaProxy(apiUrl, {
                     headers: API_CONFIG.search.headers,
                     signal: controller.signal
                 });
@@ -118,12 +145,8 @@ async function handleApiRequest(url) {
             const timeoutId = setTimeout(() => controller.abort(), 10000);
             
             try {
-                // 添加鉴权参数到代理URL
-                const proxiedUrl = await window.ProxyAuth?.addAuthToProxyUrl ? 
-                    await window.ProxyAuth.addAuthToProxyUrl(PROXY_URL + encodeURIComponent(detailUrl)) :
-                    PROXY_URL + encodeURIComponent(detailUrl);
-                    
-                const response = await fetch(proxiedUrl, {
+                // 添加鉴权参数到代理URL（内置代理失败时回退公共 CORS 代理）
+                const response = await fetchViaProxy(detailUrl, {
                     headers: API_CONFIG.detail.headers,
                     signal: controller.signal
                 });
@@ -219,13 +242,9 @@ async function handleCustomApiSpecialDetail(id, customApi) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
         
-        // 添加鉴权参数到代理URL
-        const proxiedUrl = await window.ProxyAuth?.addAuthToProxyUrl ? 
-            await window.ProxyAuth.addAuthToProxyUrl(PROXY_URL + encodeURIComponent(detailUrl)) :
-            PROXY_URL + encodeURIComponent(detailUrl);
-            
+        // 添加鉴权参数到代理URL（内置代理失败时回退公共 CORS 代理）
         // 获取详情页HTML
-        const response = await fetch(proxiedUrl, {
+        const response = await fetchViaProxy(detailUrl, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             },
@@ -286,13 +305,9 @@ async function handleSpecialSourceDetail(id, sourceCode) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000);
         
-        // 添加鉴权参数到代理URL
-        const proxiedUrl = await window.ProxyAuth?.addAuthToProxyUrl ? 
-            await window.ProxyAuth.addAuthToProxyUrl(PROXY_URL + encodeURIComponent(detailUrl)) :
-            PROXY_URL + encodeURIComponent(detailUrl);
-            
+        // 添加鉴权参数到代理URL（内置代理失败时回退公共 CORS 代理）
         // 获取详情页HTML
-        const response = await fetch(proxiedUrl, {
+        const response = await fetchViaProxy(detailUrl, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             },
@@ -376,12 +391,8 @@ async function handleAggregatedSearch(searchQuery) {
                 setTimeout(() => reject(new Error(`${source}源搜索超时`)), 8000)
             );
             
-            // 添加鉴权参数到代理URL
-            const proxiedUrl = await window.ProxyAuth?.addAuthToProxyUrl ? 
-                await window.ProxyAuth.addAuthToProxyUrl(PROXY_URL + encodeURIComponent(apiUrl)) :
-                PROXY_URL + encodeURIComponent(apiUrl);
-            
-            const fetchPromise = fetch(proxiedUrl, {
+            // 添加鉴权参数到代理URL（内置代理失败时回退公共 CORS 代理）
+            const fetchPromise = fetchViaProxy(apiUrl, {
                 headers: API_CONFIG.search.headers
             });
             
@@ -490,12 +501,8 @@ async function handleMultipleCustomSearch(searchQuery, customApiUrls) {
                 setTimeout(() => reject(new Error(`自定义API ${index+1} 搜索超时`)), 8000)
             );
             
-            // 添加鉴权参数到代理URL
-            const proxiedUrl = await window.ProxyAuth?.addAuthToProxyUrl ? 
-                await window.ProxyAuth.addAuthToProxyUrl(PROXY_URL + encodeURIComponent(fullUrl)) :
-                PROXY_URL + encodeURIComponent(fullUrl);
-            
-            const fetchPromise = fetch(proxiedUrl, {
+            // 添加鉴权参数到代理URL（内置代理失败时回退公共 CORS 代理）
+            const fetchPromise = fetchViaProxy(fullUrl, {
                 headers: API_CONFIG.search.headers
             });
             

@@ -22,7 +22,7 @@ const SITE_CONFIG = {
 
 // API站点配置
 // 空壳设计：不内置任何数据源，部署者需在「设置 → 自定义API」中添加自己的采集站。
-// 这样避免内置源失效/违规带来的维护与合规风险（参考 LunaTV 的空壳思路）。
+// 这样避免内置源失效/违规带来的维护与合规风险。
 const API_SITES = {};
 
 // 定义合并方法
@@ -33,6 +33,10 @@ function extendAPISites(newSites) {
 // 暴露到全局
 window.API_SITES = API_SITES;
 window.extendAPISites = extendAPISites;
+
+// 公共 CORS 代理兜底：当内置 /proxy/ 不可用（如纯静态部署、未配置后端或代理鉴权失败）时回退
+const FALLBACK_CORS_PROXY = 'https://ciao-cors.is-an.org/';
+window.FALLBACK_CORS_PROXY = FALLBACK_CORS_PROXY;
 
 
 // 添加聚合搜索的配置选项
