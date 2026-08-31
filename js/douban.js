@@ -47,12 +47,13 @@ window.handleImageError = function (img) {
         if (Array.isArray(arr) && arr.length) {
             img.src = arr.shift();
             img.setAttribute('data-fallback', encodeURIComponent(JSON.stringify(arr)));
-        } else {
-            img.onerror = null; // 链已耗尽，停止重试
+            return;
         }
-    } catch (e) {
-        img.onerror = null;
-    }
+    } catch (e) { /* 忽略 */ }
+    // 兜底链已耗尽，使用最终占位图（若有），并停止重试避免死循环
+    const ph = img.getAttribute('data-placeholder');
+    if (ph) img.src = ph;
+    img.onerror = null;
 };
 
 // 初始化「图片加载方式」设置项
