@@ -124,11 +124,18 @@ function validateAuth(event) {
 }
 
 async function fetchContentWithType(targetUrl, requestHeaders) {
+    // 针对豆瓣图片：强制豆瓣 Referer 以绕过 418 防盗链（对齐 LunaTV 的图片代理做法）
+    let referer = requestHeaders['referer'] || new URL(targetUrl).origin;
+    try {
+        if (/doubanio\.com$/i.test(new URL(targetUrl).hostname)) {
+            referer = 'https://movie.douban.com/';
+        }
+    } catch (e) { /* 忽略非法 URL */ }
     const headers = {
         'User-Agent': getRandomUserAgent(),
         'Accept': requestHeaders['accept'] || '*/*',
         'Accept-Language': requestHeaders['accept-language'] || 'zh-CN,zh;q=0.9,en;q=0.8',
-        'Referer': requestHeaders['referer'] || new URL(targetUrl).origin,
+        'Referer': referer,
     };
     Object.keys(headers).forEach(key => headers[key] === undefined || headers[key] === null || headers[key] === '' ? delete headers[key] : {});
     logDebug(`Fetching target: ${targetUrl} with headers: ${JSON.stringify(headers)}`);

@@ -262,14 +262,19 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
     
     const makeRequest = async () => {
       try {
+        // 针对豆瓣图片：强制豆瓣 Referer 以绕过 418 防盗链（对齐 LunaTV 的图片代理做法）
+        const reqHeaders = { 'User-Agent': config.userAgent };
+        try {
+          if (new URL(targetUrl).hostname.endsWith('doubanio.com')) {
+            reqHeaders['Referer'] = 'https://movie.douban.com/';
+          }
+        } catch (e) { /* 忽略非法 URL */ }
         return await axios({
           method: 'get',
           url: targetUrl,
           responseType: 'stream',
           timeout: config.timeout,
-          headers: {
-            'User-Agent': config.userAgent
-          }
+          headers: reqHeaders
         });
       } catch (error) {
         if (retries < maxRetries) {
