@@ -442,7 +442,7 @@ function initPlayer(videoUrl) {
         container: '#player',
         url: videoUrl,
         type: 'm3u8',
-        title: videoTitle,
+        title: currentVideoTitle,
         volume: 0.8,
         isLive: false,
         muted: false,
