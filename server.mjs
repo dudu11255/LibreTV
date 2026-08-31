@@ -356,7 +356,13 @@ app.use((req, res, next) => {
 });
 
 app.use(express.static(path.join(__dirname), {
-  maxAge: config.cacheMaxAge
+  maxAge: config.cacheMaxAge,
+  setHeaders: (res, filePath) => {
+    // 前端脚本/样式/页面不缓存，改动后刷新即生效（避免旧 config.js 缓存导致设置不生效）
+    if (/\.(js|mjs|css|html)$/.test(filePath)) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  }
 }));
 
 app.use((err, req, res, next) => {

@@ -43,7 +43,7 @@ window.FALLBACK_CORS_PROXY = FALLBACK_CORS_PROXY;
 //   'builtin' = 内置 /proxy/（需后端已部署且已配置密码）
 //   'cors'    = 公共 CORS 代理（ciao-cors，任何部署环境可用）
 //   'custom'  = 用户自定义代理
-const IMAGE_PROXY_MODE = 'direct';
+const IMAGE_PROXY_MODE = 'builtin'; // 本地调试用：默认走内置代理避免豆瓣直连418；部署前请改回 'direct'（保持用户在设置中可选）
 // 自定义代理模板：直接拼接编码后的图片地址，或写 {url} 占位符由系统替换
 const CUSTOM_IMAGE_PROXY = '';
 window.IMAGE_PROXY_MODE = localStorage.getItem('imageProxyMode') || IMAGE_PROXY_MODE;
