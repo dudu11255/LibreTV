@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Header } from '@/components/header';
 import { DoubanSection } from '@/components/douban-section';
 import { DetailModal } from '@/components/detail-modal';
-import { VideoCard } from '@/components/video-card';
+import { AggregatedCard, aggregateResults } from '@/components/video-card';
 import { useAppStore, resolveSource } from '@/lib/store';
 import { api } from '@/lib/client-api';
 import type { SearchResultItem } from '@/lib/types';
@@ -79,8 +79,10 @@ function HomeContent() {
     addSearchHistory(query).catch(() => {});
   };
 
-  const list = searchQuery.data?.list ?? [];
+  const list = useMemo(() => searchQuery.data?.list ?? [], [searchQuery.data]);
   const failures = searchQuery.data?.failures ?? [];
+  // 跨源同名聚合：同名影片合并为一张卡片，展开后可选择具体来源
+  const groups = useMemo(() => aggregateResults(list), [list]);
   // 失败源显示友好名称而非裸 key
   const failureNames = failures.map(
     (f) =>
@@ -188,7 +190,9 @@ function HomeContent() {
               <h2 className="text-sm text-muted">
                 “<span className="text-content">{urlQuery}</span>” 的搜索结果
                 {searchQuery.data && (
-                  <span className="text-faint">（{list.length} 条{failures.length > 0 && `，${failures.length} 个源失败`}）</span>
+                  <span className="text-faint">
+                    （{groups.length} 部影片 · {list.length} 条结果{failures.length > 0 && `，${failures.length} 个源失败`}）
+                  </span>
                 )}
               </h2>
             </div>
@@ -213,9 +217,13 @@ function HomeContent() {
                 <p className="text-sm text-faint mt-1">请尝试其他关键词或更换数据源</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {list.map((item) => (
-                  <VideoCard key={`${item.sourceKey}_${item.vodId}`} item={item} onClick={() => setDetailItem(item)} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-start">
+                {groups.map((group) => (
+                  <AggregatedCard
+                    key={group.key}
+                    group={group}
+                    onOpen={(item) => setDetailItem(item)}
+                  />
                 ))}
               </div>
             )}

@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { guardRequest } from '@/lib/api-guard';
-import { isBlockedByDNS, isValidProxyUrl } from '@/lib/ssrf';
+import { checkUpstreamAllowed, isBlockedByDNS, isValidProxyUrl } from '@/lib/ssrf';
 import { rewriteM3u8 } from '@/lib/m3u8';
-import { fetchUpstream } from '@/lib/fetch-utils';
 
 export const runtime = 'nodejs';
 
@@ -11,6 +10,37 @@ const MAX_RETRIES = parseInt(process.env.MAX_RETRIES || '1', 10);
 const UA =
   process.env.USER_AGENT ||
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const MAX_REDIRECT_HOPS = 5;
+
+/**
+ * 代理专用上游抓取：手动逐跳跟随跳转，每一跳重新执行 SSRF 校验。
+ * 不能用 redirect:'follow'——预检之后 fetch 自动跟随的 3xx 可把请求
+ * 带进内网/元数据地址，绕过下方对首跳的校验。
+ */
+async function proxyFetch(
+  targetUrl: string,
+  init: { headers: Record<string, string> }
+): Promise<Response> {
+  let current = targetUrl;
+  for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+    const verdict = await checkUpstreamAllowed(current);
+    if (!verdict.ok) {
+      throw new Error(`跳转目标被拒绝: ${verdict.reason}`);
+    }
+    const res = await fetch(current, {
+      headers: init.headers,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!REDIRECT_STATUSES.has(res.status)) return res;
+    const location = res.headers.get('location');
+    if (!location) return res;
+    current = new URL(location, current).href;
+  }
+  throw new Error('重定向次数过多');
+}
 
 /**
  * 精确域名匹配：仅 `douban.com` 本身及其子域放行。
@@ -65,17 +95,20 @@ export async function GET(req: Request, ctx: { params: Promise<{ url: string }> 
   const range = req.headers.get('range');
   if (range) headers.Range = range;
 
-  let response: Response;
-  try {
-    response = await fetchUpstream(targetUrl, {
-      timeoutMs: TIMEOUT_MS,
-      retries: MAX_RETRIES,
-      headers,
-      redirect: 'follow',
-    });
-  } catch (err) {
+  let response: Response | undefined;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      response = await proxyFetch(targetUrl, { headers });
+      lastError = null;
+      break;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  if (!response) {
     return new NextResponse(
-      `代理请求失败: ${err instanceof Error ? err.message : '未知错误'}`,
+      `代理请求失败: ${lastError instanceof Error ? lastError.message : '未知错误'}`,
       { status: 502 }
     );
   }
