@@ -44,7 +44,7 @@ export default function AboutPage() {
         </section>
       </main>
       <footer className="border-t border-line py-4">
-        <p className="text-center text-xs text-faint">LibreTV v2.0 · Apache-2.0 License</p>
+        <p className="text-center text-xs text-faint">LibreTV v2.0 · AGPL-3.0 License</p>
       </footer>
     </div>
   );

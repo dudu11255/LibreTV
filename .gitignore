@@ -4,3 +4,4 @@ out/
 .env*.local
 *.tsbuildinfo
 vitest-results.json
+*.log

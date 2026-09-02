@@ -43,3 +43,21 @@ export async function isBlockedByDNS(urlString: string): Promise<boolean> {
     return false; // 解析失败不阻断，交给后续请求处理
   }
 }
+
+export type UpstreamVerdict = { ok: true } | { ok: false; reason: string };
+
+/**
+ * 出网请求的统一校验入口：字面量校验 + DNS 解析校验。
+ *
+ * 任何由用户输入驱动的服务端请求（采集站搜索/详情、代理转发）都必须先过这一关，
+ * 否则服务器会变成内网探测跳板（/api/search 曾直接用用户传的 source.url 发请求）。
+ */
+export async function checkUpstreamAllowed(urlString: string): Promise<UpstreamVerdict> {
+  if (!isValidProxyUrl(urlString)) {
+    return { ok: false, reason: '目标地址不在允许范围内（仅支持公网 http/https）' };
+  }
+  if (await isBlockedByDNS(urlString)) {
+    return { ok: false, reason: '目标地址解析到私有/保留网络' };
+  }
+  return { ok: true };
+}

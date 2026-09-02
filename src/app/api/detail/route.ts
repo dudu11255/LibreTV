@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { guardRequest } from '@/lib/api-guard';
 import { cmsRequestHeaders, parseDetail, parseDetailPageHtml } from '@/lib/cms-parser';
 import { fetchUpstream } from '@/lib/fetch-utils';
+import { checkUpstreamAllowed } from '@/lib/ssrf';
 import type { SourceConfig } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -38,6 +39,12 @@ export async function GET(req: Request) {
   }
 
   try {
+    // 用户可控地址发起服务端请求，先过 SSRF 校验（协议白名单 + 内网/保留地址）
+    const listVerdict = await checkUpstreamAllowed(source.url);
+    if (!listVerdict.ok) {
+      return NextResponse.json({ error: listVerdict.reason }, { status: 400 });
+    }
+
     // 1) 标准列表接口
     const api = `${source.url.replace(/\/+$/, '')}?ac=videolist&ids=${encodeURIComponent(id)}`;
     const res = await fetchUpstream(api, { timeoutMs: 10000, headers: cmsRequestHeaders() });
@@ -57,6 +64,10 @@ export async function GET(req: Request) {
     // 2) 详情页 HTML 提取（detail 地址优先，否则用 API 地址推导）
     const detailRoot = (source.detail || baseUrl || '').replace(/\/+$/, '');
     if (detailRoot && /^https?:\/\//.test(detailRoot)) {
+      const detailVerdict = await checkUpstreamAllowed(detailRoot);
+      if (!detailVerdict.ok) {
+        return NextResponse.json({ error: detailVerdict.reason }, { status: 400 });
+      }
       const detailUrl = `${detailRoot}/index.php/vod/detail/id/${id}.html`;
       const detailRes = await fetchUpstream(detailUrl, {
         timeoutMs: 10000,

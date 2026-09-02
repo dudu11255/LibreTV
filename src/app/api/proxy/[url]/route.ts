@@ -12,14 +12,25 @@ const UA =
   process.env.USER_AGENT ||
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
+/**
+ * 精确域名匹配：仅 `douban.com` 本身及其子域放行。
+ * 不能用 endsWith('douban.com')——那样 `evil-douban.com` 也会命中，形成鉴权绕过。
+ */
+function isDoubanHost(host: string): boolean {
+  const h = host.toLowerCase();
+  return (
+    h === 'douban.com' || h.endsWith('.douban.com') ||
+    h === 'doubanio.com' || h.endsWith('.doubanio.com')
+  );
+}
+
 // 未鉴权的图片等资源也允许走代理（豆瓣防盗链需要 Referer 伪装）；
-// 但为防止被当作开放代理滥用，仅放行图片类目标，其余必须已登录。
+// 但为防止被当作开放代理滥用，仅放行豆瓣域下的目标，其余必须已登录。
 function looksLikeImageUrl(target: string): boolean {
-  if (/\.(jpe?g|png|gif|webp|avif)(\?|$)/i.test(target)) return true;
   const host = (() => {
     try { return new URL(target).hostname; } catch { return ''; }
   })();
-  return host.endsWith('doubanio.com') || host.endsWith('douban.com');
+  return isDoubanHost(host);
 }
 
 /**
@@ -46,7 +57,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ url: string }> 
 
   const headers: Record<string, string> = { 'User-Agent': UA, Accept: '*/*' };
   try {
-    if (new URL(targetUrl).hostname.endsWith('doubanio.com')) {
+    if (isDoubanHost(new URL(targetUrl).hostname)) {
       headers.Referer = 'https://movie.douban.com/';
     }
   } catch { /* 忽略非法 URL */ }

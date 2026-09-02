@@ -1,10 +1,11 @@
 'use client';
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ToastProvider } from './toast';
 import { AuthProvider } from './auth';
 import { ThemeProvider } from './theme';
+import { useAppStore } from '@/lib/store';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -15,6 +16,12 @@ export function Providers({ children }: { children: ReactNode }) {
         },
       })
   );
+
+  // store 配置了 skipHydration：等挂载后再读 localStorage，
+  // 保证 hydration 阶段客户端与服务端渲染结果一致。
+  useEffect(() => {
+    void useAppStore.persist.rehydrate();
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

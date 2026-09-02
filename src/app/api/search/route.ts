@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { guardRequest } from '@/lib/api-guard';
 import { cmsRequestHeaders, filterAdultResults, parseSearchList } from '@/lib/cms-parser';
 import { fetchUpstream } from '@/lib/fetch-utils';
+import { checkUpstreamAllowed } from '@/lib/ssrf';
 import type { SourceConfig, SourceSearchOutcome } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -40,6 +41,11 @@ export async function POST(req: Request) {
     sources.map(async (source): Promise<SourceSearchOutcome> => {
       if (!/^https?:\/\//.test(source.url || '')) {
         return { sourceKey: source.key, ok: false, list: [], error: '无效的源地址' };
+      }
+      // 用户可控地址发起服务端请求，必须先过 SSRF 校验（协议白名单 + 内网/保留地址）
+      const verdict = await checkUpstreamAllowed(source.url);
+      if (!verdict.ok) {
+        return { sourceKey: source.key, ok: false, list: [], error: verdict.reason };
       }
       const api = `${source.url.replace(/\/+$/, '')}?ac=videolist&wd=${encodeURIComponent(wd)}`;
       try {

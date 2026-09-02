@@ -83,6 +83,10 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'libretv-settings',
+      // 同步 storage 会在模块加载时立即 rehydrate（早于 React hydration），
+      // 一旦首屏渲染依赖持久化状态就会与 SSR 输出不一致。
+      // 改为由 Providers 在挂载后手动 rehydrate。
+      skipHydration: true,
     }
   )
 );
