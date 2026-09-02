@@ -38,7 +38,8 @@ git push
 git push --tags
 ```
 
-推送到 `v*` tag 后，CI 会先跑类型检查与单测，通过则构建 `linux/amd64` + `linux/arm64`
+推送到 `v*` tag 后，CI 会先校验 tag 与 `package.json` 版本一致（不一致直接失败，防止镜像标签
+与 `/api/status` 返回值脱节），再跑类型检查与单测，通过则构建 `linux/amd64` + `linux/arm64`
 双架构镜像并推送，产出三个 tag：
 
 - `ghcr.io/bestzwei/libretv:2.0.1`（完整版本）
