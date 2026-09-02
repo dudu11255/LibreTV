@@ -10,6 +10,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     passwordRequired,
     verified,
-    version: '2.0.0',
+    // 构建时由 next.config.ts 从 package.json 注入
+    version: process.env.APP_VERSION || 'dev',
   });
 }

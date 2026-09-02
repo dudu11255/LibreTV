@@ -25,8 +25,19 @@ LibreTV 的 Next.js 重构版：免费在线视频聚合搜索与观看平台。
 ```bash
 # 在 .env 中设置 PASSWORD
 echo "PASSWORD=your-password" > .env
-docker compose up -d -b
+
+# 方式一：拉取发布镜像（零构建）
+docker compose pull && docker compose up -d
+
+# 方式二：源码构建
+docker compose up -d --build
 ```
+
+镜像发布在 GHCR：`ghcr.io/bestzwei/libretv`（`latest` / `主.次` / 完整版本号三个 tag，
+`linux/amd64` 与 `linux/arm64` 双架构）。需要固定版本时在 `.env` 中设置
+`LIBRETV_IMAGE=ghcr.io/bestzwei/libretv:2.0.1`。
+
+> 版本号以 `package.json` 为单一来源，部署后可用 `/api/status` 返回的 `version` 字段核对。详见[部署文档](docs/Deployment)。
 
 ### 手动运行
 
@@ -62,6 +73,17 @@ PASSWORD=dev-password npm run dev   # http://localhost:8080
 npm test                            # 核心库单元测试（cms-parser / m3u8 / ssrf）
 npm run typecheck
 ```
+
+## 发布新版本
+
+版本号以 `package.json` 为单一来源，发布镜像由 GitHub Actions 自动完成：
+
+```bash
+npm version patch       # 或 minor / major；会更新 package.json 并打 git tag
+git push && git push --tags
+```
+
+CI 校验通过后自动构建并推送 `ghcr.io/bestzwei/libretv:<版本>`（详见[部署文档](docs/Deployment)）。
 
 ## 安全说明
 
