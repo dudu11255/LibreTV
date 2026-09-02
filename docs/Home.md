@@ -1,23 +1,42 @@
-# LibreTV Wiki
+# LibreTV Next Wiki
 
-欢迎来到 LibreTV 文档中心。本项目是一个**无内置数据源**的在线视频搜索与代理平台，本文档帮助你部署、配置与排错。
+欢迎来到 LibreTV Next 的项目文档。LibreTV 是一个免费的在线视频聚合搜索与观看平台，基于 Next.js 15 重构。
 
-## 导航
+## 文档目录
 
-| 页面 | 内容 |
-|---|---|
-| [部署指南](Deployment.md) | Node / Vercel / Netlify / Cloudflare Pages / Docker / Render 详细步骤 |
-| [配置参考](Configuration.md) | 全部环境变量与默认值 |
-| [代理鉴权与安全](Proxy-Security.md) | token 模式、静态哈希、SSRF 防护、源码保护 |
-| [数据源配置](Data-Sources.md) | 如何添加苹果 CMS / 采集站 API |
-| [播放器说明](Player.md) | 快捷键、HLS、手势操作 |
-| [常见问题 FAQ](FAQ.md) | 部署与播放常见故障排查 |
-| [架构说明](Architecture.md) | 前端结构、服务端适配器、数据流 |
+| 文档 | 内容 |
+| --- | --- |
+| [Architecture](Architecture) | 系统架构、目录结构、数据流、技术选型说明 |
+| [Deployment](Deployment) | Docker / 手动部署、环境变量、升级指南 |
+| [Configuration](Configuration) | 环境变量详解、主题系统、数据源管理、配置导入导出 |
+| [Data-Sources](Data-Sources) | 采集站（Apple CMS）接入说明、自定义 API 格式、常见问题源 |
+| [Player](Player) | 播放器功能、快捷键、广告过滤、代理回退、进度与历史 |
+| [Proxy-Security](Proxy-Security) | 代理鉴权设计、SSRF 防护、安全模型与旧版对比 |
+| [FAQ](FAQ) | 常见问题排查 |
 
-## 核心设计
+## 快速开始
 
-1. **空壳前端**：仓库不维护任何默认视频源，所有源由用户在「设置」中添加。
-2. **服务端代理**：跨域抓取与 m3u8 改写集中在服务端函数，前端只负责渲染。
-3. **安全优先**：代理鉴权、SSRF 拦截、源码保护为必保留能力。
+```bash
+# Docker 部署（推荐）
+echo "PASSWORD=your-password" > .env
+docker compose up -d
 
-> 想快速上手？先看 [部署指南](Deployment.md)，再读 [数据源配置](Data-Sources.md) 添加你的第一个采集站。
+# 本地开发
+npm install
+PASSWORD=dev-password npm run dev   # http://localhost:8080
+```
+
+## 核心特性
+
+- **聚合搜索**：多采集站服务端并行搜索，单源失败不影响整体，用户 IP 不暴露给第三方
+- **HLS 播放**：ArtPlayer + hls.js，广告分片过滤、自动连播、倍速、快捷键、移动端长按 3 倍速
+- **智能回退**：视频直连失败（CORS / 防盗链）时自动改走内置代理重试
+- **进度同步**：播放进度与观看历史存于本机 IndexedDB，精确到秒的续播
+- **换源测速**：跨源搜索同名资源并测速排序，一键切换保留集数位置
+- **豆瓣推荐**：电影 / 剧集分类浏览，服务端直连避免公共 CORS 代理
+- **亮暗主题**：跟随系统 / 手动切换，无首屏闪烁
+- **PWA**：可安装到桌面 / 主屏幕
+
+## 与旧版（静态 HTML + Express）的关系
+
+本项目是 [LibreTV 旧版](https://github.com/bestZwei/LibreTV)的完整重构。功能对齐的同时修复了旧版的多项问题（历史记录 XSS、m3u8 分片鉴权丢失、密码哈希暴露等），架构差异详见 [Architecture](Architecture)。

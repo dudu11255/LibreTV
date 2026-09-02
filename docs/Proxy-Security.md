@@ -1,48 +1,61 @@
-# 代理鉴权与安全
+# 代理与安全
 
-LibreTV 的视频直链通过服务端代理转发，以解决跨域与 HLS 直链播放问题。代理接口是系统的安全边界，以下说明其鉴权机制与防护。
+本项目的服务端承担三类安全职责：**访问鉴权**、**代理防护（SSRF）**、**上游伪装（防盗链）**。
 
-## 两种鉴权模式
+## 鉴权模型
 
-### 1. 安全模式：`PROXY_SECRET` 短时效 token（推荐）
+### 会话
 
-当服务端设置了 `PROXY_SECRET`：
+- 登录：`POST /api/auth`，body 携带明文密码（**不走 URL**，避免进访问日志）；
+- 服务端用 SHA-256 摘要做**恒定时间比较**（`crypto.timingSafeEqual`），不暴露时序信息；
+- 通过后签发会话 Cookie：`ltv_session = <过期时间戳>.<HMAC-SHA256(密钥, 时间戳)>`；
+  - `httpOnly`（JS 不可读）、`SameSite=Lax`、生产环境 `Secure`、有效期 90 天；
+  - 密钥 = `PROXY_SECRET`，未设置时从 `PASSWORD` 派生；
+- 所有 `/api/*`（除 status/登录外）通过 `guardRequest` 校验会话，未登录返回 401，客户端全局弹出登录框。
 
-1. 用户在前端输入密码校验通过后，前端调用 `GET /api/proxy-token?password=...`；
-2. 服务端校验密码，签发一个**带时间戳**的 HMAC token（`t` 为毫秒时间戳，`token = HMAC(secret, t + path + query)`）；
-3. 后续代理请求 `GET /proxy/<encodedUrl>?token=...&t=...` 需携带该 token；
-4. 服务端校验签名与时间窗口（默认 60 秒），过期或签名不符返回 `401`；
-5. **前端持有的静态哈希不再被接受**（修复了旧版可被伪造的鉴权）。
+### 速率限制
 
-前端通过 `window.__ENV__.PROXY_TOKEN_MODE === "1"` 自动切换该模式，无需手动配置。
+登录接口按 IP 限流：**10 次 / 10 分钟**，超限返回 429。内存实现，适合单实例部署。
 
-### 2. 兼容模式：静态哈希（函数型部署）
+### 与旧版的安全差异
 
-未设置 `PROXY_SECRET` 时回退：代理请求携带 `auth=sha256(password)`。该哈希暴露在前端页面中，**可被提取后伪造请求**，安全性较弱。仅建议用于无 Node 进程的函数型环境，并尽量通过 `PROXY_SECRET` 升级。
+| 问题 | 旧版 | 本版 |
+| --- | --- | --- |
+| 密码哈希下发 | 页面源码含 `sha256(PASSWORD)` | 服务端独享，前端零凭证 |
+| 哈希即凭证 | `?auth=<哈希>` 可无限重放代理请求 | 已移除该兼容模式 |
+| 明文密码上 URL | `GET /api/proxy-token?password=...` | `POST /api/auth` body |
+| 登录限流 | 无 | 10 次 / 10 分钟 |
+| token 轮换 | 10 分钟短时效 token（需手工附参） | 会话 Cookie，m3u8 分片同源自动携带 |
 
-## SSRF 防护
+## 代理（`GET /api/proxy/<encoded-url>`）
 
-代理在发起上游请求前会校验目标 URL，拦截：
+### 访问规则
 
-- 协议非 `http`/`https`；
-- 主机名命中 `BLOCKED_HOSTS`（默认 `localhost,127.0.0.1,0.0.0.0,::1`）；
-- IP 命中私有网段前缀 `BLOCKED_IP_PREFIXES`（默认 `192.168.,10.,172.`）；
-- 字面量 IP 经 `isPrivateIP` 判定为内网 / 环回 / 链路本地（含云元数据 `169.254.169.254`、`100.100.100.100` 等）；
-- DNS 解析后的地址若落入私有段，同样被拦截（`isBlockedByDNS`）。
+- **已登录**：可代理任意符合 SSRF 校验的目标（视频分片、key、JSON、图片）；
+- **未登录**：仅放行图片类目标（`.jpg/.png/...` 或 `doubanio.com` 域），用于登录页前的封面展示；其余一律 401。
 
-返回码：非法 URL为 `400`，命中拦截为 `400/403`。
+### SSRF 防护（双层）
 
-## 响应头过滤
+1. **字面量校验**（请求前）：协议白名单 http/https；主机名黑名单（localhost 等）；IPv4/IPv6 字面量直接比对私有段；
+2. **DNS 解析校验**（请求前）：域名解析出的所有地址逐一检查，拦截解析到内网的域名（防 DNS rebinding 基础形态）。
 
-代理会从上游响应中剥离敏感头（默认 `content-security-policy`、`cookie`、`set-cookie`、`x-frame-options`、`access-control-allow-origin` 等），避免将上游的 Cookie / CSP 泄漏到浏览器，降低会话劫持与 XSS 风险。可用 `FILTERED_HEADERS` 覆盖。
+被拦截的地址段：回环（127.0.0.0/8, ::1）、私有（10/8, 172.16/12, 192.168/16）、链路本地（169.254/16，含云元数据 169.254.169.254）、CGNAT（100.64/10）、协议保留（192.0.0.0/24）、唯一本地（fc00::/7）、链路本地 v6（fe80::/10）。
 
-## 源码保护
+### 行为
 
-Node 服务端对 `.js`/`.mjs`/`.json` 等源码路径（如 `/server.mjs`、`/api/*`）做了静态白名单保护，未命中白名单的源码请求返回 `404`，防止源码泄露。
+- **流式透传**：视频分片 / 图片 / key 不落盘，直接 pipe；
+- **m3u8 重写**：manifest/level 文本中的分片、`#EXT-X-KEY`、`#EXT-X-MAP` 地址全部改写为 `/api/proxy/<encoded>`（递归深度 ≤5），嵌套播放列表同样经代理，规避上游 CORS 限制；
+- **响应头净化**：剔除 CSP/Cookie/Set-Cookie/X-Frame-Options/CORS 头与 Content-Encoding/Length（fetch 已解压，防止二次解压乱码）；
+- **Range 透传**：保留 `Range`/`Content-Range`，支持拖动；
+- **重试**：上游失败按 `MAX_RETRIES` 重试。
 
-## 安全建议
+### 上游伪装
 
-- ✅ 所有部署**必须**设置强 `PASSWORD`。
-- ✅ 能运行 Node 的环境**务必**设置 `PROXY_SECRET`（随机 32 字节以上）。
-- ✅ 不要将实例公开分享；私有网段与云元数据已被默认拦截，但仍应避免暴露到公网。
-- ⚠️ 函数型部署（Vercel / Netlify / CF）默认走静态哈希，安全性弱于 token 模式。
+- 目标为 `doubanio.com` 时自动携带 `Referer: https://movie.douban.com/`，绕过豆瓣图片 418 防盗链；
+- 统一携带 Chrome UA。
+
+## 已知边界
+
+- 速率限制为内存实现，多实例部署需换共享存储（Redis）；
+- SSRF 的 DNS 校验存在理论上的 TOCTOU 窗口（校验后、请求前 DNS 记录变更）；对公网部署建议叠加网络层出口限制；
+- 会话无法服务端主动吊销（无状态签名）；更换 `PROXY_SECRET` 或 `PASSWORD` 可使全部会话失效。

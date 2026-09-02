@@ -1,52 +1,60 @@
-# 配置参考
+# 配置
 
-LibreTV 全部通过**环境变量**配置，无需改动源码。不同部署形态读取的变量略有差异。
+## 环境变量
 
-## Node / Docker / Render（`server.mjs`）
+| 变量 | 必填 | 默认 | 说明 |
+| --- | --- | --- | --- |
+| `PASSWORD` | **是** | — | 访问密码。未设置时站点可用但所有功能接口返回 503，并提示管理员配置 |
+| `PROXY_SECRET` | 否 | 从 PASSWORD 派生 | 会话与代理签名密钥。单实例可不设；多实例/负载均衡部署必须显式设置，否则各实例会话互不认账 |
+| `REQUEST_TIMEOUT` | 否 | `8000` | 代理上游请求超时（毫秒） |
+| `MAX_RETRIES` | 否 | `1` | 代理请求重试次数 |
+| `USER_AGENT` | 否 | Chrome UA | 代理请求使用的 UA（豆瓣防盗链等场景） |
+| `DEBUG` | 否 | `false` | 调试日志 |
 
-| 变量 | 默认值 | 说明 |
-|---|---|---|
-| `PASSWORD` | 空（**必填**） | 访问密码；未设置时页面强制提示 |
-| `PROXY_SECRET` | 空 | 设置后启用服务端签发的短时效 token 鉴权（推荐）；留空回退静态哈希 |
-| `PORT` | `8080` | 监听端口 |
-| `CORS_ORIGIN` | `*` | 允许的跨域来源 |
-| `REQUEST_TIMEOUT` | `5000` | 代理请求超时（毫秒） |
-| `MAX_RETRIES` | `2` | 代理失败重试次数 |
-| `CACHE_MAX_AGE` | `1d` | 代理响应缓存时长（HTTP `Cache-Control`） |
-| `USER_AGENT` | 内置 Chrome UA | 代理请求携带的 UA |
-| `DEBUG` | `false` | 设为 `true` 开启详细日志 |
-| `BLOCKED_HOSTS` | `localhost,127.0.0.1,0.0.0.0,::1` | SSRF：被拦截的主机名（逗号分隔） |
-| `BLOCKED_IP_PREFIXES` | `192.168.,10.,172.` | SSRF：被拦截的 IP 网段前缀 |
-| `FILTERED_HEADERS` | `content-security-policy,cookie,set-cookie,x-frame-options,access-control-allow-origin,...` | 从上游响应中剥离的敏感头（逗号分隔） |
+> 旧版的 `CORS_ORIGIN`、`CACHE_MAX_AGE`、`BLOCKED_HOSTS`、`BLOCKED_IP_PREFIXES`、`FILTERED_HEADERS` 在重构版中已内化为安全默认值，不再需要配置。
 
-## 服务端函数（Vercel / Netlify / Cloudflare）
+## 运行时设置（用户级）
 
-| 变量 | 默认值 | 说明 |
-|---|---|---|
-| `PASSWORD` | 空（**必填**） | 访问密码 |
-| `PROXY_SECRET` | 由 `PASSWORD` 派生 | 函数环境通常无 token 签发，鉴权为静态哈希；可显式设置用于统一密钥 |
-| `DEBUG` | `false` | 调试日志 |
-| `CACHE_TTL` | `86400` | 代理缓存秒数 |
-| `MAX_RECURSION` | `5` | m3u8 递归改写最大层数（防环） |
-| `USER_AGENTS_JSON` | 空 | 可选：自定义 UA 池（JSON 数组字符串），用于随机化请求 UA |
-| `BLOCKED_HOSTS` | `localhost,127.0.0.1,0.0.0.0,::1` | SSRF 拦截主机名 |
-| `BLOCKED_IP_PREFIXES` | `192.168.,10.,172.` | SSRF 拦截网段 |
-| `FILTERED_HEADERS` | 内置列表 | 剥离的敏感响应头 |
+以下设置保存在每个用户浏览器的 localStorage（键 `libretv-settings`），通过「设置」抽屉修改：
 
-> 函数型部署（无 Node 进程）**不提供 `/api/proxy-token`**，前端走静态哈希鉴权（`PROXY_TOKEN_MODE` 由注入决定，函数环境通常为空）。
+### 数据源
 
-## 前端注入变量（由服务端替换）
+- **自定义 API 列表**：名称、API 地址、详情页地址（可选）、成人标记；
+- **勾选参与搜索的源**：仅勾选的源会参与聚合搜索与换源。
 
-`index.html` 含两个占位符，由 Node（`server.mjs`）或 Netlify Edge Function 在响应时替换：
+### 播放与过滤
 
-- `{{PASSWORD}}`：页面是否已有密码（空字符串表示未配置，前端会提示设置）。
-- `{{PROXY_TOKEN_MODE}}`：`"1"` 表示启用 token 模式（已配置 `PROXY_SECRET`），否则为空。
+| 开关 | 默认 | 说明 |
+| --- | --- | --- |
+| 成人内容过滤 | 开 | 服务端按分类关键词过滤（伦理片/福利片等） |
+| 广告过滤 | 开 | hls.js loader 剔除 m3u8 中的 `#EXT-X-DISCONTINUITY` 广告片段 |
+| 自动连播 | 开 | 单集结束自动播放下一集 |
+| 豆瓣推荐 | 开 | 首页展示豆瓣热门影视 |
 
-## 示例
+### 封面图加载方式
 
-```bash
-# Node 安全模式
-PASSWORD=strongpass PROXY_SECRET=$(openssl rand -hex 32) \
-REQUEST_TIMEOUT=8000 MAX_RETRIES=3 DEBUG=true \
-node server.mjs
-```
+| 方式 | 说明 |
+| --- | --- |
+| 直连（默认） | 浏览器直接加载豆瓣/采集站封面，最快；部分网络下豆瓣图会 418 |
+| 内置代理 | 经 `/api/proxy/` 转发（带豆瓣 Referer 伪装），豆瓣图不再被拒 |
+| 自定义代理 | 模板字符串，`{url}` 为编码后的原图地址；不含占位符则直接拼接 |
+
+### 主题
+
+- 头部太阳/月亮/显示器图标，点击在 **浅色 → 深色 → 跟随系统** 间循环；
+- 存储于 `localStorage['libretv-theme']`；
+- 页面 HTML 内有同步脚本，刷新无闪烁；
+- 跟随系统模式下监听 `prefers-color-scheme` 变化实时切换。
+
+### 配置导入导出
+
+- **导出**：生成 `LibreTV-Settings_<时间戳>.json`（数据源、播放设置、观看历史、搜索历史）；
+- **导入**：兼容旧版 LibreTV 导出的配置文件；旧版观看历史（含全集 URL 列表）会自动迁移为定位信息格式。
+
+## 存储结构（IndexedDB `libretv-next`）
+
+| 表 | 主键 | 字段 | 说明 |
+| --- | --- | --- | --- |
+| `history` | `id = sourceKey_vodId` | title, pic, episodeIndex, totalEpisodes, playbackPosition, duration, timestamp | 上限 100 条，超出淘汰最旧 |
+| `progress` | `key = sourceKey_vodId_index` | position, duration, updatedAt | 每集一条，看完清除 |
+| `searchHistory` | `text` | timestamp | 上限 10 条 |

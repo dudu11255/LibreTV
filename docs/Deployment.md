@@ -1,80 +1,86 @@
-# 部署指南
+# 部署
 
-LibreTV 通过同一套前端 + 不同的服务端适配器运行在各种平台。所有平台都**必须设置 `PASSWORD`**。
+## Docker（推荐）
 
-## 平台与服务端适配器对照
+```bash
+git clone <本仓库>
+cd libretv-next
 
-| 平台 | 服务端入口 | 前端 `/proxy` 路由指向 | 代理鉴权 |
-|---|---|---|---|
-| Node（裸机 / Render） | `server.mjs` | `/proxy/*` | 推荐 `PROXY_SECRET` 短时效 token |
-| Docker | `server.mjs`（容器内） | `/proxy/*` | 同上 |
-| Vercel | `api/proxy/[...path].mjs` + `vercel.json` rewrite | `/proxy/*` | 静态哈希 |
-| Netlify | `netlify/functions/proxy.mjs` + Edge `inject-env` | `/.netlify/functions/proxy/*` | 静态哈希 |
-| Cloudflare Pages | `functions/proxy/[[path]].js` | `/proxy/*` | 静态哈希（见下方注意事项） |
+# 设置密码
+echo "PASSWORD=your-strong-password" > .env
 
-> `vercel.json` 已配置 `/proxy/:path*` → `/api/proxy/:path*` 的 rewrite，因此前端 `PROXY_URL` 统一为 `/proxy/`，无需按平台改动前端。
+docker compose up -d --build
+# 访问 http://localhost:8080
+```
 
----
+镜像为多阶段构建（`DOCKER_BUILD=1` 时输出 standalone），运行容器不包含构建工具，体积小。
 
-## 1. Node / 本地开发
+### docker-compose.yml
+
+```yaml
+services:
+  libretv:
+    build: .
+    ports: ["8080:8080"]
+    environment:
+      - PASSWORD=${PASSWORD:?请在 .env 中设置 PASSWORD}
+      # - PROXY_SECRET=your-secret
+```
+
+## 手动部署
+
+要求 Node.js ≥ 20（推荐 22）：
+
+```bash
+npm ci
+PASSWORD=your-password npm run build
+PASSWORD=your-password npm start          # 默认 8080 端口
+```
+
+> 注意：`output: 'standalone'` 仅在 `DOCKER_BUILD=1` 时启用，本地 `next start` 无需（也不兼容）standalone。
+
+### 生产建议
+
+- 使用反向代理（Nginx / Caddy）终结 HTTPS，转发到 8080；
+- 会话 Cookie 在生产环境（`NODE_ENV=production`）下自动启用 `Secure`，需 HTTPS 访问；
+- 设置 `PROXY_SECRET` 而非依赖 PASSWORD 派生，避免更换密码导致全员会话失效以外的副作用。
+
+## 环境变量
+
+完整列表见 [Configuration](Configuration)。最小可运行配置只有一个 `PASSWORD`。
+
+## 健康检查与验证
+
+```bash
+curl http://localhost:8080/api/status
+# {"passwordRequired":true,"verified":false,"version":"2.0.0"}
+
+# 未登录访问受保护接口应返回 401
+curl -X POST http://localhost:8080/api/search -d '{}' -H 'Content-Type: application/json' -i | head -1
+# HTTP/1.1 401 Unauthorized
+
+# SSRF 防护应拦截内网地址
+curl -i "http://localhost:8080/api/proxy/http%3A%2F%2F127.0.0.1%3A8080%2F" | head -1
+# HTTP/1.1 400/403
+```
+
+## 升级
+
+1. `git pull`
+2. `npm ci && npm run build`（或 `docker compose up -d --build`）
+3. 用户数据（历史/进度/设置）在浏览器端，升级无感迁移。
+
+## 从旧版迁移
+
+- 旧版打开「设置 → 配置文件 → 导出」，新版「设置 → 配置 → 导入配置」选择同一文件即可迁移数据源与观看历史；
+- 旧版 localStorage 各零散 key 不会被读取，仅识别标准导出 JSON；
+- 旧版的 `PASSWORD` 环境变量直接沿用（明文比对改为服务端恒定时间比较，用户无感知）。
+
+## 开发
 
 ```bash
 npm install
-PASSWORD=your_password node server.mjs
-# 开发热重载：
-npm run dev
+PASSWORD=dev-password npm dev        # http://localhost:8080
+npm run typecheck                    # TypeScript 检查
+npm test                             # 单元测试（cms-parser / m3u8 / ssrf）
 ```
-
-- 默认端口 `8080`，可用 `PORT` 修改。
-- 推荐同时设置 `PROXY_SECRET`（任意随机长字符串）以启用更安全的 token 鉴权。
-
-## 2. Docker
-
-```bash
-docker run -d \
-  --name libretv \
-  --restart unless-stopped \
-  -p 8899:8080 \
-  -e PASSWORD=your_password \
-  -e PROXY_SECRET=你的随机长字符串 \
-  bestzwei/libretv:latest
-```
-
-镜像内置 `HEALTHCHECK`，监听 `8080`。`docker-compose.yml` 已提供，运行：
-
-```bash
-PASSWORD=your_password docker compose up -d
-```
-
-## 3. Render
-
-`render.yaml` 已配置 `buildCommand: npm install` 与 `startCommand: node server.mjs`。在 Render 控制台导入仓库后，于 Environment 中添加 `PASSWORD`（以及可选的 `PROXY_SECRET`），直接 Deploy 即可。
-
-## 4. Vercel
-
-1. 导入仓库，使用默认设置（`vercel.json` 已处理 rewrite）。
-2. 在 **Settings → Environment Variables** 添加 `PASSWORD`（以及可选的 `PROXY_SECRET`）。
-3. Deploy。运行时走 `api/proxy`，鉴权为静态哈希（Vercel 函数不签发 token）。
-
-## 5. Netlify
-
-`netlify.toml` 已配置 Functions 目录与 `inject-env` Edge Function（负责把 `{{PASSWORD}}`、`{{PROXY_TOKEN_MODE}}` 占位符替换为真实值）。部署时只需在站点 Environment Variables 设置 `PASSWORD` 即可，代理走 `/.netlify/functions/proxy/*`，鉴权为静态哈希。
-
-## 6. Cloudflare Pages
-
-Cloudflare Pages 使用 `functions/proxy/[[path]].js` 提供代理，并由 `functions/_middleware.js`（Pages Middleware）在返回 HTML 时注入占位符，因此直接部署即可正常工作：
-
-- `{{PASSWORD}}` 被替换为 `sha256(PASSWORD)`（与 Node 端逻辑一致）；
-- `{{PROXY_TOKEN_MODE}}` 固定为空，前端走兼容（静态哈希）鉴权，因为 CF 函数不提供 `/api/proxy-token` 签发端点。
-
-鉴权为静态哈希（弱于 Node 的 token 模式）。如需更强安全性，建议用 Node / Docker 部署并配置 `PROXY_SECRET`。
-
-> 已知差异：CF Pages 未配置 `/s=关键词` 的深链重写（Vercel/Netlify 有），直接访问 `/s=...` 会 404；通过站内搜索不受影响。
-
----
-
-## 通用提示
-
-- 使用纯静态服务器（如 `python -m http.server`）打开时**没有代理能力**，视频无法播放，仅适合预览静态页面。
-- 修改 `PASSWORD` 等环境变量后，函数型平台需重新部署，Node 需重启进程。
-- 浏览器端配置（收藏、历史、自定义源）保存在 `localStorage`，清 Cookie / 换浏览器会丢失，重要配置请在「设置」中导出备份。
