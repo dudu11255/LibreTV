@@ -1,6 +1,6 @@
-# LibreTV Next
+# LibreTV-Next
 
-LibreTV 的 Next.js 重构版：免费在线视频聚合搜索与观看平台。基于 Next.js 15（App Router）+ TypeScript + Tailwind CSS，播放内核为 ArtPlayer + hls.js，支持亮暗双主题。
+LibreTV-Next 是原 LibreTV 的 Next.js 迁移版：免费在线视频聚合搜索与观看平台。基于 Next.js 15（App Router）+ TypeScript + Tailwind CSS，播放内核为 ArtPlayer + hls.js，支持亮暗双主题。
 
 > 📖 **完整文档（Wiki）**：[docs/](docs/Home) — [架构](docs/Architecture) · [部署](docs/Deployment) · [配置](docs/Configuration) · [数据源](docs/Data-Sources) · [播放器](docs/Player) · [代理与安全](docs/Proxy-Security) · [FAQ](docs/FAQ)
 
@@ -33,9 +33,9 @@ docker compose pull && docker compose up -d
 docker compose up -d --build
 ```
 
-镜像发布在 GHCR：`ghcr.io/bestzwei/libretv`（`latest` / `主.次` / 完整版本号三个 tag，
+镜像发布在 GHCR：`ghcr.io/bestzwei/libretv-next`（`latest` / `主.次` / 完整版本号三个 tag，
 `linux/amd64` 与 `linux/arm64` 双架构）。需要固定版本时在 `.env` 中设置
-`LIBRETV_IMAGE=ghcr.io/bestzwei/libretv:2.0.1`。
+`LIBRETV_NEXT_IMAGE=ghcr.io/bestzwei/libretv-next:2.0.1`。
 
 > 版本号以 `package.json` 为单一来源，部署后可用 `/api/status` 返回的 `version` 字段核对。详见[部署文档](docs/Deployment)。
 
@@ -83,7 +83,7 @@ npm version patch       # 或 minor / major；会更新 package.json 并打 git 
 git push && git push --tags
 ```
 
-CI 校验通过后自动构建并推送 `ghcr.io/bestzwei/libretv:<版本>`（详见[部署文档](docs/Deployment)）。
+CI 校验通过后自动构建并推送 `ghcr.io/bestzwei/libretv-next:<版本>`（详见[部署文档](docs/Deployment)）。
 
 ## 安全说明
 

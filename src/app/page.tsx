@@ -108,7 +108,7 @@ function HomeContent() {
               <p className="mt-2 text-sm text-faint">多源聚合 · 免注册 · 无广告 · 播放进度本机保存</p>
             </header>
           )}
-          {urlQuery && <h1 className="sr-only">LibreTV 视频搜索</h1>}
+          {urlQuery && <h1 className="sr-only">LibreTV-Next 视频搜索</h1>}
           <form
             className="w-full max-w-2xl flex gap-2"
             onSubmit={(e) => {
@@ -229,7 +229,7 @@ function HomeContent() {
 
       <footer className="border-t border-line py-4">
         <p className="text-center text-xs text-faint">
-          LibreTV v2.0 · 数据来源为第三方公开接口，本站不存储任何视频文件
+          LibreTV-Next v2.0 · 数据来源为第三方公开接口，本站不存储任何视频文件
         </p>
       </footer>
 
@@ -258,7 +258,7 @@ function NoSourceGuide({ hasSources = false }: { hasSources?: boolean }) {
           <>点击右上角「设置」，勾选要参与搜索的数据源后重新搜索。</>
         ) : (
           <>
-            LibreTV 不内置任何采集站。点击右上角「设置 → 添加 API」，填入一个
+            LibreTV-Next 不内置任何采集站。点击右上角「设置 → 添加 API」，填入一个
             Apple CMS 采集站地址（如 <code className="text-accent text-xs">https://example.com/api.php/provide/vod</code>），
             勾选后即可开始搜索。
           </>

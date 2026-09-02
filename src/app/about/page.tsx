@@ -8,9 +8,9 @@ export default function AboutPage() {
       <Header />
       <main className="flex-1 max-w-2xl w-full mx-auto px-4 py-10 space-y-8">
         <section>
-          <h1 className="text-xl font-bold text-content mb-3">关于 LibreTV</h1>
+          <h1 className="text-xl font-bold text-content mb-3">关于 LibreTV-Next</h1>
           <p className="text-sm text-muted leading-relaxed">
-            LibreTV 是一个免费的在线视频搜索与观看平台。输入片名即可在多个数据源中聚合搜索，
+            LibreTV-Next 是一个免费的在线视频搜索与观看平台。输入片名即可在多个数据源中聚合搜索，
             无需注册、无内嵌广告、不存储任何视频文件。所有播放内容均来自第三方公开接口。
           </p>
         </section>
@@ -44,7 +44,7 @@ export default function AboutPage() {
         </section>
       </main>
       <footer className="border-t border-line py-4">
-        <p className="text-center text-xs text-faint">LibreTV v2.0 · AGPL-3.0 License</p>
+        <p className="text-center text-xs text-faint">LibreTV-Next v2.0 · AGPL-3.0 License</p>
       </footer>
     </div>
   );

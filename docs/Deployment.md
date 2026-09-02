@@ -42,9 +42,9 @@ git push --tags
 与 `/api/status` 返回值脱节），再跑类型检查与单测，通过则构建 `linux/amd64` + `linux/arm64`
 双架构镜像并推送，产出三个 tag：
 
-- `ghcr.io/bestzwei/libretv:2.0.1`（完整版本）
-- `ghcr.io/bestzwei/libretv:2.0`（次版本）
-- `ghcr.io/bestzwei/libretv:latest`
+- `ghcr.io/bestzwei/libretv-next:2.0.1`（完整版本）
+- `ghcr.io/bestzwei/libretv-next:2.0`（次版本）
+- `ghcr.io/bestzwei/libretv-next:latest`
 
 无需配置任何 secrets，`GITHUB_TOKEN` 由 GitHub 自动注入并具备 `packages: write` 权限。
 首次发布后，需要到仓库的 **Packages** 页面把镜像可见性设为 Public（默认 Private，拉取需要登录）。
@@ -52,21 +52,21 @@ git push --tags
 ### 使用者侧
 
 ```bash
-git clone <本仓库> && cd libretv
+git clone <本仓库> && cd LibreTV-Next
 echo "PASSWORD=your-strong-password" > .env
-docker compose pull && docker compose up -d     # 拉取 ghcr.io/bestzwei/libretv:latest
+docker compose pull && docker compose up -d     # 拉取 ghcr.io/bestzwei/libretv-next:latest
 ```
 
 锁定特定版本时在 `.env` 中设置：
 
 ```bash
-LIBRETV_IMAGE=ghcr.io/bestzwei/libretv:2.0.1
+LIBRETV_NEXT_IMAGE=ghcr.io/bestzwei/libretv-next:2.0.1
 ```
 
 ### 本地源码构建（不经过 CI）
 
 `docker-compose.yml` 同时声明了 `build: .` 与 `image:`，本地没有镜像时会用源码构建
-（tag 落在 `ghcr.io/bestzwei/libretv:latest`）：
+（tag 落在 `ghcr.io/bestzwei/libretv-next:latest`）：
 
 ```bash
 docker compose up -d --build
@@ -81,9 +81,9 @@ docker compose up -d --build
 
 ```yaml
 services:
-  libretv:
+  libretv-next:
     build: .
-    image: ${LIBRETV_IMAGE:-ghcr.io/bestzwei/libretv:latest}
+    image: ${LIBRETV_NEXT_IMAGE:-ghcr.io/bestzwei/libretv-next:latest}
     restart: unless-stopped
     ports: ["8080:8080"]
     environment:

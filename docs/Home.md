@@ -1,6 +1,6 @@
-# LibreTV Next Wiki
+# LibreTV-Next Wiki
 
-欢迎来到 LibreTV Next 的项目文档。LibreTV 是一个免费的在线视频聚合搜索与观看平台，基于 Next.js 15 重构。
+欢迎来到 LibreTV-Next 的项目文档。LibreTV-Next 是一个免费的在线视频聚合搜索与观看平台，基于 Next.js 15 重构。
 
 ## 文档目录
 
@@ -39,4 +39,4 @@ PASSWORD=dev-password npm run dev   # http://localhost:8080
 
 ## 与旧版（静态 HTML + Express）的关系
 
-本项目是 [LibreTV 旧版](https://github.com/bestZwei/LibreTV)的完整重构。功能对齐的同时修复了旧版的多项问题（历史记录 XSS、m3u8 分片鉴权丢失、密码哈希暴露等），架构差异详见 [Architecture](Architecture)。
+本项目是 [LibreTV 旧版](https://github.com/LibreSpark/LibreTV)的完整重构。功能对齐的同时修复了旧版的多项问题（历史记录 XSS、m3u8 分片鉴权丢失、密码哈希暴露等），架构差异详见 [Architecture](Architecture)。
