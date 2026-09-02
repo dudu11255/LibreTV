@@ -111,7 +111,7 @@ PASSWORD=your-password npm start          # 默认 8080 端口
 
 ## 环境变量
 
-完整列表见 [Configuration](Configuration)。最小可运行配置只有一个 `PASSWORD`。
+完整列表见 [Configuration](Configuration.md)。最小可运行配置只有一个 `PASSWORD`。
 
 ## 健康检查与验证
 

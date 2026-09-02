@@ -2,21 +2,7 @@
 
 LibreTV-Next 是原 LibreTV 的 Next.js 迁移版：免费在线视频聚合搜索与观看平台。基于 Next.js 15（App Router）+ TypeScript + Tailwind CSS，播放内核为 ArtPlayer + hls.js，支持亮暗双主题。
 
-> 📖 **完整文档（Wiki）**：[docs/](docs/Home) — [架构](docs/Architecture) · [部署](docs/Deployment) · [配置](docs/Configuration) · [数据源](docs/Data-Sources) · [播放器](docs/Player) · [代理与安全](docs/Proxy-Security) · [FAQ](docs/FAQ)
-
-## 与旧版的主要差异
-
-| 方面 | 旧版 | 本版 |
-| --- | --- | --- |
-| 架构 | 静态 HTML + 全局脚本 + Express | Next.js App Router + React 组件 + Route Handlers |
-| 聚合搜索 | 浏览器内并行请求采集站（暴露用户 IP） | 服务端并行聚合 + 失败隔离 + 关键词过滤 |
-| 鉴权 | 页面下发 sha256(password)，哈希即凭证 | httpOnly Cookie 会话（HMAC 签名），登录走 POST + 速率限制 |
-| m3u8 代理 | 分片重写后丢失鉴权参数导致 401 | Cookie 同源自动携带，分片天然通过鉴权 |
-| 播放入口 | watch.html → player.html 跳转链 | 单一 `/watch` 路由，URL 即状态，可分享/后退 |
-| 播放失败 | 只能换源 | 直连失败自动回退内置代理重试 |
-| 历史与进度 | localStorage 存全集 URL（易撑爆配额） | IndexedDB 只存定位信息，进入播放页按需拉详情 |
-| 播放器加载 | Tailwind 运行时编译 | Tailwind 构建期编译 |
-| 主题 | 仅深色 | 亮 / 暗 / 跟随系统三态切换，无首屏闪烁 |
+> 📖 **完整文档**：[docs/Home.md](docs/Home.md) · [架构](docs/Architecture.md) · [部署](docs/Deployment.md) · [配置](docs/Configuration.md) · [数据源](docs/Data-Sources.md) · [播放器](docs/Player.md) · [代理与安全](docs/Proxy-Security.md) · [FAQ](docs/FAQ.md)
 
 ## 部署
 
@@ -37,7 +23,7 @@ docker compose up -d --build
 `linux/amd64` 与 `linux/arm64` 双架构）。需要固定版本时在 `.env` 中设置
 `LIBRETV_NEXT_IMAGE=ghcr.io/bestzwei/libretv-next:2.0.1`。
 
-> 版本号以 `package.json` 为单一来源，部署后可用 `/api/status` 返回的 `version` 字段核对。详见[部署文档](docs/Deployment)。
+> 版本号以 `package.json` 为单一来源，部署后可用 `/api/status` 返回的 `version` 字段核对。详见[部署文档](docs/Deployment.md)。
 
 ### 手动运行
 
@@ -53,7 +39,7 @@ PASSWORD=your-password npm start   # 监听 8080
 | --- | --- | --- |
 | `PASSWORD` | 是 | 访问密码；未设置时站点会提示管理员配置 |
 | `PROXY_SECRET` | 否 | 会话/代理签名密钥；不设置时从 PASSWORD 派生（多实例部署建议显式设置） |
-| `DEFAULT_SOURCES` | 否 | 预置采集站（JSON 数组），用户端自动出现且默认勾选，详见[配置文档](docs/Configuration) |
+| `DEFAULT_SOURCES` | 否 | 预置采集站（JSON 数组），用户端自动出现且默认勾选，详见[配置文档](docs/Configuration.md) |
 | `REQUEST_TIMEOUT` | 否 | 代理上游请求超时（毫秒），默认 8000 |
 | `MAX_RETRIES` | 否 | 代理请求重试次数，默认 1 |
 | `DEBUG` | 否 | 调试日志 |
@@ -84,7 +70,7 @@ npm version patch       # 或 minor / major；会更新 package.json 并打 git 
 git push && git push --tags
 ```
 
-CI 校验通过后自动构建并推送 `ghcr.io/bestzwei/libretv-next:<版本>`（详见[部署文档](docs/Deployment)）。
+CI 校验通过后自动构建并推送 `ghcr.io/bestzwei/libretv-next:<版本>`（详见[部署文档](docs/Deployment.md)）。
 
 ## 安全说明
 
