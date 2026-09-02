@@ -19,4 +19,6 @@ services:
       # - PROXY_SECRET=your-secret
       # - REQUEST_TIMEOUT=8000
       # - MAX_RETRIES=1
+      # 可选：每个搜索源最多抓取的页数（1-50，默认 5）
+      # - SEARCH_MAX_PAGES=5
       # - DEBUG=false

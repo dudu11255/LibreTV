@@ -3,7 +3,7 @@ import { guardRequest } from '@/lib/api-guard';
 import { cmsRequestHeaders, filterAdultResults, parseSearchList } from '@/lib/cms-parser';
 import { fetchUpstream } from '@/lib/fetch-utils';
 import { checkUpstreamAllowed } from '@/lib/ssrf';
-import type { SourceConfig, SourceSearchOutcome } from '@/lib/types';
+import type { SearchResultItem, SourceConfig, SourceSearchOutcome } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
@@ -14,7 +14,19 @@ interface SearchBody {
 }
 
 /**
+ * 每个源最多抓取的页数（参考 LunaTV 的 SearchDownstreamMaxPage）。
+ * 第一页响应会带回 pagecount（源站真实总页数），实际抓取页数 = min(pagecount, 该值)。
+ * 默认 5；页与页之间并行请求，单页失败只丢弃该页。
+ */
+const SEARCH_MAX_PAGES = (() => {
+  const n = parseInt(process.env.SEARCH_MAX_PAGES || '5', 10);
+  if (!Number.isFinite(n)) return 5;
+  return Math.min(50, Math.max(1, n));
+})();
+
+/**
  * 服务端聚合搜索：并行请求所有选中源，任一源失败不影响整体。
+ * 每个源先取第一页并读取 pagecount，再并行抓取后续页（上限 SEARCH_MAX_PAGES）。
  * 旧版在浏览器里打满 N 个请求（暴露用户 IP、无法缓存、超时失控），现全部上移。
  */
 export async function POST(req: Request) {
@@ -47,15 +59,34 @@ export async function POST(req: Request) {
       if (!verdict.ok) {
         return { sourceKey: source.key, ok: false, list: [], error: verdict.reason };
       }
-      const api = `${source.url.replace(/\/+$/, '')}?ac=videolist&wd=${encodeURIComponent(wd)}`;
-      try {
+      const base = source.url.replace(/\/+$/, '');
+      const fetchPage = async (page: number) => {
+        const api = `${base}?ac=videolist&wd=${encodeURIComponent(wd)}&pg=${page}`;
         const res = await fetchUpstream(api, {
           timeoutMs: 8000,
           headers: cmsRequestHeaders(),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const list = parseSearchList(data, source);
+        return res.json();
+      };
+      try {
+        const first = await fetchPage(1);
+        const list = parseSearchList(first, source) as SearchResultItem[];
+        // 源站真实总页数与配置上限取较小者；pagecount 缺失或非法时视为 1 页
+        const rawPageCount = parseInt(String((first as { pagecount?: unknown }).pagecount ?? '1'), 10);
+        const pageCount = Math.min(Number.isFinite(rawPageCount) ? Math.max(1, rawPageCount) : 1, SEARCH_MAX_PAGES);
+        if (pageCount > 1) {
+          const extraPages = await Promise.all(
+            Array.from({ length: pageCount - 1 }, (_, i) => i + 2).map(async (page) => {
+              try {
+                return parseSearchList(await fetchPage(page), source);
+              } catch {
+                return [] as SearchResultItem[];
+              }
+            })
+          );
+          list.push(...extraPages.flat());
+        }
         return { sourceKey: source.key, ok: true, list };
       } catch (err) {
         return {
