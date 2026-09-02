@@ -35,7 +35,7 @@ export async function sha256Hex(input: string): Promise<string> {
 
 /**
  * 封面图加载地址：direct 直连 / proxy 内置代理 / custom 自定义模板（{url} 占位符或直接拼接）。
- * 默认 direct，修正旧版「默认 builtin + 部署前手工改回」的配置陷阱。
+ * 默认 proxy（内置代理），规避豆瓣防盗链与部分采集站图床直连失败。
  */
 export function buildImageUrl(
   url: string | undefined,

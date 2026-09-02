@@ -157,8 +157,8 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
             value={store.imageProxyMode}
             onChange={(v) => store.updateSettings({ imageProxyMode: v as 'direct' | 'proxy' | 'custom' })}
             options={[
-              { value: 'direct', label: '直连（默认）' },
-              { value: 'proxy', label: '内置代理' },
+              { value: 'direct', label: '直连' },
+              { value: 'proxy', label: '内置代理（默认）' },
               { value: 'custom', label: '自定义代理' },
             ]}
           />

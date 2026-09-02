@@ -18,6 +18,8 @@ interface AuthContextValue {
   verified: boolean;
   /** 服务器未设置 PASSWORD，需要管理员配置 */
   setupRequired: SetupRequired;
+  /** /api/status 返回的应用版本（构建时从 package.json 注入） */
+  version: string | null;
   openLogin: () => void;
   logout: () => Promise<void>;
 }
@@ -26,6 +28,7 @@ const AuthContext = createContext<AuthContextValue>({
   checked: false,
   verified: false,
   setupRequired: false,
+  version: null,
   openLogin: () => {},
   logout: async () => {},
 });
@@ -38,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [checked, setChecked] = useState(false);
   const [verified, setVerified] = useState(false);
   const [setupRequired, setSetupRequired] = useState(false);
+  const [version, setVersion] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -48,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((s) => {
         setVerified(s.verified);
         setSetupRequired(!s.passwordRequired);
+        setVersion(s.version);
         setChecked(true);
       })
       .catch(() => setChecked(true));
@@ -85,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [toast, queryClient]);
 
   return (
-    <AuthContext.Provider value={{ checked, verified, setupRequired, openLogin, logout }}>
+    <AuthContext.Provider value={{ checked, verified, setupRequired, version, openLogin, logout }}>
       {children}
       {modalOpen && (
         <LoginModal

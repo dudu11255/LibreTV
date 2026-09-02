@@ -1,8 +1,10 @@
 'use client';
 
 import { Header } from '@/components/header';
+import { useAuth } from '@/components/auth';
 
 export default function AboutPage() {
+  const { version } = useAuth();
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -44,7 +46,18 @@ export default function AboutPage() {
         </section>
       </main>
       <footer className="border-t border-line py-4">
-        <p className="text-center text-xs text-faint">LibreTV-Next v2.0 · AGPL-3.0 License</p>
+        <p className="text-center text-xs text-faint">
+          <a
+            href="https://github.com/bestZwei/LibreTV-Next"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-accent"
+          >
+            LibreTV-Next
+          </a>
+          {version ? ` v${version} · ` : ' '}
+          AGPL-3.0 License
+        </p>
       </footer>
     </div>
   );

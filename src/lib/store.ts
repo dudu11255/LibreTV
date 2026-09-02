@@ -52,7 +52,7 @@ export const useAppStore = create<AppState>()(
       adFilter: true,
       doubanEnabled: true,
       autoplayNext: true,
-      imageProxyMode: 'direct',
+      imageProxyMode: 'proxy',
       customImageProxy: '',
 
       addCustomApi: (api) => {

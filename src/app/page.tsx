@@ -13,6 +13,7 @@ import type { SearchResultItem } from '@/lib/types';
 import { addSearchHistory, db, removeSearchHistory } from '@/lib/db';
 import { cn, validateSourceUrl } from '@/lib/utils';
 import { useToast } from '@/components/toast';
+import { useAuth } from '@/components/auth';
 
 /**
  * 首页：搜索（URL ?s= 驱动，可后退/分享）+ 豆瓣推荐。
@@ -30,6 +31,7 @@ function HomeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
+  const { version } = useAuth();
   const urlQuery = searchParams.get('s') || '';
   const store = useAppStore();
   const [input, setInput] = useState(urlQuery);
@@ -232,7 +234,16 @@ function HomeContent() {
 
       <footer className="border-t border-line py-4">
         <p className="text-center text-xs text-faint">
-          LibreTV-Next v2.0 · 数据来源为第三方公开接口，本站不存储任何视频文件
+          <a
+            href="https://github.com/bestZwei/LibreTV-Next"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-accent"
+          >
+            LibreTV-Next
+          </a>
+          {version ? ` v${version} · ` : ' '}
+          数据来源为第三方公开接口，本站不存储任何视频文件
         </p>
       </footer>
 
