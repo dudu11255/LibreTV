@@ -83,6 +83,8 @@ docker compose up -d --build
 services:
   libretv:
     build: .
+    image: ${LIBRETV_IMAGE:-ghcr.io/bestzwei/libretv:latest}
+    restart: unless-stopped
     ports: ["8080:8080"]
     environment:
       - PASSWORD=${PASSWORD:?请在 .env 中设置 PASSWORD}
