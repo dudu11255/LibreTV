@@ -153,3 +153,43 @@ export function filterAdultResults<T extends { typeName?: string }>(items: T[], 
   if (!enabled) return items;
   return items.filter((item) => !isAdultContent(item.typeName));
 }
+
+/**
+ * 归一化标题/关键词：去空白、标点与符号，转小写。
+ * 用于跨标点差异匹配（源站存「摔跤吧!爸爸」而用户搜「摔跤吧！爸爸」）。
+ */
+export function normalizeTitle(s: string): string {
+  return s.toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '');
+}
+
+/**
+ * 相关性判断：结果标题是否真的命中了搜索词。
+ * 部分采集站会做分词/OR 模糊搜索（搜「摔跤吧！爸爸」返回一堆「爸爸XXX」），
+ * 逐条校验后只保留真正相关的结果。
+ *
+ * 规则：归一化后的标题包含归一化后的完整关键词；
+ * 多词查询（空格分隔）时放宽为「每个词都命中」即可（如「钢铁侠 2008」）。
+ */
+export function isRelevant(name: string, wd: string): boolean {
+  const nName = normalizeTitle(name);
+  const nWd = normalizeTitle(wd);
+  if (!nName || !nWd) return true; // 空关键词不参与过滤
+  if (nName.includes(nWd)) return true;
+  const tokens = wd.trim().split(/\s+/);
+  if (tokens.length > 1) {
+    return tokens.every((t) => {
+      const n = normalizeTitle(t);
+      return n && nName.includes(n);
+    });
+  }
+  return false;
+}
+
+/**
+ * 结果相关性过滤：丢弃与关键词无关的条目。
+ * 过滤后为空时回退到原列表——宁可多展示也不把源站唯一可用的结果清空。
+ */
+export function filterRelevantResults<T extends { name?: string }>(items: T[], wd: string): T[] {
+  const filtered = items.filter((item) => isRelevant(item.name || '', wd));
+  return filtered.length > 0 ? filtered : items;
+}

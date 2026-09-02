@@ -3,7 +3,10 @@ import {
   extractEpisodesFromPlayUrl,
   extractM3u8FromText,
   filterAdultResults,
+  filterRelevantResults,
   isAdultContent,
+  isRelevant,
+  normalizeTitle,
   parseDetail,
   parseDetailPageHtml,
   parseSearchList,
@@ -124,5 +127,60 @@ describe('成人内容过滤', () => {
     const items = [{ typeName: '伦理片' }, { typeName: '剧情片' }];
     expect(filterAdultResults(items, true)).toEqual([{ typeName: '剧情片' }]);
     expect(filterAdultResults(items, false)).toHaveLength(2);
+  });
+});
+
+describe('normalizeTitle', () => {
+  it('去标点、空白并转小写', () => {
+    expect(normalizeTitle('摔跤吧！爸爸')).toBe('摔跤吧爸爸');
+    expect(normalizeTitle('摔跤吧!爸爸 【影视解说】')).toBe('摔跤吧爸爸影视解说');
+    expect(normalizeTitle('Hello, World!')).toBe('helloworld');
+  });
+});
+
+describe('isRelevant', () => {
+  it('命中完整关键词（忽略标点差异）', () => {
+    expect(isRelevant('摔跤吧！爸爸', '摔跤吧！爸爸')).toBe(true);
+    expect(isRelevant('摔跤吧!爸爸【影视解说】', '摔跤吧！爸爸')).toBe(true);
+    expect(isRelevant('摔跤吧 爸爸', '摔跤吧！爸爸')).toBe(true);
+  });
+
+  it('标题不含关键词时不相关（模糊分词场景）', () => {
+    expect(isRelevant('爸爸去哪儿第三季', '摔跤吧！爸爸')).toBe(false);
+    expect(isRelevant('爸爸当家 第五季', '摔跤吧！爸爸')).toBe(false);
+  });
+
+  it('子串命中视为相关', () => {
+    expect(isRelevant('爸爸去哪儿第三季', '爸爸去哪儿')).toBe(true);
+  });
+
+  it('多词查询放宽为每个词都命中', () => {
+    expect(isRelevant('钢铁侠', '钢铁侠 2008')).toBe(false);
+    expect(isRelevant('钢铁侠 Iron Man 2008', '钢铁侠 2008')).toBe(true);
+  });
+
+  it('空关键词或空标题不参与过滤', () => {
+    expect(isRelevant('任意标题', '')).toBe(true);
+    expect(isRelevant('', '任意')).toBe(true);
+  });
+});
+
+describe('filterRelevantResults', () => {
+  const wd = '摔跤吧！爸爸';
+  const items = [
+    { name: '摔跤吧！爸爸' },
+    { name: '爸爸去哪儿第三季' },
+    { name: '摔跤吧!爸爸【影视解说】' },
+  ];
+
+  it('丢弃与关键词无关的结果', () => {
+    const out = filterRelevantResults(items, wd);
+    expect(out).toHaveLength(2);
+    expect(out.map((i) => i.name)).toEqual(['摔跤吧！爸爸', '摔跤吧!爸爸【影视解说】']);
+  });
+
+  it('全部不相关时回退为原列表', () => {
+    const junk = [{ name: '爸爸当家' }, { name: '爸爸别走' }];
+    expect(filterRelevantResults(junk, wd)).toEqual(junk);
   });
 });

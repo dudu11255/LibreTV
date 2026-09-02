@@ -36,6 +36,7 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
                 className="input w-full h-9"
                 placeholder="搜索影片..."
                 value={query}
+                maxLength={100}
                 onChange={(e) => setQuery(e.target.value)}
               />
             </form>

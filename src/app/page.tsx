@@ -53,7 +53,8 @@ function HomeContent() {
 
   const searchQuery = useQuery({
     queryKey: ['search', urlQuery, store.selectedKeys, store.yellowFilter],
-    queryFn: ({ signal }) => api.search(urlQuery, selectedSources, store.yellowFilter, signal),
+    // 与 runSearch 的截断规则保持一致：顶栏搜索 / 手动构造长链接不会绕过上限
+    queryFn: ({ signal }) => api.search(urlQuery.slice(0, 100), selectedSources, store.yellowFilter, signal),
     enabled: Boolean(urlQuery) && selectedSources.length > 0,
     // 5 分钟内从播放页返回时直接使用缓存，不重新搜索（服务端另有 60s 结果缓存兜底）
     staleTime: 300_000,

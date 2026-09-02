@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { guardRequest } from '@/lib/api-guard';
-import { cmsRequestHeaders, filterAdultResults, parseSearchList } from '@/lib/cms-parser';
+import { cmsRequestHeaders, filterAdultResults, filterRelevantResults, normalizeTitle, parseSearchList } from '@/lib/cms-parser';
 import { fetchUpstream, getCache, setCache } from '@/lib/fetch-utils';
 import { checkUpstreamAllowed } from '@/lib/ssrf';
 import type { SearchResponse, SourceConfig, SourceSearchOutcome } from '@/lib/types';
@@ -127,9 +127,15 @@ export async function POST(req: Request) {
   });
 
   list = filterAdultResults(list, body.filterAdult !== false);
+  // 部分源站做分词/OR 模糊搜索（搜「摔跤吧！爸爸」返回一堆「爸爸XXX」），按关键词过滤
+  list = filterRelevantResults(list, wd);
 
-  // 按名称排序（与旧版一致），名称相同按源名
+  // 精确命中（忽略标点差异）排在最前，其余按名称（与旧版一致），名称相同按源名
+  const exact = normalizeTitle(wd);
   list.sort((a, b) => {
+    const aExact = normalizeTitle(a.name || '') === exact ? 0 : 1;
+    const bExact = normalizeTitle(b.name || '') === exact ? 0 : 1;
+    if (aExact !== bExact) return aExact - bExact;
     const nameCompare = (a.name || '').localeCompare(b.name || '', 'zh-Hans-CN');
     if (nameCompare !== 0) return nameCompare;
     return (a.sourceName || '').localeCompare(b.sourceName || '', 'zh-Hans-CN');
