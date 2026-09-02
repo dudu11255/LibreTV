@@ -78,10 +78,16 @@ export function PlayerShell({
     setLoading(true);
     setError('');
 
+    // 换集时清理函数在「新回调已挂到 ref 上」之后才执行，
+    // 卸载前保存进度必须用本次挂载（本集）的回调，否则会把上一集的
+    // 播放位置写进新集数的进度记录，导致换集后从上一集的时间点继续播放
+    const mountCbs = { onTimeUpdate, onEnded, onPause, getRestorePosition };
+
     let disposed = false;
     let lastSave = 0;
     let playbackStarted = false;
     let errorCount = 0;
+    let ended = false;
 
     const showHint = (text: string) => {
       setHint(text);
@@ -224,6 +230,7 @@ export function PlayerShell({
       cbs.current.onPause?.(art.currentTime, art.duration);
     });
     art.on('video:ended', () => {
+      ended = true;
       cbs.current.onEnded?.();
     });
 
@@ -307,10 +314,14 @@ export function PlayerShell({
     return () => {
       disposed = true;
       void disposed;
-      // 卸载前刷一次最终进度，避免丢失最后几秒
-      try {
-        cbs.current.onPause?.(art.currentTime, art.duration);
-      } catch { /* 忽略 */ }
+      // 卸载前刷一次最终进度，避免丢失最后几秒。
+      // 注意用 mountCbs（本集回调）而非 cbs.current（已是下一集的回调）；
+      // 已自然播完的集数不回写，避免覆盖 onEnded 里清除的「已看完」记录
+      if (!ended) {
+        try {
+          mountCbs.onPause?.(art.currentTime, art.duration);
+        } catch { /* 忽略 */ }
+      }
       document.removeEventListener('keydown', shortcuts);
       document.removeEventListener('visibilitychange', saveOnHide);
       if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
