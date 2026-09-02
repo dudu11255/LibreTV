@@ -58,15 +58,20 @@ export const useAppStore = create<AppState>()(
       addCustomApi: (api) => {
         const list = get().customAPIs;
         const entry: SourceConfig = { ...api, key: api.key || nextCustomKey(list) };
+        // 成人内容过滤开启时，成人源默认不勾选（用户可在关闭过滤后手动勾选）
+        const selectable = !(entry.isAdult && get().yellowFilter);
         set({
           customAPIs: [...list, entry],
-          selectedKeys: [...get().selectedKeys, entry.key],
+          selectedKeys: selectable ? [...get().selectedKeys, entry.key] : get().selectedKeys,
         });
       },
 
       updateCustomApi: (key, patch) => {
+        // 源被标记为成人内容且过滤开启时，同步取消勾选
+        const drop = patch.isAdult === true && get().yellowFilter;
         set({
           customAPIs: get().customAPIs.map((a) => (a.key === key ? { ...a, ...patch } : a)),
+          selectedKeys: drop ? get().selectedKeys.filter((k) => k !== key) : get().selectedKeys,
         });
       },
 
@@ -79,9 +84,14 @@ export const useAppStore = create<AppState>()(
 
       toggleSourceSelected: (key) => {
         const cur = get().selectedKeys;
-        set({
-          selectedKeys: cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key],
-        });
+        if (cur.includes(key)) {
+          set({ selectedKeys: cur.filter((k) => k !== key) });
+          return;
+        }
+        // 成人内容过滤开启时不允许勾选成人源
+        const src = [...get().customAPIs, ...get().envSources].find((a) => a.key === key);
+        if (src?.isAdult && get().yellowFilter) return;
+        set({ selectedKeys: [...cur, key] });
       },
 
       setSelectedKeys: (keys) => set({ selectedKeys: keys }),
@@ -90,14 +100,34 @@ export const useAppStore = create<AppState>()(
         // 预置源首次出现时自动勾选（开箱即搜）；用户此后取消勾选不会被反复勾回
         const seen = new Set(get().envKeysSeen);
         const freshKeys = list.map((s) => s.key).filter((k) => !seen.has(k));
+        // 成人内容过滤开启时，成人预置源不自动勾选
+        const toSelect = freshKeys.filter((k) => {
+          const src = list.find((s) => s.key === k);
+          return !src?.isAdult || !get().yellowFilter;
+        });
         set({
           envSources: list,
           envKeysSeen: [...get().envKeysSeen, ...freshKeys],
-          selectedKeys: [...get().selectedKeys, ...freshKeys],
+          selectedKeys: [...get().selectedKeys, ...toSelect],
         });
       },
 
-      updateSettings: (patch) => set(patch),
+      updateSettings: (patch) => {
+        // 打开成人内容过滤时，同步取消勾选所有成人源，避免两者并存
+        if (patch.yellowFilter === true) {
+          const adultKeys = new Set(
+            [...get().customAPIs, ...get().envSources]
+              .filter((s) => s.isAdult)
+              .map((s) => s.key)
+          );
+          set({
+            ...patch,
+            selectedKeys: get().selectedKeys.filter((k) => !adultKeys.has(k)),
+          });
+          return;
+        }
+        set(patch);
+      },
     }),
     {
       name: 'libretv-settings',

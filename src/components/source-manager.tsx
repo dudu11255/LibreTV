@@ -50,12 +50,17 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
                         className="h-4 w-4 accent-[#2563eb]"
                         checked={store.selectedKeys.includes(api.key)}
                         onChange={() => store.toggleSourceSelected(api.key)}
+                        disabled={!!api.isAdult && store.yellowFilter}
+                        title={api.isAdult && store.yellowFilter ? '成人内容过滤开启中，需先关闭过滤才能启用此源' : undefined}
                         aria-label={`选择 ${api.name}`}
                       />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-content truncate">
                           {api.name}
                           {api.isAdult && <span className="text-pink-400 text-xs ml-1">(18+)</span>}
+                          {api.isAdult && store.yellowFilter && (
+                            <span className="text-[10px] text-faint ml-1">过滤开启中，需关闭后才能启用</span>
+                          )}
                           <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-chip text-faint align-middle">
                             部署者预置
                           </span>
@@ -87,12 +92,17 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
                       className="h-4 w-4 accent-[#2563eb]"
                       checked={store.selectedKeys.includes(api.key)}
                       onChange={() => store.toggleSourceSelected(api.key)}
+                      disabled={!!api.isAdult && store.yellowFilter}
+                      title={api.isAdult && store.yellowFilter ? '成人内容过滤开启中，需先关闭过滤才能启用此源' : undefined}
                       aria-label={`选择 ${api.name}`}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-content truncate">
                         {api.name}
                         {api.isAdult && <span className="text-pink-400 text-xs ml-1">(18+)</span>}
+                        {api.isAdult && store.yellowFilter && (
+                          <span className="text-[10px] text-faint ml-1">过滤开启中，需关闭后才能启用</span>
+                        )}
                       </div>
                       <div className="text-xs text-faint truncate">{api.url}</div>
                     </div>
