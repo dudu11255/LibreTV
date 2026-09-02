@@ -59,17 +59,3 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     </ToastContext.Provider>
   );
 }
-
-// —— Loading 遮罩 ——（带 30s 自动解除，防无限 loading）
-
-export function LoadingOverlay({ show, message = '加载中...' }: { show: boolean; message?: string }) {
-  if (!show) return null;
-  return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 animate-fade-in">
-      <div className="flex flex-col items-center gap-3">
-        <div className="h-10 w-10 rounded-full border-4 border-line border-t-accent animate-spin" />
-        <p className="text-sm text-content">{message}</p>
-      </div>
-    </div>
-  );
-}

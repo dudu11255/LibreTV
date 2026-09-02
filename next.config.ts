@@ -22,7 +22,6 @@ const nextConfig: NextConfig = {
   env: { APP_VERSION: readAppVersion() },
   // 采集站/豆瓣等上游地址在运行时由用户配置，构建期无法枚举，关闭图片优化改用 <img>
   images: { unoptimized: true },
-  eslint: { ignoreDuringBuilds: true },
 };
 
 export default nextConfig;

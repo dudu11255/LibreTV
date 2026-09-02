@@ -67,8 +67,6 @@ export interface SearchResponse {
   failures: { sourceKey: string; error: string }[];
 }
 
-export interface DetailResponse extends VideoDetail {}
-
 export interface DoubanResponse {
   items: DoubanItem[];
 }

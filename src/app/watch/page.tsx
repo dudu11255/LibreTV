@@ -60,7 +60,7 @@ function WatchContent() {
     staleTime: 5 * 60_000,
   });
 
-  const episodes = detailQuery.data?.episodes ?? [];
+  const episodes = useMemo(() => detailQuery.data?.episodes ?? [], [detailQuery.data]);
   const videoTitle = titleParam || detailQuery.data?.videoInfo?.title || '未知视频';
 
   // 当前播放地址：优先取剧集列表中的当前集，其次直连 URL 参数

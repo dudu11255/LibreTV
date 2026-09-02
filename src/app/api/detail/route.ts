@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import { guardRequest } from '@/lib/api-guard';
 import { cmsRequestHeaders, parseDetail, parseDetailPageHtml } from '@/lib/cms-parser';
-import { fetchUpstream } from '@/lib/fetch-utils';
+import { fetchUpstream, getCache, setCache } from '@/lib/fetch-utils';
 import { checkUpstreamAllowed } from '@/lib/ssrf';
-import type { SourceConfig } from '@/lib/types';
+import type { SourceConfig, VideoDetail } from '@/lib/types';
 
 export const runtime = 'nodejs';
+
+/** 详情结果短缓存：换源测速/多人观看同一影片时避免重复打上游 */
+const DETAIL_CACHE_TTL = 60 * 1000;
 
 function parseSource(raw: string | null): SourceConfig | null {
   if (!raw) return null;
@@ -39,11 +42,21 @@ export async function GET(req: Request) {
   }
 
   try {
+    // 命中 60s 缓存直接返回（仅缓存成功拿到剧集的结果）
+    const detailRootForCache = (source.detail || baseUrl || '').replace(/\/+$/, '');
+    const cacheKey = `detail:${source.url}|${detailRootForCache}|${id}`;
+    const cached = getCache<VideoDetail>(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     // 用户可控地址发起服务端请求，先过 SSRF 校验（协议白名单 + 内网/保留地址）
     const listVerdict = await checkUpstreamAllowed(source.url);
     if (!listVerdict.ok) {
       return NextResponse.json({ error: listVerdict.reason }, { status: 400 });
     }
+
+    let resolved: VideoDetail | null = null;
 
     // 1) 标准列表接口
     const api = `${source.url.replace(/\/+$/, '')}?ac=videolist&ids=${encodeURIComponent(id)}`;
@@ -53,7 +66,7 @@ export async function GET(req: Request) {
       try {
         const detail = parseDetail(data, source);
         if (detail.episodes.length > 0) {
-          return NextResponse.json(detail);
+          resolved = detail;
         }
         // 有详情但无播放地址 → 继续尝试详情页
       } catch {
@@ -63,7 +76,7 @@ export async function GET(req: Request) {
 
     // 2) 详情页 HTML 提取（detail 地址优先，否则用 API 地址推导）
     const detailRoot = (source.detail || baseUrl || '').replace(/\/+$/, '');
-    if (detailRoot && /^https?:\/\//.test(detailRoot)) {
+    if (!resolved && detailRoot && /^https?:\/\//.test(detailRoot)) {
       const detailVerdict = await checkUpstreamAllowed(detailRoot);
       if (!detailVerdict.ok) {
         return NextResponse.json({ error: detailVerdict.reason }, { status: 400 });
@@ -75,12 +88,15 @@ export async function GET(req: Request) {
       });
       if (detailRes.ok) {
         const html = await detailRes.text();
-        const detail = parseDetailPageHtml(html, source);
-        return NextResponse.json(detail);
+        resolved = parseDetailPageHtml(html, source);
       }
     }
 
-    return NextResponse.json({ error: '未找到播放资源' }, { status: 404 });
+    if (!resolved || resolved.episodes.length === 0) {
+      return NextResponse.json({ error: '未找到播放资源' }, { status: 404 });
+    }
+    setCache(cacheKey, resolved, DETAIL_CACHE_TTL);
+    return NextResponse.json(resolved);
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : '获取详情失败' },

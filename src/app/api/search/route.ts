@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { guardRequest } from '@/lib/api-guard';
 import { cmsRequestHeaders, filterAdultResults, parseSearchList } from '@/lib/cms-parser';
-import { fetchUpstream } from '@/lib/fetch-utils';
+import { fetchUpstream, getCache, setCache } from '@/lib/fetch-utils';
 import { checkUpstreamAllowed } from '@/lib/ssrf';
-import type { SearchResultItem, SourceConfig, SourceSearchOutcome } from '@/lib/types';
+import type { SearchResponse, SourceConfig, SourceSearchOutcome } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
@@ -11,6 +11,18 @@ interface SearchBody {
   wd: string;
   sources: SourceConfig[];
   filterAdult?: boolean;
+}
+
+/** 搜索结果短缓存：同一关键词 + 同一组源在 TTL 内直接返回（播放页返回搜索页等场景） */
+const SEARCH_CACHE_TTL = 60 * 1000;
+
+/** 缓存键：wd + 成人过滤 + 排序后的源地址集合 */
+function searchCacheKey(wd: string, sources: SourceConfig[], filterAdult: boolean): string {
+  const urls = sources.map((s) => s.url.replace(/\/+$/, '')).sort().join('|');
+  let h = 5381;
+  const str = `${wd}\n${filterAdult ? 1 : 0}\n${urls}`;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
+  return `search:${h.toString(36)}`;
 }
 
 /**
@@ -49,6 +61,12 @@ export async function POST(req: Request) {
   }
   const sources = body.sources.slice(0, 50);
 
+  const cacheKey = searchCacheKey(wd, sources, body.filterAdult !== false);
+  const cached = getCache<SearchResponse>(cacheKey);
+  if (cached) {
+    return NextResponse.json(cached);
+  }
+
   const outcomes: SourceSearchOutcome[] = await Promise.all(
     sources.map(async (source): Promise<SourceSearchOutcome> => {
       if (!/^https?:\/\//.test(source.url || '')) {
@@ -71,7 +89,7 @@ export async function POST(req: Request) {
       };
       try {
         const first = await fetchPage(1);
-        const list = parseSearchList(first, source) as SearchResultItem[];
+        const list = parseSearchList(first, source);
         // 源站真实总页数与配置上限取较小者；pagecount 缺失或非法时视为 1 页
         const rawPageCount = parseInt(String((first as { pagecount?: unknown }).pagecount ?? '1'), 10);
         const pageCount = Math.min(Number.isFinite(rawPageCount) ? Math.max(1, rawPageCount) : 1, SEARCH_MAX_PAGES);
@@ -81,7 +99,7 @@ export async function POST(req: Request) {
               try {
                 return parseSearchList(await fetchPage(page), source);
               } catch {
-                return [] as SearchResultItem[];
+                return [];
               }
             })
           );
@@ -121,5 +139,7 @@ export async function POST(req: Request) {
     .filter((o) => !o.ok)
     .map((o) => ({ sourceKey: o.sourceKey, error: o.error || '请求失败' }));
 
-  return NextResponse.json({ list, failures });
+  const payload: SearchResponse = { list, failures };
+  setCache(cacheKey, payload, SEARCH_CACHE_TTL);
+  return NextResponse.json(payload);
 }

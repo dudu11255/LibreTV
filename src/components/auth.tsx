@@ -116,7 +116,6 @@ function LoginModal({
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { toast } = useToast();
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -142,7 +141,6 @@ function LoginModal({
       setError(msg === '需要登录' ? '密码错误' : msg);
       setPassword('');
       inputRef.current?.focus();
-      void toast;
     } finally {
       setLoading(false);
     }

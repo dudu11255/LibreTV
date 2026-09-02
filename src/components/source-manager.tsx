@@ -4,18 +4,72 @@ import { useEffect, useState } from 'react';
 import { Drawer } from './header';
 import { useAppStore } from '@/lib/store';
 import { useToast } from './toast';
-import { validateSourceUrl, cn } from '@/lib/utils';
+import { formatRelativeTime, validateSourceUrl, cn } from '@/lib/utils';
 import { exportConfig, importConfig } from '@/lib/db';
 import { useAuth } from './auth';
+import { api } from '@/lib/client-api';
 
 /**
- * 设置抽屉：数据源管理 + 播放/过滤选项 + 配置导入导出。
- * 替代旧版散落在设置面板里的各处 DOM 拼接逻辑。
+ * 设置抽屉：数据源管理 + 源订阅 + 播放/过滤选项 + 配置导入导出。
  */
+
+type TestState =
+  | { status: 'loading' }
+  | { status: 'done'; ok: boolean; ms?: number; count?: number; error?: string };
 
 export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const store = useAppStore();
   const [editing, setEditing] = useState<string | null>(null);
+  const [tests, setTests] = useState<Record<string, TestState>>({});
+
+  const runTest = async (key: string, url: string) => {
+    setTests((prev) => ({ ...prev, [key]: { status: 'loading' } }));
+    try {
+      const r = await api.testSource(url);
+      setTests((prev) => ({
+        ...prev,
+        [key]: r.ok
+          ? { status: 'done', ok: true, ms: r.ms, count: r.count }
+          : { status: 'done', ok: false, error: r.error },
+      }));
+    } catch (err) {
+      setTests((prev) => ({
+        ...prev,
+        [key]: { status: 'done', ok: false, error: err instanceof Error ? err.message : '测试失败' },
+      }));
+    }
+  };
+
+  const testButton = (key: string, url: string) => {
+    const t = tests[key];
+    return (
+      <span className="flex items-center gap-1 shrink-0">
+        {t?.status === 'done' && (
+          <span
+            className={cn(
+              'text-[10px] px-1.5 py-0.5 rounded',
+              t.ok ? 'bg-green-500/15 text-green-600 dark:text-green-400' : 'bg-red-500/15 text-red-500'
+            )}
+            title={t.ok ? `响应 ${t.ms}ms，搜索到 ${t.count ?? 0} 条` : t.error}
+          >
+            {t.ok ? `✓ ${t.ms}ms` : `✗ ${t.error?.slice(0, 12) || '失败'}`}
+          </span>
+        )}
+        <button
+          className={cn(
+            'rounded-md p-1.5 transition-colors disabled:opacity-40',
+            t?.status === 'done' && !t.ok ? 'text-red-400' : 'text-muted hover:text-accent hover:bg-hover'
+          )}
+          disabled={t?.status === 'loading'}
+          onClick={() => runTest(key, url)}
+          aria-label="测试此源"
+          title="测试可用性（搜索耗时与结果量）"
+        >
+          {t?.status === 'loading' ? '…' : '⚡'}
+        </button>
+      </span>
+    );
+  };
 
   return (
     <Drawer open={open} onClose={onClose} title="设置">
@@ -43,7 +97,7 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
             {store.envSources.length > 0 && (
               <ul className="space-y-2 mb-2">
                 {store.envSources.map((api) => (
-                  <li key={api.key} className="bg-card rounded-lg p-3">
+                  <li key={api.key} className="bg-card rounded-lg p-3 transition-colors hover:bg-hover/50">
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
@@ -67,6 +121,7 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
                         </div>
                         <div className="text-xs text-faint truncate">{api.url}</div>
                       </div>
+                      {testButton(api.key, api.url)}
                     </div>
                   </li>
                 ))}
@@ -74,7 +129,7 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
             )}
             <ul className="space-y-2">
             {store.customAPIs.map((api) => (
-              <li key={api.key} className="bg-card rounded-lg p-3">
+              <li key={api.key} className="bg-card rounded-lg p-3 transition-colors hover:bg-hover/50">
                 {editing === api.key ? (
                   <SourceForm
                     visible
@@ -106,15 +161,16 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
                       </div>
                       <div className="text-xs text-faint truncate">{api.url}</div>
                     </div>
+                    {testButton(api.key, api.url)}
                     <button
-                      className="text-muted hover:text-accent text-xs px-1.5"
+                      className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-accent"
                       onClick={() => setEditing(api.key)}
                       aria-label="编辑"
                     >
                       ✎
                     </button>
                     <button
-                      className="text-muted hover:text-red-400 text-xs px-1.5"
+                      className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-red-400"
                       onClick={() => store.removeCustomApi(api.key)}
                       aria-label="删除"
                     >
@@ -129,7 +185,9 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
         )}
       </section>
 
-      <section className="mb-6">
+      <SourceSubscriptions />
+
+      <section className="mb-6 border-t border-line pt-5">
         <SectionTitle title="播放与过滤" />
         <div className="space-y-3">
           <ToggleRow
@@ -159,7 +217,7 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
         </div>
       </section>
 
-      <section className="mb-6">
+      <section className="mb-6 border-t border-line pt-5">
         <SectionTitle title="封面图加载" />
         <div className="space-y-2">
           <SelectRow
@@ -184,11 +242,139 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
         </div>
       </section>
 
-      <section>
+      <section className="border-t border-line pt-5">
         <SectionTitle title="配置" />
         <ConfigIoButtons />
       </section>
     </Drawer>
+  );
+}
+
+/**
+ * 源订阅 / 分享：
+ * - 订阅：填入远程 LibreTV-SourceList JSON 地址，一键拉取导入，可随时重新同步；
+ * - 分享：把当前源列表导出为同格式 JSON 文件，托管到任意位置即可被他人订阅。
+ */
+function SourceSubscriptions() {
+  const store = useAppStore();
+  const { toast } = useToast();
+  const [subUrl, setSubUrl] = useState('');
+  const [syncing, setSyncing] = useState<string | null>(null);
+
+  const sync = async (url: string) => {
+    setSyncing(url);
+    try {
+      const { name, sources } = await api.fetchSourceList(url);
+      if (sources.length === 0) {
+        toast('订阅内容为空', 'warning');
+        return;
+      }
+      const count = store.applySubscriptionSources(url, sources);
+      store.addSubscription(url, name);
+      store.markSubscriptionSynced(url, name);
+      toast(`已同步 ${count} 个数据源`, 'success');
+      setSubUrl('');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : '订阅同步失败', 'error');
+    } finally {
+      setSyncing(null);
+    }
+  };
+
+  const addAndSync = () => {
+    const url = subUrl.trim();
+    if (!validateSourceUrl(url)) {
+      toast('订阅地址需以 http:// 或 https:// 开头', 'warning');
+      return;
+    }
+    void sync(url);
+  };
+
+  const exportSources = () => {
+    const all = [...store.envSources, ...store.customAPIs];
+    const seen = new Set<string>();
+    const sources = all
+      .filter((s) => {
+        const u = s.url.replace(/\/+$/, '');
+        if (seen.has(u)) return false;
+        seen.add(u);
+        return true;
+      })
+      .map(({ name, url, detail, isAdult }) => ({ name, url, detail, isAdult }));
+    const payload = { name: 'LibreTV-SourceList', version: 1, exportedAt: Date.now(), sources };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `LibreTV-SourceList_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`已导出 ${sources.length} 个源，托管后即可被他人订阅`, 'success');
+  };
+
+  return (
+    <section className="mb-6 border-t border-line pt-5">
+      <SectionTitle
+        title="源订阅 / 分享"
+        extra={
+          <button className="btn-ghost !py-1 !px-2.5 text-xs" onClick={exportSources} disabled={store.customAPIs.length + store.envSources.length === 0}>
+            导出源列表
+          </button>
+        }
+      />
+      <div className="flex gap-2 mb-2">
+        <input
+          className="input w-full"
+          placeholder="订阅地址（LibreTV-SourceList JSON 的 URL）"
+          value={subUrl}
+          onChange={(e) => setSubUrl(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') addAndSync();
+          }}
+        />
+        <button className="btn-primary !py-1.5 text-xs shrink-0" disabled={!subUrl.trim() || syncing !== null} onClick={addAndSync}>
+          订阅
+        </button>
+      </div>
+      {store.subscriptions.length === 0 ? (
+        <p className="text-xs text-faint">
+          订阅后源列表可随远端更新一键同步；「导出源列表」生成的 JSON 托管到任意 URL 即可分享给他人订阅。
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {store.subscriptions.map((sub) => (
+            <li key={sub.url} className="bg-card rounded-lg p-3 transition-colors hover:bg-hover/50">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-content truncate">{sub.name || new URL(sub.url).hostname}</div>
+                  <div className="text-xs text-faint truncate">
+                    {sub.url}
+                    {sub.lastSync && ` · 同步于 ${formatRelativeTime(sub.lastSync)}`}
+                  </div>
+                </div>
+                <button
+                  className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-accent disabled:opacity-40"
+                  disabled={syncing === sub.url}
+                  onClick={() => sync(sub.url)}
+                  aria-label="重新同步"
+                  title="重新同步"
+                >
+                  {syncing === sub.url ? '…' : '⟳'}
+                </button>
+                <button
+                  className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-red-400"
+                  onClick={() => store.removeSubscription(sub.url)}
+                  aria-label="删除订阅"
+                  title="删除订阅及其导入的源"
+                >
+                  ✕
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -298,8 +484,8 @@ function ToggleRow({
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <div>
+    <div className="flex items-center justify-between gap-4 py-0.5">
+      <div className="min-w-0">
         <div className="text-sm text-content">{label}</div>
         <div className="text-xs text-faint">{description}</div>
       </div>
@@ -308,15 +494,16 @@ function ToggleRow({
         aria-checked={checked}
         aria-label={label}
         className={cn(
-          'relative h-6 w-11 rounded-full transition-colors shrink-0',
-          checked ? 'bg-accent' : 'bg-line'
+          'relative h-[22px] w-10 shrink-0 rounded-full transition-colors duration-200',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
+          checked ? 'bg-accent' : 'bg-chip ring-1 ring-inset ring-line'
         )}
         onClick={() => onChange(!checked)}
       >
         <span
           className={cn(
-            'absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform',
-            checked ? 'translate-x-[22px]' : 'translate-x-0.5'
+            'absolute left-[2px] top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-transform duration-200 ease-out',
+            checked ? 'translate-x-[18px]' : 'translate-x-0'
           )}
         />
       </button>
@@ -338,18 +525,29 @@ function SelectRow({
   return (
     <div className="flex items-center justify-between gap-4">
       <span className="text-sm text-content">{label}</span>
-      <select
-        className="input !py-1.5 !px-2 text-xs"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-label={label}
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          className="input !py-1.5 !pl-2.5 !pr-7 cursor-pointer appearance-none text-xs"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={label}
+        >
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <svg
+          className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-faint"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
     </div>
   );
 }

@@ -17,12 +17,10 @@ class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   constructor(config: any) {
     super(config);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const load = this.load.bind(this);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- hls.js loader 回调签名未导出精确类型
     this.load = function (context: any, config: any, callbacks: any) {
       if (context.type === 'manifest' || context.type === 'level') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const onSuccess = callbacks.onSuccess;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         callbacks.onSuccess = function (response: any, stats: any, ctx: any, networkDetails: any) {
@@ -83,7 +81,6 @@ export function PlayerShell({
     // 播放位置写进新集数的进度记录，导致换集后从上一集的时间点继续播放
     const mountCbs = { onTimeUpdate, onEnded, onPause, getRestorePosition };
 
-    let disposed = false;
     let lastSave = 0;
     let playbackStarted = false;
     let errorCount = 0;
@@ -178,7 +175,7 @@ export function PlayerShell({
       playsInline: true,
       airplay: true,
       hotkey: false,
-      theme: '#23ade5',
+      theme: '#2563eb',
       lang: navigator.language.toLowerCase().startsWith('zh') ? 'zh-cn' : 'en',
       moreVideoAttr: { crossOrigin: 'anonymous', playsInline: true },
       customType: {
@@ -298,10 +295,7 @@ export function PlayerShell({
     el?.addEventListener('touchcancel', onTouchEnd);
     el?.addEventListener('touchmove', onTouchMove, { passive: false });
 
-    // 双击全屏
-    art.on('video:dblclick', () => {
-      art.fullscreen = !art.fullscreen;
-    });
+    // 双击全屏由 ArtPlayer 原生 DBCLICK_FULLSCREEN 处理（video:dblclick 不在其事件代理列表中，监听无效）
 
     // 卸载与页面隐藏时保存进度
     const saveOnHide = () => {
@@ -312,8 +306,6 @@ export function PlayerShell({
     document.addEventListener('visibilitychange', saveOnHide);
 
     return () => {
-      disposed = true;
-      void disposed;
       // 卸载前刷一次最终进度，避免丢失最后几秒。
       // 注意用 mountCbs（本集回调）而非 cbs.current（已是下一集的回调）；
       // 已自然播完的集数不回写，避免覆盖 onEnded 里清除的「已看完」记录

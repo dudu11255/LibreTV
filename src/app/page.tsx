@@ -55,7 +55,8 @@ function HomeContent() {
     queryKey: ['search', urlQuery, store.selectedKeys, store.yellowFilter],
     queryFn: ({ signal }) => api.search(urlQuery, selectedSources, store.yellowFilter, signal),
     enabled: Boolean(urlQuery) && selectedSources.length > 0,
-    staleTime: 60_000,
+    // 5 分钟内从播放页返回时直接使用缓存，不重新搜索（服务端另有 60s 结果缓存兜底）
+    staleTime: 300_000,
   });
 
   const searchHistory = useQuery({

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/client-api';
-import type { SourceConfig, SearchResultItem, VideoDetail } from '@/lib/types';
+import type { SourceConfig, SearchResultItem } from '@/lib/types';
 import { buildImageUrl, buildWatchUrl, cn } from '@/lib/utils';
 import { useAppStore, resolveSource } from '@/lib/store';
 import { useToast } from './toast';

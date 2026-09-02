@@ -135,23 +135,20 @@ export async function clearSearchHistory(): Promise<void> {
 // —— 配置导入导出（兼容旧版 LibreTV-Settings JSON 结构的导出格式） ——
 
 export async function exportConfig(): Promise<string> {
-  const [history, customAPIsStr, ...rest] = await Promise.all([
-    db.history.toArray(),
-    Promise.resolve(localStorage.getItem('libretv-settings')),
-    Promise.resolve(null),
-  ]);
-  const data: Record<string, unknown> = {};
-  data['viewingHistory'] = JSON.stringify(history);
-  if (customAPIsStr) data['libretv-settings'] = customAPIsStr;
-  void rest;
+  const history = await db.history.toArray();
+  const settings = localStorage.getItem('libretv-settings');
 
-  const payload = {
+  const data: Record<string, unknown> = {
+    viewingHistory: JSON.stringify(history),
+  };
+  if (settings) data['libretv-settings'] = settings;
+
+  return JSON.stringify({
     name: 'LibreTV-Settings',
     time: Date.now().toString(),
     cfgVer: '2.0.0',
     data,
-  };
-  return JSON.stringify(payload);
+  });
 }
 
 export async function importConfig(content: string): Promise<void> {

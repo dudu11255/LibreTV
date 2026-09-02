@@ -90,6 +90,20 @@ export const api = {
       return { ok: false, ms: Math.round(performance.now() - start), detail: undefined as VideoDetail | undefined, error: err instanceof Error ? err.message : '失败' };
     }
   },
+
+  /** 数据源探活：以搜索 "test" 的耗时与结果量衡量可用性 */
+  testSource: (url: string) =>
+    request<{ ok: boolean; ms: number; count?: number; error?: string }>('/api/source/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    }),
+
+  /** 拉取远程源订阅列表（LibreTV-SourceList JSON） */
+  fetchSourceList: (url: string) => {
+    const sp = new URLSearchParams({ url });
+    return request<{ name?: string; sources: SourceConfig[] }>(`/api/source-list?${sp.toString()}`);
+  },
 };
 
 export interface SearchFailure {

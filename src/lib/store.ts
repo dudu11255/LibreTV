@@ -20,17 +20,39 @@ export interface AppSettings {
   customImageProxy: string;
 }
 
+/** 源订阅：远程源列表（LibreTV-SourceList JSON），可一键同步更新 */
+export interface SourceSubscription {
+  url: string;
+  /** 订阅列表自带名称 */
+  name?: string;
+  /** 上次同步成功时间 */
+  lastSync?: number;
+}
+
+/** 订阅导入的源 key 前缀：sub_<hash8(url)>_<i>，同步时按前缀整体替换 */
+export function subKeyPrefix(url: string): string {
+  let h = 5381;
+  for (let i = 0; i < url.length; i++) h = ((h << 5) + h + url.charCodeAt(i)) >>> 0;
+  return `sub_${h.toString(36)}`;
+}
+
 interface AppState extends AppSettings {
   /** 部署者通过 DEFAULT_SOURCES 环境变量预置的源（服务端下发，不持久化） */
   envSources: SourceConfig[];
   /** 已向用户展示过并自动勾选过的预置源 key（持久化：用户取消勾选后不再反复勾上） */
   envKeysSeen: string[];
+  subscriptions: SourceSubscription[];
   addCustomApi: (api: Omit<SourceConfig, 'key'> & { key?: string }) => void;
   updateCustomApi: (key: string, patch: Partial<SourceConfig>) => void;
   removeCustomApi: (key: string) => void;
   toggleSourceSelected: (key: string) => void;
   setSelectedKeys: (keys: string[]) => void;
   setEnvSources: (list: SourceConfig[]) => void;
+  addSubscription: (url: string, name?: string) => void;
+  removeSubscription: (url: string) => void;
+  markSubscriptionSynced: (url: string, name?: string) => void;
+  /** 用订阅内容整体替换该订阅名下的源，返回新增数量 */
+  applySubscriptionSources: (subUrl: string, list: Omit<SourceConfig, 'key'>[]) => number;
   updateSettings: (patch: Partial<Omit<AppSettings, 'customAPIs' | 'selectedKeys'>>) => void;
 }
 
@@ -47,6 +69,7 @@ export const useAppStore = create<AppState>()(
       customAPIs: [],
       envSources: [],
       envKeysSeen: [],
+      subscriptions: [],
       selectedKeys: [],
       yellowFilter: true,
       adFilter: true,
@@ -112,6 +135,50 @@ export const useAppStore = create<AppState>()(
         });
       },
 
+      addSubscription: (url, name) => {
+        if (get().subscriptions.some((s) => s.url === url)) return;
+        set({ subscriptions: [...get().subscriptions, { url, name }] });
+      },
+
+      removeSubscription: (url) => {
+        const prefix = subKeyPrefix(url);
+        set({
+          subscriptions: get().subscriptions.filter((s) => s.url !== url),
+          customAPIs: get().customAPIs.filter((a) => !a.key.startsWith(prefix)),
+          selectedKeys: get().selectedKeys.filter((k) => !k.startsWith(prefix)),
+        });
+      },
+
+      markSubscriptionSynced: (url, name) => {
+        set({
+          subscriptions: get().subscriptions.map((s) =>
+            s.url === url ? { ...s, lastSync: Date.now(), name: name ?? s.name } : s
+          ),
+        });
+      },
+
+      applySubscriptionSources: (subUrl, list) => {
+        const prefix = subKeyPrefix(subUrl);
+        // 与订阅源 URL 相同的手动添加源视为重复，避免同步后出现双份
+        const subUrls = new Set(list.map((s) => s.url.replace(/\/+$/, '')));
+        const keptCustom = get().customAPIs.filter(
+          (a) => !a.key.startsWith(prefix) && !subUrls.has(a.url.replace(/\/+$/, ''))
+        );
+        const incoming: SourceConfig[] = list.map((s, i) => ({
+          ...s,
+          key: `${prefix}_${i}`,
+        }));
+        // 自动勾选（成人过滤开启时跳过成人源）
+        const toSelect = incoming
+          .filter((s) => !s.isAdult || !get().yellowFilter)
+          .map((s) => s.key);
+        set({
+          customAPIs: [...keptCustom, ...incoming],
+          selectedKeys: [...get().selectedKeys.filter((k) => !k.startsWith(prefix)), ...toSelect],
+        });
+        return incoming.length;
+      },
+
       updateSettings: (patch) => {
         // 打开成人内容过滤时，同步取消勾选所有成人源，避免两者并存
         if (patch.yellowFilter === true) {
@@ -136,6 +203,7 @@ export const useAppStore = create<AppState>()(
         customAPIs: s.customAPIs,
         selectedKeys: s.selectedKeys,
         envKeysSeen: s.envKeysSeen,
+        subscriptions: s.subscriptions,
         yellowFilter: s.yellowFilter,
         adFilter: s.adFilter,
         doubanEnabled: s.doubanEnabled,

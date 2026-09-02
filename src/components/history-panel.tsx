@@ -70,7 +70,7 @@ function HistoryItem({ item }: { item: HistoryEntry }) {
     <li className="relative group">
       <Link
         href={href}
-        onClick={(e) => {
+        onClick={() => {
           // 点击即同步一次时间戳，置顶最近观看
           upsertHistory({ ...item, timestamp: Date.now() }).catch(() => {});
         }}
