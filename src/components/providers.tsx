@@ -21,6 +21,15 @@ export function Providers({ children }: { children: ReactNode }) {
   // 保证 hydration 阶段客户端与服务端渲染结果一致。
   useEffect(() => {
     void useAppStore.persist.rehydrate();
+    // 拉取部署者通过 DEFAULT_SOURCES 预置的采集站（失败时静默忽略）
+    fetch('/api/status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d && Array.isArray(d.defaultSources)) {
+          useAppStore.getState().setEnvSources(d.defaultSources);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   return (

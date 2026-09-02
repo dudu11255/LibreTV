@@ -36,10 +36,38 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
             setEditing(null);
           }}
         />
-        {store.customAPIs.length === 0 && editing !== '__new__' ? (
+        {store.customAPIs.length === 0 && store.envSources.length === 0 && editing !== '__new__' ? (
           <EmptySourceGuide onAdd={() => setEditing('__new__')} />
         ) : (
-          <ul className="space-y-2">
+          <>
+            {store.envSources.length > 0 && (
+              <ul className="space-y-2 mb-2">
+                {store.envSources.map((api) => (
+                  <li key={api.key} className="bg-card rounded-lg p-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-[#2563eb]"
+                        checked={store.selectedKeys.includes(api.key)}
+                        onChange={() => store.toggleSourceSelected(api.key)}
+                        aria-label={`选择 ${api.name}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-content truncate">
+                          {api.name}
+                          {api.isAdult && <span className="text-pink-400 text-xs ml-1">(18+)</span>}
+                          <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-chip text-faint align-middle">
+                            部署者预置
+                          </span>
+                        </div>
+                        <div className="text-xs text-faint truncate">{api.url}</div>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <ul className="space-y-2">
             {store.customAPIs.map((api) => (
               <li key={api.key} className="bg-card rounded-lg p-3">
                 {editing === api.key ? (
@@ -86,7 +114,8 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
                 )}
               </li>
             ))}
-          </ul>
+            </ul>
+          </>
         )}
       </section>
 

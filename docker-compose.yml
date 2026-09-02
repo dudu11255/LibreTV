@@ -13,6 +13,8 @@ services:
     environment:
       # 必填：访问密码
       - PASSWORD=${PASSWORD:?请在 .env 中设置 PASSWORD}
+      # 可选：预置采集站（JSON 数组），用户端自动出现且默认勾选
+      # - DEFAULT_SOURCES=[{"name":"示例源","url":"https://example.com/api.php/provide/vod"}]
       # 可选：会话/代理签名密钥（多实例部署建议显式设置）
       # - PROXY_SECRET=your-secret
       # - REQUEST_TIMEOUT=8000

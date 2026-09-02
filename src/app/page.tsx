@@ -80,7 +80,10 @@ function HomeContent() {
   const failures = searchQuery.data?.failures ?? [];
   // 失败源显示友好名称而非裸 key
   const failureNames = failures.map(
-    (f) => store.customAPIs.find((a) => a.key === f.sourceKey)?.name ?? f.sourceKey
+    (f) =>
+      store.customAPIs.find((a) => a.key === f.sourceKey)?.name ??
+      store.envSources.find((a) => a.key === f.sourceKey)?.name ??
+      f.sourceKey
   );
 
   return (
@@ -196,7 +199,7 @@ function HomeContent() {
             {searchQuery.isLoading ? (
               <ResultsSkeleton />
             ) : selectedSources.length === 0 ? (
-              <NoSourceGuide hasSources={store.customAPIs.length > 0} />
+              <NoSourceGuide hasSources={store.customAPIs.length > 0 || store.envSources.length > 0} />
             ) : list.length === 0 ? (
               <div className="text-center py-16">
                 <svg className="mx-auto h-10 w-10 text-faint mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
