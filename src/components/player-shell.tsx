@@ -64,6 +64,8 @@ export function PlayerShell({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [hint, setHint] = useState('');
+  // 起播前的品牌占位图（沿用旧版 nomedia 素材），实际开始播放后隐藏
+  const [showPoster, setShowPoster] = useState(true);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 用 ref 持有最新回调，避免重建播放器
   const cbs = useRef({ onTimeUpdate, onEnded, onPause, getRestorePosition });
@@ -75,6 +77,7 @@ export function PlayerShell({
     if (!containerRef.current || !url) return;
     setLoading(true);
     setError('');
+    setShowPoster(true);
 
     // 换集时清理函数在「新回调已挂到 ref 上」之后才执行，
     // 卸载前保存进度必须用本次挂载（本集）的回调，否则会把上一集的
@@ -209,6 +212,7 @@ export function PlayerShell({
     art.on('video:playing', () => {
       playbackStarted = true;
       setLoading(false);
+      setShowPoster(false);
       setError('');
     });
     art.on('video:loadedmetadata', () => setLoading(false));
@@ -342,6 +346,17 @@ export function PlayerShell({
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
+      {showPoster && !error && (
+        <div
+          className="absolute inset-0 bg-black pointer-events-none"
+          style={{
+            backgroundImage: 'url(/player-poster.png)',
+            backgroundSize: 'contain',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          }}
+        />
+      )}
       {loading && !error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60 pointer-events-none">
           <div className="h-9 w-9 rounded-full border-4 border-line border-t-accent animate-spin" />

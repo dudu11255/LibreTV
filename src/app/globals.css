@@ -87,3 +87,12 @@ body {
   border-color: rgb(var(--c-accent)) !important;
   color: #fff;
 }
+
+/* 品牌渐变字（沿用旧版 LibreTV 的霓虹蓝→霓虹粉） */
+.brand-gradient {
+  background: linear-gradient(to right, #00ccff, #ff3c78);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}

@@ -11,7 +11,8 @@ export const metadata: Metadata = {
     'LibreTV 是一个免费的在线视频搜索平台，无广告、安全，提供来自多个视频源的内容搜索与观看服务，无需注册即可使用。',
   manifest: '/manifest.webmanifest',
   icons: {
-    icon: '/favicon.svg',
+    icon: '/icons/icon-512.png',
+    apple: '/icons/icon-512.png',
   },
 };
 

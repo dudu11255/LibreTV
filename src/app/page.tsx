@@ -113,8 +113,7 @@ function HomeContent() {
         <section className={cn('flex flex-col items-center', urlQuery ? 'mb-6' : 'mt-10 mb-14')}>
           {!urlQuery && (
             <header className="text-center mb-6">
-              <h1 className="text-2xl sm:text-3xl font-bold text-content">免费在线视频搜索</h1>
-              <p className="mt-2 text-sm text-faint">多源聚合 · 免注册 · 无广告 · 播放进度本机保存</p>
+              <h1 className="text-4xl sm:text-5xl font-bold brand-gradient">LibreTV</h1>
             </header>
           )}
           {urlQuery && <h1 className="sr-only">LibreTV 视频搜索</h1>}
