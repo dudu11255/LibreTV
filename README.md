@@ -31,6 +31,24 @@ docker compose pull && docker compose up -d
 docker compose up -d --build
 ```
 
+### Docker Compose
+
+```yaml
+services:
+  libretv:
+    image: ghcr.io/librespark/libretv:latest
+    container_name: libretv
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PASSWORD=change-me   # 必填：访问密码，务必修改
+```
+
+```bash
+docker compose pull && docker compose up -d
+```
+
 镜像发布在 GHCR：`ghcr.io/librespark/libretv`（`latest` / `主.次` / 完整版本号三个 tag，
 `linux/amd64` 与 `linux/arm64` 双架构）。需要固定版本时在 `.env` 中设置
 `LIBRETV_IMAGE=ghcr.io/librespark/libretv:2.0.1`。
@@ -104,6 +122,7 @@ CI 校验通过后自动构建并推送 `ghcr.io/librespark/libretv:<版本>`（
 | [EchoTV](https://github.com/hoowhoami/EchoTV) | Flutter 全平台客户端，受 LunaTV 启发（已归档） |
 | [WarHutTV](https://github.com/OuOumm/WarHutTV) | Go + React 的自托管影视聚合站，灵感来自 LunaTV |
 | [DecoTV](https://github.com/Decohererk/DecoTV) | 基于 LunaTV 二次开发的聚合播放站（原 KatelyaTV） |
+| [Joyflix](https://github.com/jeffernn/Joyflix-Mac-Objective-C) | macOS 原生影视聚合客户端（Objective-C）|
 
 > 旧版 LibreTV（静态 HTML + Express）完整代码见 [backup-2025 分支](https://github.com/LibreSpark/LibreTV/tree/backup-2025)。
 
