@@ -6,3 +6,4 @@ out/
 vitest-results.json
 *.log
 .mimosa/
+.zcode/

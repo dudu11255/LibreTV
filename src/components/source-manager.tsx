@@ -19,6 +19,7 @@ type TestState =
 
 export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const store = useAppStore();
+  const { toast } = useToast();
   const [editing, setEditing] = useState<string | null>(null);
   const [tests, setTests] = useState<Record<string, TestState>>({});
 
@@ -128,7 +129,9 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
               </ul>
             )}
             <ul className="space-y-2">
-            {store.customAPIs.map((api) => (
+            {store.customAPIs.map((api) => {
+              const fromSubscription = api.key.startsWith('sub_');
+              return (
               <li key={api.key} className="bg-card rounded-lg p-3 transition-colors hover:bg-hover/50">
                 {editing === api.key ? (
                   <SourceForm
@@ -158,28 +161,64 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
                         {api.isAdult && store.yellowFilter && (
                           <span className="text-[10px] text-faint ml-1">过滤开启中，需关闭后才能启用</span>
                         )}
+                        {fromSubscription && (
+                          <span
+                            className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent align-middle"
+                            title="来自源订阅，重新同步时此源的名称/地址会以订阅内容为准"
+                          >
+                            订阅
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-faint truncate">{api.url}</div>
                     </div>
                     {testButton(api.key, api.url)}
-                    <button
-                      className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-accent"
-                      onClick={() => setEditing(api.key)}
-                      aria-label="编辑"
-                    >
-                      ✎
-                    </button>
-                    <button
-                      className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-red-400"
-                      onClick={() => store.removeCustomApi(api.key)}
-                      aria-label="删除"
-                    >
-                      ✕
-                    </button>
+                    {fromSubscription ? (
+                      // 订阅源由远端列表管理：编辑会被下次同步覆盖，删除会复活，引导到订阅区操作
+                      <>
+                        <button
+                          className="rounded-md p-1.5 text-muted/40"
+                          aria-label="订阅源不可单独编辑"
+                          title="该源来自订阅，编辑修改会在下次同步时被覆盖；如需调整请修改远端订阅列表后重新同步"
+                          onClick={() => toast('订阅源以远端列表为准；请修改远端订阅内容后重新同步', 'info')}
+                        >
+                          ✎
+                        </button>
+                        <button
+                          className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-red-400"
+                          onClick={() => {
+                            store.removeCustomApi(api.key);
+                            toast('已移除；注意：重新同步订阅时该源会恢复', 'info');
+                          }}
+                          aria-label="删除"
+                          title="移除此源（重新同步订阅时会恢复）"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-accent"
+                          onClick={() => setEditing(api.key)}
+                          aria-label="编辑"
+                        >
+                          ✎
+                        </button>
+                        <button
+                          className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-red-400"
+                          onClick={() => store.removeCustomApi(api.key)}
+                          aria-label="删除"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </li>
-            ))}
+              );
+            })}
             </ul>
           </>
         )}
