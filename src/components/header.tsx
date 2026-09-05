@@ -21,7 +21,7 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
       <header className="sticky top-0 z-40 bg-surface/90 backdrop-blur border-b border-line">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2 shrink-0">
-            <span className="text-lg font-bold text-accent">LibreTV-Next</span>
+            <span className="text-lg font-bold text-accent">LibreTV</span>
           </Link>
 
           {showSearch && (

@@ -22,7 +22,7 @@ export function isPasswordConfigured(): boolean {
 
 function getSecret(): string {
   if (process.env.PROXY_SECRET) return process.env.PROXY_SECRET;
-  return crypto.createHash('sha256').update(getPassword() + ':libretv-next::session-salt').digest('hex');
+  return crypto.createHash('sha256').update(getPassword() + ':libretv::session-salt').digest('hex');
 }
 
 function hmac(payload: string): string {

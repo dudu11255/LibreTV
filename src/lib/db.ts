@@ -35,7 +35,7 @@ export interface SearchHistoryEntry {
   timestamp: number;
 }
 
-export const db = new Dexie('libretv-next') as Dexie & {
+export const db = new Dexie('libretv') as Dexie & {
   history: EntityTable<HistoryEntry, 'id'>;
   progress: EntityTable<ProgressEntry, 'key'>;
   searchHistory: EntityTable<SearchHistoryEntry, 'text'>;

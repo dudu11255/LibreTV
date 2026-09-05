@@ -49,7 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # GHCR 镜像名不允许大写，统一转小写（bestzwei/LibreTV-Next → bestzwei/libretv-next）
+      # GHCR 镜像名不允许大写，统一转小写（owner/Repo → owner/repo）
       - name: 计算镜像名
         id: image
         run: echo "name=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"

@@ -15,7 +15,7 @@
 ## 目录结构
 
 ```
-libretv-next/
+libretv/
 ├── src/
 │   ├── app/
 │   │   ├── page.tsx                # 首页：搜索 + 豆瓣推荐（?s= URL 驱动）

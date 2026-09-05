@@ -68,7 +68,7 @@ DEFAULT_SOURCES=[{"name":"示例源","url":"https://example.com/api.php/provide/
 - **导出**：生成 `LibreTV-Settings_<时间戳>.json`（数据源、播放设置、观看历史、搜索历史）；
 - **导入**：兼容旧版 LibreTV 导出的配置文件；旧版观看历史（含全集 URL 列表）会自动迁移为定位信息格式。
 
-## 存储结构（IndexedDB `libretv-next`）
+## 存储结构（IndexedDB `libretv`）
 
 | 表 | 主键 | 字段 | 说明 |
 | --- | --- | --- | --- |

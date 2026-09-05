@@ -1,6 +1,6 @@
-# LibreTV-Next Wiki
+# LibreTV Wiki
 
-欢迎来到 LibreTV-Next 的项目文档。LibreTV-Next 是一个免费的在线视频聚合搜索与观看平台，基于 Next.js 15 重构。
+欢迎来到 LibreTV 的项目文档。LibreTV 是一个免费的在线视频聚合搜索与观看平台，基于 Next.js 15 重构。
 
 ## 文档目录
 
