@@ -330,7 +330,7 @@ function BackButton() {
   const router = useRouter();
   return (
     <button
-      className="p-2 -ml-2 rounded-md text-muted hover:text-content hover:bg-surface-hover transition-colors"
+      className="p-2 -ml-2 rounded-md text-muted hover:text-content hover:bg-hover transition-colors"
       onClick={() => {
         if (window.history.length > 1) router.back();
         else router.push('/');

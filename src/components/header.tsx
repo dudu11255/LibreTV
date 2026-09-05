@@ -77,7 +77,7 @@ function HeaderLink({ href, active, children }: { href: string; active: boolean;
       href={href}
       className={cn(
         'px-2.5 py-1.5 rounded-md text-sm transition-colors',
-        active ? 'text-content bg-surface-hover' : 'text-muted hover:text-content'
+        active ? 'text-content bg-hover' : 'text-muted hover:text-content'
       )}
     >
       {children}
@@ -88,7 +88,7 @@ function HeaderLink({ href, active, children }: { href: string; active: boolean;
 function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <button
-      className="p-2 rounded-md text-muted hover:text-content hover:bg-surface-hover transition-colors"
+      className="p-2 rounded-md text-muted hover:text-content hover:bg-hover transition-colors"
       title={label}
       aria-label={label}
       onClick={onClick}
@@ -138,7 +138,7 @@ export function Drawer({
         <div className="sticky top-0 bg-surface-raised px-4 py-3.5 border-b border-line flex items-center justify-between z-10">
           <h2 className="font-semibold text-content">{title}</h2>
           <button
-            className="p-1.5 rounded-md text-muted hover:text-content hover:bg-surface-hover"
+            className="p-1.5 rounded-md text-muted hover:text-content hover:bg-hover"
             onClick={onClose}
             aria-label="关闭"
           >

@@ -131,7 +131,7 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
             <span className="text-sm text-faint">{item.sourceName}</span>
           </div>
           <button
-            className="p-1.5 rounded-md text-muted hover:text-content hover:bg-surface-hover shrink-0"
+            className="p-1.5 rounded-md text-muted hover:text-content hover:bg-hover shrink-0"
             onClick={onClose}
             aria-label="关闭"
           >
