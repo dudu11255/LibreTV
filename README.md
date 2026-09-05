@@ -4,6 +4,18 @@ LibreTV Next.js 迁移版：免费在线视频聚合搜索与观看平台。基�
 
 > 📖 **完整文档**：[docs/Home.md](docs/Home.md) · [架构](docs/Architecture.md) · [部署](docs/Deployment.md) · [配置](docs/Configuration.md) · [数据源](docs/Data-Sources.md) · [播放器](docs/Player.md) · [代理与安全](docs/Proxy-Security.md) · [FAQ](docs/FAQ.md)
 
+## 核心特性
+
+- **聚合搜索**：多采集站服务端并行搜索，单源失败不影响整体，用户 IP 不暴露给第三方
+- **跨源同名聚合**：同名影片合并为一张卡片，展开即可比较和选择各来源
+- **HLS 播放**：ArtPlayer + hls.js，广告分片过滤、自动连播、倍速、快捷键、移动端长按 3 倍速
+- **智能回退**：视频直连失败（CORS / 防盗链）时自动改走内置代理重试
+- **进度同步**：播放进度与观看历史存于本机 IndexedDB，精确到秒的续播
+- **换源测速**：跨源搜索同名资源并测速排序，一键切换保留集数位置
+- **源测试与订阅**：一键探活数据源；订阅远程源列表（LibreTV-SourceList JSON），可导出分享
+- **豆瓣推荐**：电影 / 剧集分类浏览，服务端直连避免公共 CORS 代理
+- **PWA**：可安装到桌面 / 主屏幕，亮暗双主题无首屏闪烁
+
 ## 部署
 
 ### Docker（推荐）
@@ -79,6 +91,21 @@ CI 校验通过后自动构建并推送 `ghcr.io/librespark/libretv:<版本>`（
 - 登录接口有 IP 速率限制（10 次 / 10 分钟）。
 - 代理内置 SSRF 防护：拒绝内网/保留地址（含 DNS 解析后校验），仅放行 http(s)。
 - 未登录会话仅允许代理图片类目标（豆瓣封面防盗链需要）。
+
+## 延伸项目
+
+基于 LibreTV 生态的衍生作品：
+
+| 项目 | 说明 |
+| --- | --- |
+| [OrionTV](https://github.com/orion-lib/OrionTV) | Apple TV / Android TV 客户端（React Native TVOS + Expo），配合 MoonTV 使用 |
+| [LunaTV](https://github.com/MoonTechLab/LunaTV) | 受本项目启发的影视聚合站（Next.js），支持 Redis / Upstash 等多存储后端 |
+| [Selene-TV](https://github.com/MoonTechLab/Selene-TV) | Android TV（Leanback）客户端，Kotlin + Compose，对接 MoonTV / Helios |
+| [EchoTV](https://github.com/hoowhoami/EchoTV) | Flutter 全平台客户端，受 LunaTV 启发（已归档） |
+| [WarHutTV](https://github.com/OuOumm/WarHutTV) | Go + React 的自托管影视聚合站，灵感来自 LunaTV |
+| [DecoTV](https://github.com/Decohererk/DecoTV) | 基于 LunaTV 二次开发的聚合播放站（原 KatelyaTV） |
+
+> 旧版 LibreTV（静态 HTML + Express）完整代码见 [backup-2025 分支](https://github.com/LibreSpark/LibreTV/tree/backup-2025)。
 
 ## 免责声明
 
