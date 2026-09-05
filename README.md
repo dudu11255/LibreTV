@@ -6,10 +6,9 @@ LibreTV Next.js 迁移版：免费在线视频聚合搜索与观看平台。基�
 
 ## 核心特性
 
-- **聚合搜索**：多采集站服务端并行搜索，单源失败不影响整体，用户 IP 不暴露给第三方
+- **聚合搜索**：多采集站服务端并行搜索
 - **跨源同名聚合**：同名影片合并为一张卡片，展开即可比较和选择各来源
 - **HLS 播放**：ArtPlayer + hls.js，广告分片过滤、自动连播、倍速、快捷键、移动端长按 3 倍速
-- **智能回退**：视频直连失败（CORS / 防盗链）时自动改走内置代理重试
 - **进度同步**：播放进度与观看历史存于本机 IndexedDB，精确到秒的续播
 - **换源测速**：跨源搜索同名资源并测速排序，一键切换保留集数位置
 - **源测试与订阅**：一键探活数据源；订阅远程源列表（LibreTV-SourceList JSON），可导出分享
@@ -49,6 +48,8 @@ services:
 docker compose pull && docker compose up -d
 ```
 
+
+
 镜像发布在 GHCR：`ghcr.io/librespark/libretv`（`latest` / `主.次` / 完整版本号三个 tag，
 `linux/amd64` 与 `linux/arm64` 双架构）。需要固定版本时在 `.env` 中设置
 `LIBRETV_IMAGE=ghcr.io/librespark/libretv:2.0.1`。
@@ -82,6 +83,37 @@ PASSWORD=your-password npm start   # 监听 8080
 3. **播放**：详情弹窗选择剧集进入 `/watch`；支持快捷键（空格/←→/↑↓/F/Alt+←→）、移动端长按 3 倍速、自动连播、换源测速。
 4. **进度与历史**：自动保存在本设备 IndexedDB，仅定位信息入库，播放时自动同步最新剧集。
 5. **配置迁移**：设置 → 导出/导入配置（兼容旧版 LibreTV-Settings JSON 的历史记录迁移）。
+
+## 源订阅 / 分享
+
+源列表可以 **导出为 JSON → 托管到公开 URL → 他人在「设置」里填入该 URL 订阅**。
+
+托管地址没有特殊要求，可用 [npoint.io](https://www.npoint.io/) 免费托管 JSON（粘贴内容即可得到一个公开 URL），Gist、对象存储、任意静态托管同样可用。
+
+### 订阅格式（LibreTV-SourceList JSON）
+
+```json
+{
+  "name": "我的源列表",
+  "version": 1,
+  "sources": [
+    { "name": "示例源", "url": "https://example.com/api.php/provide/vod" }
+  ]
+}
+```
+
+- 必填字段只有 `sources[].url`；`detail` 为详情页根地址，`isAdult` 为成人内容标记；
+- 也接受裸数组 `[{ "name": "...", "url": "..." }]`；
+- 按 `url` 去重，最多 100 个源；非公网 http(s) 地址会被静默过滤。
+
+### 订阅行为
+
+- **订阅**：设置 → 源订阅 / 分享 → 填入订阅地址 → 「订阅」，导入的源自动勾选并带「订阅」标识；
+- **同步**：订阅条目上的 **⟳** 手动强制同步，整体替换该订阅名下的源；
+- **管理边界**：订阅源以远端列表为准，单独编辑会在下次同步时被覆盖，单独移除会在重新同步时恢复；如需调整请改远端列表，或直接删除整个订阅（会一并移除其导入的源）；
+- **导出分享**：设置 → 源订阅 / 分享 → 「导出源列表」，把当前全部来源（预置 + 手动 + 订阅，按 URL 去重）导出为上述 JSON。
+
+> 订阅由服务端拉取（经过 SSRF 校验），因此订阅地址无需配置 CORS。完整说明见 [数据源文档](docs/Data-Sources.md#源订阅--分享)。
 
 ## 开发
 
@@ -117,15 +149,17 @@ CI 校验通过后自动构建并推送 `ghcr.io/librespark/libretv:<版本>`（
 | 项目 | 说明 |
 | --- | --- |
 | [OrionTV](https://github.com/orion-lib/OrionTV) | Apple TV / Android TV 客户端（React Native TVOS + Expo），配合 MoonTV 使用 |
-| [LunaTV](https://github.com/MoonTechLab/LunaTV) | 受本项目启发的影视聚合站（Next.js），支持 Redis / Upstash 等多存储后端 |
+| [LunaTV](https://github.com/MoonTechLab/LunaTV) | 影视聚合站（Next.js），支持 Redis / Upstash 等多存储后端 |
 | [Selene-TV](https://github.com/MoonTechLab/Selene-TV) | Android TV（Leanback）客户端，Kotlin + Compose，对接 MoonTV / Helios |
-| [EchoTV](https://github.com/hoowhoami/EchoTV) | Flutter 全平台客户端，受 LunaTV 启发（已归档） |
-| [WarHutTV](https://github.com/OuOumm/WarHutTV) | Go + React 的自托管影视聚合站，灵感来自 LunaTV |
-| [DecoTV](https://github.com/Decohererk/DecoTV) | 基于 LunaTV 二次开发的聚合播放站（原 KatelyaTV） |
-| [Joyflix](https://github.com/jeffernn/Joyflix-Mac-Objective-C) | macOS 原生影视聚合客户端（Objective-C）|
+| [EchoTV](https://github.com/hoowhoami/EchoTV) | Flutter 全平台客户端（已归档） |
+| [WarHutTV](https://github.com/OuOumm/WarHutTV) | Go + React 的自托管影视聚合站 |
+| [DecoTV](https://github.com/Decohererk/DecoTV) | 聚合播放站（原 KatelyaTV） |
+| [Joyflix](https://github.com/jeffernn/Joyflix-Mac-Objective-C) | macOS 原生影视聚合客户端（Objective-C） |
 
 > 旧版 LibreTV（静态 HTML + Express）完整代码见 [backup-2025 分支](https://github.com/LibreSpark/LibreTV/tree/backup-2025)。
 
 ## 免责声明
 
 本项目不存储、不制作任何视频内容，仅提供第三方公开接口的聚合与播放能力，内容的合法性由对应数据源负责。
+
+<sub>☕ 觉得有用的话，可以到 [AFDIAN](https://afdian.com/a/veehub) 请我喝杯咖啡。</sub>
