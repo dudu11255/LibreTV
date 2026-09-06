@@ -256,10 +256,11 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
           <SelectRow
             label="推荐数据源"
             value={store.recommendSource}
-            onChange={(v) => store.updateSettings({ recommendSource: v as 'douban' | 'bangumi' })}
+            onChange={(v) => store.updateSettings({ recommendSource: v as 'douban' | 'bangumi' | 'hot-list' })}
             options={[
               { value: 'douban', label: '豆瓣（电影/剧集）' },
               { value: 'bangumi', label: 'Bangumi 新番放送' },
+              { value: 'hot-list', label: '影视榜单（豆瓣周榜/百度热播）' },
             ]}
           />
         </div>

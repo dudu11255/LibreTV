@@ -15,8 +15,8 @@ export interface AppSettings {
   yellowFilter: boolean;
   adFilter: boolean;
   doubanEnabled: boolean;
-  /** 首页推荐数据源：豆瓣热门 / Bangumi 每日放送（免 key） */
-  recommendSource: 'douban' | 'bangumi';
+  /** 首页推荐数据源：豆瓣热门 / Bangumi 每日放送（免 key）/ 影视热榜（60s API） */
+  recommendSource: 'douban' | 'bangumi' | 'hot-list';
   autoplayNext: boolean;
   imageProxyMode: 'direct' | 'proxy' | 'custom';
   customImageProxy: string;

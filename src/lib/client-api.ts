@@ -83,6 +83,12 @@ export const api = {
   /** Bangumi 每日放送（免 key），首页推荐的另一数据源 */
   bangumiCalendar: (signal?: AbortSignal) => request<BangumiCalendarResponse>('/api/bangumi/calendar', { signal }),
 
+  /** 影视热榜（60s API 免 key）：豆瓣周榜五个类目 + 百度热播剧 */
+  hotList: (id: string, signal?: AbortSignal) => {
+    const sp = new URLSearchParams({ id });
+    return request<DoubanResponse>(`/api/hot-list?${sp.toString()}`, { signal });
+  },
+
   /** 换源：按标题跨源搜索并取详情，附带接口耗时（测速） */
   detailSpeed: async (id: string, source: SourceConfig) => {
     const start = performance.now();
