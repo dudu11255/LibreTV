@@ -61,7 +61,6 @@ export function PlayerShell({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const artRef = useRef<any>(null);
   const hlsRef = useRef<Hls | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [hint, setHint] = useState('');
   // 起播前的品牌占位图（沿用旧版 nomedia 素材），实际开始播放后隐藏
@@ -75,7 +74,6 @@ export function PlayerShell({
 
   useEffect(() => {
     if (!containerRef.current || !url) return;
-    setLoading(true);
     setError('');
     setShowPoster(true);
 
@@ -128,7 +126,6 @@ export function PlayerShell({
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         video.play().catch(() => {});
       });
-      hls.on(Hls.Events.FRAG_LOADED, () => setLoading(false));
       hls.on(Hls.Events.ERROR, (_evt, data) => {
         errorCount++;
         if (data.fatal && !playbackStarted) {
@@ -150,7 +147,6 @@ export function PlayerShell({
               break;
             default:
               if (errorCount > 3) {
-                setLoading(false);
                 setError('视频加载失败，可能是格式不兼容或源不可用，请尝试其他视频源');
               }
           }
@@ -211,13 +207,10 @@ export function PlayerShell({
 
     art.on('video:playing', () => {
       playbackStarted = true;
-      setLoading(false);
       setShowPoster(false);
       setError('');
     });
-    art.on('video:loadedmetadata', () => setLoading(false));
     art.on('video:error', () => {
-      setLoading(false);
       setError('视频播放失败，请尝试其他视频源');
     });
     art.on('video:timeupdate', () => {
@@ -356,12 +349,6 @@ export function PlayerShell({
             backgroundRepeat: 'no-repeat',
           }}
         />
-      )}
-      {loading && !error && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60 pointer-events-none">
-          <div className="h-9 w-9 rounded-full border-4 border-line border-t-accent animate-spin" />
-          <p className="text-sm text-content">正在加载视频...</p>
-        </div>
       )}
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80">
