@@ -3,16 +3,26 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/client-api';
-import { DoubanCard } from './video-card';
 import { useAppStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
+import type { DoubanItem } from '@/lib/types';
+import { DoubanCard } from './video-card';
 
 const MOVIE_TAGS = ['热门', '最新', '经典', '豆瓣高分', '冷门佳片', '华语', '欧美', '韩国', '日本', '动画'];
 const TV_TAGS = ['热门', '美剧', '英剧', '韩剧', '日剧', '国产剧', '港剧', '日本动画', '综艺', '纪录片'];
+const WEEKDAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
-/** 豆瓣推荐区：影视切换 + 标签筛选 + 分页加载 */
-export function DoubanSection({ onPick }: { onPick: (title: string) => void }) {
+/** 首页推荐区：数据源由设置决定（豆瓣热门 / Bangumi 新番放送），二选一展示 */
+export function RecommendSection({ onPick }: { onPick: (title: string) => void }) {
   const doubanEnabled = useAppStore((s) => s.doubanEnabled);
+  const recommendSource = useAppStore((s) => s.recommendSource);
+
+  if (!doubanEnabled) return null;
+  return recommendSource === 'bangumi' ? <BangumiView onPick={onPick} /> : <DoubanView onPick={onPick} />;
+}
+
+/** 豆瓣推荐：影视切换 + 标签筛选 + 分页加载 */
+function DoubanView({ onPick }: { onPick: (title: string) => void }) {
   const [type, setType] = useState<'movie' | 'tv'>('movie');
   const [tag, setTag] = useState('热门');
   const [visibleCount, setVisibleCount] = useState(25);
@@ -21,8 +31,6 @@ export function DoubanSection({ onPick }: { onPick: (title: string) => void }) {
     queryKey: ['douban', type, tag],
     queryFn: ({ signal }) => api.douban(type, tag, 0, 50, signal),
   });
-
-  if (!doubanEnabled) return null;
 
   const tags = type === 'movie' ? MOVIE_TAGS : TV_TAGS;
   const items = query.data?.items ?? [];
@@ -36,7 +44,7 @@ export function DoubanSection({ onPick }: { onPick: (title: string) => void }) {
   };
 
   return (
-    <section aria-label="豆瓣推荐">
+    <section aria-label="影视推荐">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="flex bg-chip rounded-lg p-0.5">
@@ -69,16 +77,9 @@ export function DoubanSection({ onPick }: { onPick: (title: string) => void }) {
       </div>
 
       {query.isError ? (
-        <p className="text-center text-sm text-faint py-8">豆瓣推荐加载失败，可稍后重试或在设置中关闭</p>
+        <p className="text-center text-sm text-faint py-8">推荐内容加载失败，可稍后重试或在设置中关闭</p>
       ) : query.isLoading ? (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2.5">
-          {Array.from({ length: 16 }).map((_, i) => (
-            <div key={i}>
-              <div className="aspect-[2/3] rounded-lg bg-chip animate-pulse" />
-              <div className="h-3 mt-2 rounded bg-chip animate-pulse" />
-            </div>
-          ))}
-        </div>
+        <GridSkeleton />
       ) : (
         <>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2.5">
@@ -96,6 +97,77 @@ export function DoubanSection({ onPick }: { onPick: (title: string) => void }) {
         </>
       )}
     </section>
+  );
+}
+
+/** Bangumi 每日放送：星期筛选，一次拉全量无分页 */
+function BangumiView({ onPick }: { onPick: (title: string) => void }) {
+  const [weekday, setWeekday] = useState<number | 'all'>('all');
+
+  const query = useQuery({
+    queryKey: ['bangumi-calendar'],
+    queryFn: ({ signal }) => api.bangumiCalendar(signal),
+  });
+
+  let items: DoubanItem[] = [];
+  if (query.data) {
+    items = weekday === 'all'
+      ? query.data.days.flatMap((d) => d.items)
+      : (query.data.days.find((d) => d.weekday === weekday)?.items ?? []);
+  }
+
+  return (
+    <section aria-label="新番放送推荐">
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        <ChipButton active={weekday === 'all'} onClick={() => setWeekday('all')}>
+          全部
+        </ChipButton>
+        {WEEKDAYS.map((name, i) => (
+          <ChipButton key={name} active={weekday === i + 1} onClick={() => setWeekday(i + 1)}>
+            {name}
+          </ChipButton>
+        ))}
+      </div>
+
+      {query.isError ? (
+        <p className="text-center text-sm text-faint py-8">推荐内容加载失败，可稍后重试或在设置中关闭</p>
+      ) : query.isLoading ? (
+        <GridSkeleton />
+      ) : (
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2.5">
+          {items.map((item) => (
+            <DoubanCard key={item.id} item={item} onClick={() => onPick(item.title)} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function GridSkeleton() {
+  return (
+    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2.5">
+      {Array.from({ length: 16 }).map((_, i) => (
+        <div key={i}>
+          <div className="aspect-[2/3] rounded-lg bg-chip animate-pulse" />
+          <div className="h-3 mt-2 rounded bg-chip animate-pulse" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ChipButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      className={cn(
+        'px-2.5 py-1 rounded-full text-xs transition-colors',
+        active ? 'bg-accent text-white' : 'bg-chip text-muted hover:text-content hover:bg-hover'
+      )}
+      onClick={onClick}
+    >
+      {children}
+    </button>
   );
 }
 

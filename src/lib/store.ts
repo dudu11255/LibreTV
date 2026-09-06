@@ -15,6 +15,8 @@ export interface AppSettings {
   yellowFilter: boolean;
   adFilter: boolean;
   doubanEnabled: boolean;
+  /** 首页推荐数据源：豆瓣热门 / Bangumi 每日放送（免 key） */
+  recommendSource: 'douban' | 'bangumi';
   autoplayNext: boolean;
   imageProxyMode: 'direct' | 'proxy' | 'custom';
   customImageProxy: string;
@@ -74,6 +76,7 @@ export const useAppStore = create<AppState>()(
       yellowFilter: true,
       adFilter: true,
       doubanEnabled: true,
+      recommendSource: 'douban',
       autoplayNext: true,
       imageProxyMode: 'proxy',
       customImageProxy: '',
@@ -207,6 +210,7 @@ export const useAppStore = create<AppState>()(
         yellowFilter: s.yellowFilter,
         adFilter: s.adFilter,
         doubanEnabled: s.doubanEnabled,
+        recommendSource: s.recommendSource,
         autoplayNext: s.autoplayNext,
         imageProxyMode: s.imageProxyMode,
         customImageProxy: s.customImageProxy,

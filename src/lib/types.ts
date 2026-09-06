@@ -71,6 +71,16 @@ export interface DoubanResponse {
   items: DoubanItem[];
 }
 
+export interface BangumiCalendarDay {
+  /** 1=周一 … 7=周日 */
+  weekday: number;
+  items: DoubanItem[];
+}
+
+export interface BangumiCalendarResponse {
+  days: BangumiCalendarDay[];
+}
+
 export interface AuthStatusResponse {
   /** 服务器是否配置了 PASSWORD */
   passwordRequired: boolean;

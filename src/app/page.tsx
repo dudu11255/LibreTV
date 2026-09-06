@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Header } from '@/components/header';
-import { DoubanSection } from '@/components/douban-section';
+import { RecommendSection } from '@/components/douban-section';
 import { DetailModal } from '@/components/detail-modal';
 import { AggregatedCard, aggregateResults } from '@/components/video-card';
 import { useAppStore, resolveSource } from '@/lib/store';
@@ -230,9 +230,9 @@ function HomeContent() {
           </section>
         )}
 
-        {/* 豆瓣推荐（有搜索时隐藏） */}
+        {/* 首页推荐（有搜索时隐藏） */}
         {!urlQuery && (
-          <DoubanSection
+          <RecommendSection
             onPick={(title) => {
               setInput(title);
               runSearch(title);

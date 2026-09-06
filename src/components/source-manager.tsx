@@ -248,10 +248,19 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
             onChange={(v) => store.updateSettings({ autoplayNext: v })}
           />
           <ToggleRow
-            label="豆瓣推荐"
-            description="在首页展示豆瓣热门影视"
+            label="首页推荐"
+            description="在首页展示推荐内容"
             checked={store.doubanEnabled}
             onChange={(v) => store.updateSettings({ doubanEnabled: v })}
+          />
+          <SelectRow
+            label="推荐数据源"
+            value={store.recommendSource}
+            onChange={(v) => store.updateSettings({ recommendSource: v as 'douban' | 'bangumi' })}
+            options={[
+              { value: 'douban', label: '豆瓣（电影/剧集）' },
+              { value: 'bangumi', label: 'Bangumi 新番放送' },
+            ]}
           />
         </div>
       </section>
