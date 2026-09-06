@@ -4,7 +4,6 @@ LibreTV Next.js 迁移版：免费在线视频聚合搜索与观看平台。基�
 
 > 📖 **完整文档**：[GitHub Wiki](https://github.com/bestZwei/LibreTV-Next/wiki) · [架构](https://github.com/bestZwei/LibreTV-Next/wiki/Architecture) · [部署](https://github.com/bestZwei/LibreTV-Next/wiki/Deployment) · [配置](https://github.com/bestZwei/LibreTV-Next/wiki/Configuration) · [数据源](https://github.com/bestZwei/LibreTV-Next/wiki/Data-Sources) · [首页推荐](https://github.com/bestZwei/LibreTV-Next/wiki/Recommendations) · [播放器](https://github.com/bestZwei/LibreTV-Next/wiki/Player) · [代理与安全](https://github.com/bestZwei/LibreTV-Next/wiki/Proxy-Security) · [FAQ](https://github.com/bestZwei/LibreTV-Next/wiki/FAQ)
 >
-> 仓库内 docs/ 目录为同一份文档的镜像，便于在代码浏览时就近阅读。
 
 ## 核心特性
 
@@ -56,7 +55,7 @@ docker compose pull && docker compose up -d
 `linux/amd64` 与 `linux/arm64` 双架构）。需要固定版本时在 `.env` 中设置
 `LIBRETV_IMAGE=ghcr.io/librespark/libretv:2.0.1`。
 
-> 版本号以 `package.json` 为单一来源，部署后可用 `/api/status` 返回的 `version` 字段核对。详见[部署文档](docs/Deployment.md)。
+> 版本号以 `package.json` 为单一来源，部署后可用 `/api/status` 返回的 `version` 字段核对。详见[部署文档](https://github.com/bestZwei/LibreTV-Next/wiki/Deployment)。
 
 ### 手动运行
 
@@ -72,7 +71,7 @@ PASSWORD=your-password npm start   # 监听 8080
 | --- | --- | --- |
 | `PASSWORD` | 是 | 访问密码；未设置时站点会提示管理员配置 |
 | `PROXY_SECRET` | 否 | 会话/代理签名密钥；不设置时从 PASSWORD 派生（多实例部署建议显式设置） |
-| `DEFAULT_SOURCES` | 否 | 预置采集站（JSON 数组），用户端自动出现且默认勾选，详见[配置文档](docs/Configuration.md) |
+| `DEFAULT_SOURCES` | 否 | 预置采集站（JSON 数组），用户端自动出现且默认勾选，详见[配置文档](https://github.com/bestZwei/LibreTV-Next/wiki/Configuration) |
 | `REQUEST_TIMEOUT` | 否 | 代理上游请求超时（毫秒），默认 8000 |
 | `MAX_RETRIES` | 否 | 代理请求重试次数，默认 1 |
 | `SEARCH_MAX_PAGES` | 否 | 每个搜索源最多抓取的页数（1-50，默认 5）。第一页会读取源站 `pagecount`，实际页数 = min(源站总页数，该值)；页间并行请求，单页失败只丢该页 |
@@ -116,7 +115,7 @@ PASSWORD=your-password npm start   # 监听 8080
 - **管理边界**：订阅源以远端列表为准，单独编辑会在下次同步时被覆盖，单独移除会在重新同步时恢复；如需调整请改远端列表，或直接删除整个订阅（会一并移除其导入的源）；
 - **导出分享**：设置 → 源订阅 / 分享 → 「导出源列表」，把当前全部来源（预置 + 手动 + 订阅，按 URL 去重）导出为上述 JSON。
 
-> 订阅由服务端拉取（经过 SSRF 校验），因此订阅地址无需配置 CORS。完整说明见 [数据源文档](docs/Data-Sources.md#源订阅--分享)。
+> 订阅由服务端拉取（经过 SSRF 校验），因此订阅地址无需配置 CORS。完整说明见 [数据源文档](https://github.com/bestZwei/LibreTV-Next/wiki/Data-Sources)。
 
 ## 开发
 
@@ -136,7 +135,7 @@ npm version patch       # 或 minor / major；会更新 package.json 并打 git 
 git push && git push --tags
 ```
 
-CI 校验通过后自动构建并推送 `ghcr.io/librespark/libretv:<版本>`（详见[部署文档](docs/Deployment.md)）。
+CI 校验通过后自动构建并推送 `ghcr.io/librespark/libretv:<版本>`（详见[部署文档](https://github.com/bestZwei/LibreTV-Next/wiki/Deployment)）。
 
 ## 安全说明
 
