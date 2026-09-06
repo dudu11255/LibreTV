@@ -76,7 +76,7 @@ export const useAppStore = create<AppState>()(
       yellowFilter: true,
       adFilter: true,
       doubanEnabled: true,
-      recommendSource: 'douban',
+      recommendSource: 'hot-list',
       autoplayNext: true,
       imageProxyMode: 'proxy',
       customImageProxy: '',
