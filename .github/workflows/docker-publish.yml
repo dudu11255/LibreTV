@@ -137,12 +137,12 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
 
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
-          provenance: mode=max
-          push: true
+      # 纯 registry 元数据操作：把 build job 已推上来的两个架构 digest
+      # 组装成多架构 manifest 并打标签。不要在这里用 build-push-action——
+      # 那会触发一次重新构建（无 context 时更会直接失败）。
+      - name: 创建并推送多架构 manifest
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ steps.image.outputs.name }}@sha256:%s ' *)
