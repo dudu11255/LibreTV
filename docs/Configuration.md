@@ -11,6 +11,7 @@
 | `SEARCH_MAX_PAGES` | 否 | `5` | 每个搜索源最多抓取的页数（1-50）。第一页响应携带源站真实总页数 `pagecount`，实际抓取页数取两者较小值；后续页并行请求，单页失败仅丢弃该页。调大会显著增加上游请求量（约等于 源数 × 页数），搜索延迟与源站压力随之上升 |
 | `USER_AGENT` | 否 | Chrome UA | 代理请求使用的 UA（豆瓣防盗链等场景） |
 | `DEFAULT_SOURCES` | 否 | — | 预置采集站，JSON 数组，见下文 [预置采集站](#预置采集站default_sources) |
+| `60S_API_BASE` | 否 | `https://60s.viki.moe` | 影视榜单推荐源（豆瓣周榜/百度热播）使用的 [60s API](https://github.com/vikiboss/60s) 实例地址。服务端每类榜单缓存 1 小时，官方公共实例限流下通常够用；高频使用可用 `docker run -d -p 4399:4399 vikiboss/60s:latest` 自部署后指向它 |
 | `DEBUG` | 否 | `false` | 调试日志 |
 
 > 旧版的 `CORS_ORIGIN`、`CACHE_MAX_AGE`、`BLOCKED_HOSTS`、`BLOCKED_IP_PREFIXES`、`FILTERED_HEADERS` 在重构版中已内化为安全默认值，不再需要配置。
