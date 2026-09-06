@@ -9,7 +9,8 @@
 | [Architecture](Architecture.md) | 系统架构、目录结构、数据流、技术选型说明 |
 | [Deployment](Deployment.md) | Docker / 手动部署、环境变量、升级指南 |
 | [Configuration](Configuration.md) | 环境变量详解、主题系统、数据源管理、配置导入导出 |
-| [Data-Sources](Data-Sources.md) | 采集站（Apple CMS）接入说明、自定义 API 格式、常见问题源 |
+| [Data-Sources](Data-Sources.md) | 采集站（Apple CMS）接入说明、自定义 API 格式、源订阅与分享 |
+| [Recommendations](Recommendations.md) | 首页推荐源（豆瓣 / Bangumi / 影视榜单）、切换与自部署 |
 | [Player](Player.md) | 播放器功能、快捷键、广告过滤、代理回退、进度与历史 |
 | [Proxy-Security](Proxy-Security.md) | 代理鉴权设计、SSRF 防护、安全模型与旧版对比 |
 | [FAQ](FAQ.md) | 常见问题排查 |
@@ -35,7 +36,7 @@ PASSWORD=dev-password npm run dev   # http://localhost:8080
 - **进度同步**：播放进度与观看历史存于本机 IndexedDB，精确到秒的续播
 - **换源测速**：跨源搜索同名资源并测速排序，一键切换保留集数位置
 - **源测试与订阅**：一键探活数据源；订阅远程源列表（LibreTV-SourceList JSON），可导出分享
-- **豆瓣推荐**：电影 / 剧集分类浏览，服务端直连避免公共 CORS 代理
+- **首页推荐**：豆瓣 / Bangumi 新番 / 影视榜单三源可选，服务端直连 + 缓存，免 key 免配置
 - **亮暗主题**：跟随系统 / 手动切换，无首屏闪烁
 - **PWA**：可安装到桌面 / 主屏幕
 

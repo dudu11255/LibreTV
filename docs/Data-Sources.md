@@ -2,6 +2,8 @@
 
 LibreTV 采用**空壳设计**：不内置任何采集站，由部署者/用户自行添加，避免内置源失效与合规风险。
 
+> 搜索用的**采集源**与首页的**推荐源**（豆瓣 / Bangumi / 影视榜单）是两套独立配置：前者决定"能搜到什么"，后者决定首页展示什么，见 [Recommendations](Recommendations.md)。
+
 - **部署者预置**：通过 `DEFAULT_SOURCES` 环境变量下发（JSON 数组），所有用户开箱即搜，详见[配置文档](Configuration.md)；
 - **用户自建**：设置抽屉「+ 添加 API」手动添加，保存在浏览器 localStorage。
 

@@ -7,7 +7,7 @@
 | 框架 | Next.js 15（App Router）+ React 19 | 服务端 API Routes 与客户端页面同仓 |
 | 语言 | TypeScript（strict） | 全量类型覆盖 |
 | 样式 | Tailwind CSS（构建期编译）+ CSS 变量主题 | 亮暗双主题，`darkMode: 'class'` |
-| 数据获取 | TanStack Query | 搜索/详情/豆瓣的缓存、重试、失效 |
+| 数据获取 | TanStack Query | 搜索/详情/推荐数据的缓存、重试、失效 |
 | 客户端状态 | Zustand（persist → localStorage） | 数据源列表与播放设置 |
 | 持久化 | Dexie（IndexedDB） | 观看历史、播放进度、搜索历史 |
 | 播放 | ArtPlayer + hls.js | 广告过滤 loader、代理回退 |
@@ -18,7 +18,7 @@
 libretv/
 ├── src/
 │   ├── app/
-│   │   ├── page.tsx                # 首页：搜索 + 豆瓣推荐（?s= URL 驱动）
+│   │   ├── page.tsx                # 首页：搜索 + 推荐区（?s= URL 驱动）
 │   │   ├── watch/page.tsx          # 播放页（唯一入口，URL 即状态）
 │   │   ├── about/page.tsx
 │   │   ├── layout.tsx              # 主题无闪烁内联脚本 + Providers
@@ -29,6 +29,8 @@ libretv/
 │   │       ├── search/route.ts     # 聚合搜索（并行 + 失败隔离 + 过滤）
 │   │       ├── detail/route.ts     # 详情（列表接口 → 详情页 HTML 降级）
 │   │       ├── douban/route.ts     # 豆瓣推荐（直连 + 缓存 + 代理降级）
+│   │       ├── bangumi/calendar/   # Bangumi 每日放送（免 key）
+│   │       ├── hot-list/route.ts   # 影视榜单（60s API：豆瓣周榜 + 百度热播）
 │   │       └── proxy/[url]/route.ts# 流式代理（SSRF 防护 + m3u8 重写）
 │   ├── components/                 # UI 组件（见下）
 │   └── lib/                        # 纯逻辑库（可单元测试）
@@ -37,6 +39,8 @@ libretv/
 │       ├── ssrf.ts                 # 内网地址识别与 DNS 校验
 │       ├── auth.ts                 # 会话签名/校验、登录限流
 │       ├── douban.ts               # 豆瓣数据获取（降级链 + TTL 缓存）
+│       ├── bangumi.ts              # Bangumi 每日放送（免 key，星期分组）
+│       ├── douban-weekly.ts        # 影视榜单聚合（60s API，六个榜单归一化）
 │       ├── fetch-utils.ts          # 超时/重试/内存缓存
 │       ├── db.ts                   # Dexie schema 与历史/进度 CRUD
 │       ├── store.ts                # Zustand 全局设置
@@ -56,7 +60,7 @@ libretv/
 | `auth.tsx` | 认证上下文；监听全局 401 事件弹出登录框 |
 | `header.tsx` | 顶部导航 + 通用抽屉（Drawer）骨架 |
 | `search`（page.tsx 内联） | 搜索框、历史 chips、结果网格、空态引导 |
-| `douban-section.tsx` | 豆瓣推荐（分类/标签/分页加载） |
+| `douban-section.tsx` | 首页推荐区（RecommendSection）：豆瓣 / Bangumi / 影视榜单三源按设置分支渲染 |
 | `video-card.tsx` | 搜索结果卡片 / 豆瓣卡片（封面多级降级） |
 | `detail-modal.tsx` | 详情弹窗（海报 + 元信息 + 剧集 + 复制链接） |
 | `source-manager.tsx` | 设置抽屉：数据源 CRUD、过滤开关、封面加载方式、配置导入导出 |

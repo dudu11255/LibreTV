@@ -2,7 +2,9 @@
 
 LibreTV Next.js 迁移版：免费在线视频聚合搜索与观看平台。基于 Next.js 15（App Router）+ TypeScript + Tailwind CSS，播放内核为 ArtPlayer + hls.js，支持亮暗双主题。
 
-> 📖 **完整文档**：[docs/Home.md](docs/Home.md) · [架构](docs/Architecture.md) · [部署](docs/Deployment.md) · [配置](docs/Configuration.md) · [数据源](docs/Data-Sources.md) · [播放器](docs/Player.md) · [代理与安全](docs/Proxy-Security.md) · [FAQ](docs/FAQ.md)
+> 📖 **完整文档**：[GitHub Wiki](https://github.com/bestZwei/LibreTV-Next/wiki) · [架构](https://github.com/bestZwei/LibreTV-Next/wiki/Architecture) · [部署](https://github.com/bestZwei/LibreTV-Next/wiki/Deployment) · [配置](https://github.com/bestZwei/LibreTV-Next/wiki/Configuration) · [数据源](https://github.com/bestZwei/LibreTV-Next/wiki/Data-Sources) · [首页推荐](https://github.com/bestZwei/LibreTV-Next/wiki/Recommendations) · [播放器](https://github.com/bestZwei/LibreTV-Next/wiki/Player) · [代理与安全](https://github.com/bestZwei/LibreTV-Next/wiki/Proxy-Security) · [FAQ](https://github.com/bestZwei/LibreTV-Next/wiki/FAQ)
+>
+> 仓库内 docs/ 目录为同一份文档的镜像，便于在代码浏览时就近阅读。
 
 ## 核心特性
 
