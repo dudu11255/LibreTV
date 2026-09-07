@@ -131,7 +131,7 @@ export function LiveSourceManager() {
   );
 
   return (
-    <section className="mb-6 border-t border-line pt-5">
+    <section className="mb-6 pt-5">
       <div className="flex items-center justify-between mb-2.5">
         <h3 className="text-sm font-semibold text-content">直播源</h3>
         <span className="text-[10px] text-faint">M3U 订阅 · /live 页面播放</span>

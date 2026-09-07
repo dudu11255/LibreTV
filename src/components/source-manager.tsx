@@ -107,7 +107,8 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
 
       {settingsTab === 'sources' && (
       <>
-      <section className="mb-6">
+      <SourceSubscriptions />
+      <section className="mb-6 border-t border-line pt-5">
         <SectionTitle
           title="数据源"
           extra={
@@ -259,7 +260,6 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
           </>
         )}
       </section>
-      <SourceSubscriptions />
       </>
       )}
 
@@ -267,7 +267,7 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
 
       {settingsTab === 'playback' && (
       <>
-      <section className="mb-6">
+      <section className="mb-6 pt-5">
         <SectionTitle title="播放与过滤" />
         <div className="space-y-3">
           <ToggleRow
@@ -407,7 +407,7 @@ function SourceSubscriptions() {
   };
 
   return (
-    <section className="mb-6 border-t border-line pt-5">
+    <section className="mb-6 pt-5">
       <SectionTitle
         title="源订阅 / 分享"
         extra={
