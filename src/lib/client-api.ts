@@ -1,6 +1,6 @@
 'use client';
 
-import type { SearchResponse, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem } from './types';
+import type { SearchResponse, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse } from './types';
 
 /**
  * 客户端 API 封装。401 时触发全局事件打开登录框，
@@ -113,6 +113,50 @@ export const api = {
     const sp = new URLSearchParams({ url });
     return request<{ name?: string; sources: SourceConfig[] }>(`/api/source-list?${sp.toString()}`);
   },
+
+  /** —— 直播 / IPTV —— */
+
+  /** 拉取并解析 M3U 订阅；force=1 跳过服务端缓存 */
+  livePlaylist: (url: string, force = false, signal?: AbortSignal) => {
+    const sp = new URLSearchParams({ url });
+    if (force) sp.set('force', '1');
+    return request<LivePlaylistResponse>(`/api/live/playlist?${sp.toString()}`, { signal });
+  },
+
+  /** 查询某频道的节目单（服务端缓存 6h） */
+  liveEpg: (epgUrl: string, tvgId: string, force = false, signal?: AbortSignal) => {
+    const sp = new URLSearchParams({ url: epgUrl, channel: tvgId });
+    if (force) sp.set('force', '1');
+    return request<LiveEpgResponse>(`/api/live/epg?${sp.toString()}`, { signal });
+  },
+
+  /** 直播订阅探活：以拉取解析耗时与频道数衡量可用性 */
+  liveTest: async (url: string) => {
+    const start = performance.now();
+    try {
+      const playlist = await api.livePlaylist(url, true);
+      return { ok: true, ms: Math.round(performance.now() - start), count: playlist.channels.length, error: undefined as string | undefined };
+    } catch (err) {
+      return { ok: false, ms: Math.round(performance.now() - start), count: 0, error: err instanceof Error ? err.message : '失败' };
+    }
+  },
+
+  /** 订阅导出（.m3u）下载地址 */
+  liveExportUrl: (url: string) => {
+    const sp = new URLSearchParams({ url, format: 'm3u' });
+    return `/api/live/playlist?${sp.toString()}`;
+  },
+
+  /** 批量测活：轻量探测频道可达性与延迟（单批最多 50 条） */
+  liveProbe: (urls: string[]) =>
+    request<{ results: { url: string; ok: boolean; status?: number; ms?: number; error?: string }[] }>(
+      '/api/live/probe',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls }),
+      }
+    ),
 };
 
 export interface SearchFailure {

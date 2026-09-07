@@ -89,4 +89,56 @@ export interface AuthStatusResponse {
   version: string;
   /** 部署者通过 DEFAULT_SOURCES 环境变量预置的采集站（未配置时为空数组） */
   defaultSources: SourceConfig[];
+  /** 部署者通过 DEFAULT_LIVE_SOURCES 环境变量预置的直播源（未配置时为空数组） */
+  defaultLiveSources: LiveSourceConfig[];
+}
+
+// —— 直播 / IPTV ——
+
+/** 直播源（M3U 订阅）配置 */
+export interface LiveSourceConfig {
+  key: string;
+  name: string;
+  /** M3U 订阅地址 */
+  url: string;
+  /** 可选：XMLTV 节目单地址 */
+  epg?: string;
+}
+
+/** 单个直播频道（由 M3U 解析得到） */
+export interface LiveChannel {
+  /** tvg-id 优先，缺失时由 URL 生成的稳定短 id */
+  id: string;
+  name: string;
+  url: string;
+  logo?: string;
+  group?: string;
+  tvgId?: string;
+  /** M3U 的 tvg-name 属性（原始台名） */
+  rawName?: string;
+}
+
+export interface LivePlaylistResponse {
+  /** 订阅名（M3U 无名时为空） */
+  name?: string;
+  channels: LiveChannel[];
+  groups: string[];
+}
+
+/** 单条节目单条目（XMLTV programme） */
+export interface EpgProgram {
+  channelId: string;
+  /** epoch ms */
+  start: number;
+  /** epoch ms */
+  stop: number;
+  title: string;
+  desc?: string;
+}
+
+export interface LiveEpgResponse {
+  channelId: string;
+  current?: EpgProgram;
+  next?: EpgProgram;
+  programs: EpgProgram[];
 }

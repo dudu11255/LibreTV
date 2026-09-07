@@ -8,6 +8,7 @@ import { formatRelativeTime, validateSourceUrl, cn } from '@/lib/utils';
 import { exportConfig, importConfig } from '@/lib/db';
 import { useAuth } from './auth';
 import { api } from '@/lib/client-api';
+import { LiveSourceManager } from './live-source-manager';
 
 /**
  * 设置抽屉：数据源管理 + 源订阅 + 播放/过滤选项 + 配置导入导出。
@@ -225,6 +226,8 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
       </section>
 
       <SourceSubscriptions />
+
+      <LiveSourceManager />
 
       <section className="mb-6 border-t border-line pt-5">
         <SectionTitle title="播放与过滤" />

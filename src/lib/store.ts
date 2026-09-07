@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { SourceConfig } from './types';
+import type { SourceConfig, LiveSourceConfig } from './types';
 
 /**
  * 全局设置（zustand + localStorage 持久化）。
@@ -31,6 +31,28 @@ export interface SourceSubscription {
   lastSync?: number;
 }
 
+/** 直播订阅：远程 M3U 播放列表（独立于采集站订阅模型，避免 key 前缀冲突） */
+export interface LiveSubscription {
+  url: string;
+  name?: string;
+  /** 该订阅关联的 XMLTV 节目单地址 */
+  epg?: string;
+  /** 上次同步成功时间 */
+  lastSync?: number;
+}
+
+/** 直播最近观看条目（上限 20 条，按 url 去重） */
+export interface LiveRecentEntry {
+  url: string;
+  name: string;
+  logo?: string;
+  group?: string;
+  tvgId?: string;
+  /** 来源订阅地址（用于回查 EPG） */
+  epg?: string;
+  timestamp: number;
+}
+
 /** 订阅导入的源 key 前缀：sub_<hash8(url)>_<i>，同步时按前缀整体替换 */
 export function subKeyPrefix(url: string): string {
   let h = 5381;
@@ -44,6 +66,17 @@ interface AppState extends AppSettings {
   /** 已向用户展示过并自动勾选过的预置源 key（持久化：用户取消勾选后不再反复勾上） */
   envKeysSeen: string[];
   subscriptions: SourceSubscription[];
+  /** —— 直播模块 —— */
+  /** 部署者通过 DEFAULT_LIVE_SOURCES 预置的直播源（服务端下发，不持久化） */
+  liveEnvSources: LiveSourceConfig[];
+  /** 已出现过的预置直播源 key（持久化：用于「首次自动可见」去重） */
+  liveEnvKeysSeen: string[];
+  /** 用户添加的 M3U 订阅 */
+  liveSubscriptions: LiveSubscription[];
+  /** 收藏频道（按流 URL 唯一标识） */
+  liveFavorites: string[];
+  /** 最近观看频道（上限 20） */
+  liveRecent: LiveRecentEntry[];
   addCustomApi: (api: Omit<SourceConfig, 'key'> & { key?: string }) => void;
   updateCustomApi: (key: string, patch: Partial<SourceConfig>) => void;
   removeCustomApi: (key: string) => void;
@@ -55,7 +88,18 @@ interface AppState extends AppSettings {
   markSubscriptionSynced: (url: string, name?: string) => void;
   /** 用订阅内容整体替换该订阅名下的源，返回新增数量 */
   applySubscriptionSources: (subUrl: string, list: Omit<SourceConfig, 'key'>[]) => number;
+  setLiveEnvSources: (list: LiveSourceConfig[]) => void;
+  addLiveSubscription: (url: string, name?: string, epg?: string) => void;
+  removeLiveSubscription: (url: string) => void;
+  markLiveSynced: (url: string, name?: string, epg?: string) => void;
+  toggleLiveFavorite: (channelUrl: string) => void;
+  addLiveRecent: (entry: Omit<LiveRecentEntry, 'timestamp'>) => void;
   updateSettings: (patch: Partial<Omit<AppSettings, 'customAPIs' | 'selectedKeys'>>) => void;
+}
+
+/** 全部可用直播源（预置 + 用户订阅）合并视图 */
+export function allLiveSources(state: Pick<AppState, 'liveEnvSources' | 'liveSubscriptions'>): LiveSourceConfig[] {
+  return [...state.liveEnvSources, ...state.liveSubscriptions.map((s) => ({ key: `sub_${s.url}`, name: s.name || s.url, url: s.url, epg: s.epg }))];
 }
 
 function nextCustomKey(apiList: SourceConfig[]): string {
@@ -72,6 +116,11 @@ export const useAppStore = create<AppState>()(
       envSources: [],
       envKeysSeen: [],
       subscriptions: [],
+      liveEnvSources: [],
+      liveEnvKeysSeen: [],
+      liveSubscriptions: [],
+      liveFavorites: [],
+      liveRecent: [],
       selectedKeys: [],
       yellowFilter: true,
       adFilter: true,
@@ -182,6 +231,54 @@ export const useAppStore = create<AppState>()(
         return incoming.length;
       },
 
+      setLiveEnvSources: (list) => {
+        // 预置直播源记下已见 key（用户在设置中不可移除预置项，仅作来源去重展示）
+        const seen = new Set(get().liveEnvKeysSeen);
+        const freshKeys = list.map((s) => s.key).filter((k) => !seen.has(k));
+        set({
+          liveEnvSources: list,
+          liveEnvKeysSeen: [...get().liveEnvKeysSeen, ...freshKeys],
+        });
+      },
+
+      addLiveSubscription: (url, name, epg) => {
+        const trimmed = url.trim();
+        if (!trimmed || get().liveSubscriptions.some((s) => s.url === trimmed)) return;
+        set({
+          liveSubscriptions: [...get().liveSubscriptions, { url: trimmed, name, epg }],
+        });
+      },
+
+      removeLiveSubscription: (url) => {
+        set({
+          liveSubscriptions: get().liveSubscriptions.filter((s) => s.url !== url),
+        });
+      },
+
+      markLiveSynced: (url, name, epg) => {
+        set({
+          liveSubscriptions: get().liveSubscriptions.map((s) =>
+            s.url === url
+              ? { ...s, lastSync: Date.now(), name: name ?? s.name, epg: epg ?? s.epg }
+              : s
+          ),
+        });
+      },
+
+      toggleLiveFavorite: (channelUrl) => {
+        const cur = get().liveFavorites;
+        set({
+          liveFavorites: cur.includes(channelUrl)
+            ? cur.filter((u) => u !== channelUrl)
+            : [...cur, channelUrl],
+        });
+      },
+
+      addLiveRecent: (entry) => {
+        const rest = get().liveRecent.filter((r) => r.url !== entry.url);
+        set({ liveRecent: [{ ...entry, timestamp: Date.now() }, ...rest].slice(0, 20) });
+      },
+
       updateSettings: (patch) => {
         // 打开成人内容过滤时，同步取消勾选所有成人源，避免两者并存
         if (patch.yellowFilter === true) {
@@ -207,6 +304,10 @@ export const useAppStore = create<AppState>()(
         selectedKeys: s.selectedKeys,
         envKeysSeen: s.envKeysSeen,
         subscriptions: s.subscriptions,
+        liveEnvKeysSeen: s.liveEnvKeysSeen,
+        liveSubscriptions: s.liveSubscriptions,
+        liveFavorites: s.liveFavorites,
+        liveRecent: s.liveRecent,
         yellowFilter: s.yellowFilter,
         adFilter: s.adFilter,
         doubanEnabled: s.doubanEnabled,

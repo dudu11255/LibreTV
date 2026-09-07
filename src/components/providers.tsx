@@ -28,6 +28,9 @@ export function Providers({ children }: { children: ReactNode }) {
         if (d && Array.isArray(d.defaultSources)) {
           useAppStore.getState().setEnvSources(d.defaultSources);
         }
+        if (d && Array.isArray(d.defaultLiveSources)) {
+          useAppStore.getState().setLiveEnvSources(d.defaultLiveSources);
+        }
       })
       .catch(() => {});
   }, []);
