@@ -37,6 +37,8 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
   const [error, setError] = useState('');
   const [hint, setHint] = useState('');
   const [loading, setLoading] = useState(true);
+  // 起播前的品牌占位图（与点播 player-shell 共用 /player-poster.png），实际开始播放后隐藏
+  const [showPoster, setShowPoster] = useState(true);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showHint = (text: string) => {
@@ -49,6 +51,7 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
     if (!containerRef.current || !url) return;
     setError('');
     setLoading(true);
+    setShowPoster(true);
 
     let playbackStarted = false;
     let disposed = false;
@@ -218,6 +221,7 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
     art.on('video:playing', () => {
       playbackStarted = true;
       setLoading(false);
+      setShowPoster(false);
       setError('');
     });
     art.on('video:error', () => {
@@ -254,6 +258,18 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
   return (
     <div className="relative w-full h-full">
       <div ref={containerRef} className="w-full h-full" />
+      {/* 起播前的品牌占位图 */}
+      {showPoster && !error && (
+        <div
+          className="absolute inset-0 bg-black pointer-events-none"
+          style={{
+            backgroundImage: 'url(/player-poster.png)',
+            backgroundSize: 'contain',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+          }}
+        />
+      )}
       {/* LIVE 呼吸标识 */}
       {!error && (
         <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/60 px-2 py-1 rounded-full pointer-events-none">
