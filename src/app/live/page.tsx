@@ -33,7 +33,11 @@ function LiveContent() {
   const { verified } = useAuth();
   const [copied, setCopied] = useState(false);
 
-  const sources = useMemo(() => allLiveSources(store), [store]);
+  // 仅聚合已启用的直播源（设置 → 直播源中的勾选状态）
+  const sources = useMemo(() => {
+    const selected = new Set(store.liveSelectedUrls);
+    return allLiveSources(store).filter((s) => selected.has(s.url));
+  }, [store]);
 
   // 聚合全部直播源的 M3U 解析结果（单源失败不影响整体）
   const playlistsQuery = useQuery({
@@ -130,7 +134,9 @@ function LiveContent() {
                   <span className="live-dot" />
                   <p className="text-white/60 text-sm">
                     {sources.length === 0
-                      ? '请先在设置中添加直播源（M3U 订阅）'
+                      ? store.liveEnvSources.length + store.liveSubscriptions.length > 0
+                        ? '所有直播源均已停用，请在设置中勾选启用'
+                        : '请先在设置中添加直播源（M3U 订阅）'
                       : playlistsQuery.isLoading
                         ? '频道列表加载中...'
                         : '从右侧选择一个频道开始观看'}
@@ -241,8 +247,10 @@ function LiveContent() {
             {(failedCount > 0 || sources.length === 0) && (
               <p className="text-[10px] text-faint px-3 py-1.5 border-t border-line shrink-0">
                 {sources.length === 0
-                  ? '暂无直播源，请在设置 → 直播源中添加'
-                  : `${failedCount} 个订阅拉取失败（共 ${sources.length} 个）`}
+                  ? store.liveEnvSources.length + store.liveSubscriptions.length > 0
+                    ? '所有直播源均已停用，请在设置中勾选启用'
+                    : '暂无直播源，请在设置 → 直播源中添加'
+                  : `${failedCount > 0 ? `${failedCount} 个订阅拉取失败 · ` : ''}共 ${sources.length} 个已启用源`}
               </p>
             )}
           </aside>

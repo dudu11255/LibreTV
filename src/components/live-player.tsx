@@ -67,6 +67,7 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
     /** HLS 直播参数：小缓冲、快速追帧；与点播（大缓冲、进度恢复）刻意区分 */
     const setupHls = (video: HTMLVideoElement, mediaUrl: string, allowProxyFallback: boolean) => {
       cleanupEngines();
+      let liveNetRetryCount = 0;
       const hlsConfig: Partial<HlsConfig> = {
         debug: false,
         enableWorker: true,
@@ -84,11 +85,21 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
       hlsRef.current = hls;
       hls.loadSource(mediaUrl);
       hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      hls.on(Hls.Events.MANIFEST_PARSED, (_evt, manifestData) => {
+        // H.265 检测：大量国内 IPTV 源为 HEVC 编码，Chromium 内核通常无法软解
+        const videoCodecs = (manifestData.levels || []).map((l) => l.videoCodec || '').join(',');
+        if (/hvc1|hev1|hevc/i.test(videoCodecs)) {
+          const support = video.canPlayType('video/mp4; codecs="hvc1.1.6.L93.B0"');
+          if (!support) {
+            showHint('该频道为 H.265 编码，当前浏览器可能无法解码，建议用 Edge/Safari');
+          }
+        }
         video.play().catch(() => {});
       });
       hls.on(Hls.Events.ERROR, (_evt, data) => {
         if (disposed || destroyed) return;
+        const httpCode = data.response?.code;
+        const codeHint = httpCode ? `（HTTP ${httpCode}）` : '';
         if (data.fatal && !playbackStarted) {
           if (
             allowProxyFallback &&
@@ -104,9 +115,14 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
             hls.recoverMediaError();
             return;
           }
-          setError('直播流加载失败，可能该频道已失效，请尝试其他频道');
+          setError(`直播流加载失败${codeHint}，可能该频道已失效，请尝试其他频道`);
         } else if (data.fatal && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          // 播放中网络抖动：尝试恢复拉流
+          // 播放中网络抖动：尝试恢复拉流；连续失败达到阈值则报错退出
+          liveNetRetryCount++;
+          if (liveNetRetryCount > 5) {
+            setError(`直播流中断${codeHint}，该源可能已失效，请尝试其他频道`);
+            return;
+          }
           hls.startLoad();
         }
       });

@@ -13,6 +13,7 @@ import { api } from '@/lib/client-api';
 export interface ProbeResult {
   ok: boolean;
   ms?: number;
+  level?: 'segment' | 'manifest' | 'head';
   error?: string;
 }
 
@@ -43,7 +44,7 @@ export function useLiveProbe() {
         const { results: list } = await api.liveProbe(chunk);
         setResults((prev) => {
           const next = new Map(prev);
-          for (const r of list) next.set(r.url, { ok: r.ok, ms: r.ms, error: r.error });
+          for (const r of list) next.set(r.url, { ok: r.ok, ms: r.ms, level: r.level, error: r.error });
           return next;
         });
       } catch (err) {

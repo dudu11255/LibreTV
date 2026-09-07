@@ -18,11 +18,12 @@ const MAX_REDIRECT_HOPS = 5;
  * 代理专用上游抓取：手动逐跳跟随跳转，每一跳重新执行 SSRF 校验。
  * 不能用 redirect:'follow'——预检之后 fetch 自动跟随的 3xx 可把请求
  * 带进内网/元数据地址，绕过下方对首跳的校验。
+ * 返回最终 URL：m3u8 内相对分片地址必须以重定向后的 URL 为 base 解析。
  */
 async function proxyFetch(
   targetUrl: string,
   init: { headers: Record<string, string> }
-): Promise<Response> {
+): Promise<{ res: Response; finalUrl: string }> {
   let current = targetUrl;
   for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
     const verdict = await checkUpstreamAllowed(current);
@@ -34,9 +35,9 @@ async function proxyFetch(
       redirect: 'manual',
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (!REDIRECT_STATUSES.has(res.status)) return res;
+    if (!REDIRECT_STATUSES.has(res.status)) return { res, finalUrl: current };
     const location = res.headers.get('location');
-    if (!location) return res;
+    if (!location) return { res, finalUrl: current };
     current = new URL(location, current).href;
   }
   throw new Error('重定向次数过多');
@@ -96,10 +97,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ url: string }> 
   if (range) headers.Range = range;
 
   let response: Response | undefined;
+  let finalUrl = targetUrl;
   let lastError: unknown = null;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      response = await proxyFetch(targetUrl, { headers });
+      const result = await proxyFetch(targetUrl, { headers });
+      response = result.res;
+      finalUrl = result.finalUrl;
       lastError = null;
       break;
     } catch (err) {
@@ -118,10 +122,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ url: string }> 
     contentType.includes('mpegurl') || contentType.includes('x-mpegurl') ||
     targetUrl.toLowerCase().endsWith('.m3u8');
 
-  // m3u8 文本：重写为代理路径
+  // m3u8 文本：重写为代理路径（以重定向后的最终 URL 为 base 解析相对地址）
   if (isM3u8) {
     const text = await response.text();
-    return new NextResponse(rewriteM3u8(text, targetUrl), {
+    return new NextResponse(rewriteM3u8(text, finalUrl), {
       status: response.status,
       headers: {
         'Content-Type': 'application/vnd.apple.mpegurl',

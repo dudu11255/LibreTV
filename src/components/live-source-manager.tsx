@@ -85,6 +85,14 @@ export function LiveSourceManager() {
   const renderRow = (url: string, label: string, epgUrl?: string, preset = false, lastSync?: number) => (
     <li className="bg-card rounded-lg p-3 transition-colors hover:bg-hover/50">
       <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-[#2563eb] shrink-0"
+          checked={store.liveSelectedUrls.includes(url)}
+          onChange={() => store.toggleLiveSelected(url)}
+          aria-label={store.liveSelectedUrls.includes(url) ? `停用 ${label}` : `启用 ${label}`}
+          title={store.liveSelectedUrls.includes(url) ? '已启用，取消勾选可停用' : '已停用，勾选后生效'}
+        />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-content truncate">
             {label}

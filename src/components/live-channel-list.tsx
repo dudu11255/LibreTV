@@ -296,7 +296,7 @@ function ChannelRow({
                   'w-1.5 h-1.5 rounded-full shrink-0',
                   probe.ok ? 'bg-green-500' : 'bg-red-400'
                 )}
-                title={probe.ok ? `可用 · ${probe.ms}ms` : probe.error || '不可用'}
+                title={probe.ok ? `${probe.level === 'segment' ? '分片可用' : 'manifest 可用'} · ${probe.ms}ms` : probe.error || '不可用'}
               />
             )}
             <span className={cn('text-xs truncate', active ? 'text-accent font-medium' : 'text-content')}>

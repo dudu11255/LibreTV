@@ -50,12 +50,14 @@ async function checkStreamAllowed(urlString: string): Promise<UpstreamVerdict> {
  * 带响应头超时的上游抓取：仅首字节（响应头）限时，超时 abort；
  * 响应头到达后清除计时器，body 流不再受限。手动逐跳跟随重定向，
  * 每一跳重新执行 SSRF 校验（302 跳内网是经典绕过手法）。
+ * 返回最终 URL：gslb 调度源 302 后路径会变，manifest 内相对分片地址
+ * 必须以最终 URL 为 base 解析，否则分片请求会 404。
  */
 async function fetchLiveUpstream(
   targetUrl: string,
   headers: Record<string, string>,
   controller: AbortController
-): Promise<Response> {
+): Promise<{ res: Response; finalUrl: string }> {
   let current = targetUrl;
   for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
     const verdict = await checkStreamAllowed(current);
@@ -73,9 +75,9 @@ async function fetchLiveUpstream(
       clearTimeout(timer);
     }
 
-    if (!REDIRECT_STATUSES.has(res.status)) return res;
+    if (!REDIRECT_STATUSES.has(res.status)) return { res, finalUrl: current };
     const location = res.headers.get('location');
-    if (!location) return res;
+    if (!location) return { res, finalUrl: current };
     current = new URL(location, current).href;
   }
   throw new Error('重定向次数过多');
@@ -101,8 +103,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ url: string }> 
   const headers: Record<string, string> = { 'User-Agent': UA, Accept: '*/*' };
 
   let response: Response;
+  let finalUrl: string;
   try {
-    response = await fetchLiveUpstream(targetUrl, headers, controller);
+    const result = await fetchLiveUpstream(targetUrl, headers, controller);
+    response = result.res;
+    finalUrl = result.finalUrl;
   } catch (err) {
     return jsonError(
       `直播流连接失败: ${err instanceof Error ? err.message : '未知错误'}`,
@@ -111,9 +116,16 @@ export async function GET(req: Request, ctx: { params: Promise<{ url: string }> 
   }
 
   if (!response.ok && response.body) {
-    // 非直播正常响应（403/404 等）：丢弃 body 连接
+    // 非直播正常响应（403/404 等）：透传原始状态码便于前端与开发者工具定位
+    // （一律包成 502 会掩盖「token 过期 403」与「源瞬断」的区别）
     try { await response.body.cancel(); } catch { /* 忽略 */ }
-    return jsonError(`直播流上游返回 ${response.status}`, 502);
+    return NextResponse.json(
+      { error: `直播流上游返回 ${response.status}` },
+      {
+        status: response.status,
+        headers: { 'Cache-Control': 'no-store', 'X-Live-Upstream-Status': String(response.status) },
+      }
+    );
   }
 
   const contentType = response.headers.get('content-type') || '';
@@ -121,10 +133,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ url: string }> 
     contentType.includes('mpegurl') || contentType.includes('x-mpegurl') ||
     targetUrl.toLowerCase().split('?')[0].endsWith('.m3u8');
 
-  // HLS manifest：重写变体/分片地址指向本路由，保证后续请求同源同鉴权
+  // HLS manifest：重写变体/分片地址指向本路由，保证后续请求同源同鉴权。
+  // 关键：以重定向后的最终 URL 为 base 解析相对地址（gslb 调度源 302 后路径会变）
   if (isM3u8) {
     const text = await response.text();
-    return new NextResponse(rewriteM3u8(text, targetUrl, 0, LIVE_PREFIX), {
+    return new NextResponse(rewriteM3u8(text, finalUrl, 0, LIVE_PREFIX), {
       status: response.status,
       headers: {
         'Content-Type': 'application/vnd.apple.mpegurl',

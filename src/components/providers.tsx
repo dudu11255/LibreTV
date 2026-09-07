@@ -20,10 +20,14 @@ export function Providers({ children }: { children: ReactNode }) {
   // store 配置了 skipHydration：等挂载后再读 localStorage，
   // 保证 hydration 阶段客户端与服务端渲染结果一致。
   useEffect(() => {
-    void useAppStore.persist.rehydrate();
-    // 拉取部署者通过 DEFAULT_SOURCES 预置的采集站（失败时静默忽略）
-    fetch('/api/status')
-      .then((r) => (r.ok ? r.json() : null))
+    // 先等持久化状态恢复，再拉服务端下发数据：
+    // 避免 setEnvSources/setLiveEnvSources 的勾选合并发生在 rehydrate 之前被覆盖
+    Promise.resolve(useAppStore.persist.rehydrate())
+      .then(() => {
+        // 拉取部署者通过 DEFAULT_SOURCES / DEFAULT_LIVE_SOURCES 预置的源（失败时静默忽略）
+        return fetch('/api/status');
+      })
+      .then((r) => (r && r.ok ? r.json() : null))
       .then((d) => {
         if (d && Array.isArray(d.defaultSources)) {
           useAppStore.getState().setEnvSources(d.defaultSources);

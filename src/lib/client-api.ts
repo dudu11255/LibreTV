@@ -147,9 +147,9 @@ export const api = {
     return `/api/live/playlist?${sp.toString()}`;
   },
 
-  /** 批量测活：轻量探测频道可达性与延迟（单批最多 50 条） */
+  /** 批量测活：分片级探测频道可达性与延迟（单批最多 50 条） */
   liveProbe: (urls: string[]) =>
-    request<{ results: { url: string; ok: boolean; status?: number; ms?: number; error?: string }[] }>(
+    request<{ results: { url: string; ok: boolean; status?: number; ms?: number; level?: 'segment' | 'manifest' | 'head'; error?: string }[] }>(
       '/api/live/probe',
       {
         method: 'POST',

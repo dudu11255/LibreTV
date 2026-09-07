@@ -73,6 +73,8 @@ interface AppState extends AppSettings {
   liveEnvKeysSeen: string[];
   /** 用户添加的 M3U 订阅 */
   liveSubscriptions: LiveSubscription[];
+  /** 已启用的直播源（按订阅 URL 唯一标识，首次出现自动勾选） */
+  liveSelectedUrls: string[];
   /** 收藏频道（按流 URL 唯一标识） */
   liveFavorites: string[];
   /** 最近观看频道（上限 20） */
@@ -92,6 +94,7 @@ interface AppState extends AppSettings {
   addLiveSubscription: (url: string, name?: string, epg?: string) => void;
   removeLiveSubscription: (url: string) => void;
   markLiveSynced: (url: string, name?: string, epg?: string) => void;
+  toggleLiveSelected: (url: string) => void;
   toggleLiveFavorite: (channelUrl: string) => void;
   addLiveRecent: (entry: Omit<LiveRecentEntry, 'timestamp'>) => void;
   updateSettings: (patch: Partial<Omit<AppSettings, 'customAPIs' | 'selectedKeys'>>) => void;
@@ -119,6 +122,7 @@ export const useAppStore = create<AppState>()(
       liveEnvSources: [],
       liveEnvKeysSeen: [],
       liveSubscriptions: [],
+      liveSelectedUrls: [],
       liveFavorites: [],
       liveRecent: [],
       selectedKeys: [],
@@ -232,12 +236,13 @@ export const useAppStore = create<AppState>()(
       },
 
       setLiveEnvSources: (list) => {
-        // 预置直播源记下已见 key（用户在设置中不可移除预置项，仅作来源去重展示）
+        // 预置直播源首次出现时自动启用；用户此后停用不会被反复勾回
         const seen = new Set(get().liveEnvKeysSeen);
-        const freshKeys = list.map((s) => s.key).filter((k) => !seen.has(k));
+        const freshUrls = list.filter((s) => !seen.has(s.key)).map((s) => s.url);
         set({
           liveEnvSources: list,
-          liveEnvKeysSeen: [...get().liveEnvKeysSeen, ...freshKeys],
+          liveEnvKeysSeen: [...get().liveEnvKeysSeen, ...list.map((s) => s.key)],
+          liveSelectedUrls: [...get().liveSelectedUrls, ...freshUrls],
         });
       },
 
@@ -246,12 +251,24 @@ export const useAppStore = create<AppState>()(
         if (!trimmed || get().liveSubscriptions.some((s) => s.url === trimmed)) return;
         set({
           liveSubscriptions: [...get().liveSubscriptions, { url: trimmed, name, epg }],
+          // 新添加的订阅默认启用
+          liveSelectedUrls: [...new Set([...get().liveSelectedUrls, trimmed])],
         });
       },
 
       removeLiveSubscription: (url) => {
         set({
           liveSubscriptions: get().liveSubscriptions.filter((s) => s.url !== url),
+          liveSelectedUrls: get().liveSelectedUrls.filter((u) => u !== url),
+        });
+      },
+
+      toggleLiveSelected: (url) => {
+        const cur = get().liveSelectedUrls;
+        set({
+          liveSelectedUrls: cur.includes(url)
+            ? cur.filter((u) => u !== url)
+            : [...cur, url],
         });
       },
 
@@ -306,6 +323,7 @@ export const useAppStore = create<AppState>()(
         subscriptions: s.subscriptions,
         liveEnvKeysSeen: s.liveEnvKeysSeen,
         liveSubscriptions: s.liveSubscriptions,
+        liveSelectedUrls: s.liveSelectedUrls,
         liveFavorites: s.liveFavorites,
         liveRecent: s.liveRecent,
         yellowFilter: s.yellowFilter,

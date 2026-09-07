@@ -15,17 +15,30 @@ export interface FetchOptions extends RequestInit {
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const MAX_REDIRECT_HOPS = 5;
 
+export interface FetchResult {
+  res: Response;
+  /** 跟随重定向后的最终 URL（manual 模式下 res.url 不可靠，须自行跟踪）。
+   *  解析 manifest 内的相对地址必须用它，否则分片路径会指向错误目录。 */
+  finalUrl: string;
+}
+
 export async function fetchUpstream(url: string, options: FetchOptions = {}): Promise<Response> {
+  return (await fetchUpstreamWithMeta(url, options)).res;
+}
+
+/** 同 fetchUpstream，额外返回重定向后的最终 URL */
+export async function fetchUpstreamWithMeta(url: string, options: FetchOptions = {}): Promise<FetchResult> {
   const { timeoutMs = 8000, retries = 0, safeRedirects = true, ...init } = options;
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       if (!safeRedirects) {
-        return await fetch(url, {
+        const res = await fetch(url, {
           ...init,
           signal: AbortSignal.timeout(timeoutMs),
           redirect: init.redirect ?? 'follow',
         });
+        return { res, finalUrl: res.url || url };
       }
       // 手动逐跳跟随，每一跳重新过 SSRF 校验
       let current = url;
@@ -39,9 +52,9 @@ export async function fetchUpstream(url: string, options: FetchOptions = {}): Pr
           redirect: 'manual',
           signal: AbortSignal.timeout(timeoutMs),
         });
-        if (!REDIRECT_STATUSES.has(res.status)) return res;
+        if (!REDIRECT_STATUSES.has(res.status)) return { res, finalUrl: current };
         const location = res.headers.get('location');
-        if (!location) return res;
+        if (!location) return { res, finalUrl: current };
         current = new URL(location, current).href;
       }
       throw new Error('重定向次数过多');
