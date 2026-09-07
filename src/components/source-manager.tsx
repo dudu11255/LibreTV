@@ -11,18 +11,30 @@ import { api } from '@/lib/client-api';
 import { LiveSourceManager } from './live-source-manager';
 
 /**
- * 设置抽屉：数据源管理 + 源订阅 + 播放/过滤选项 + 配置导入导出。
+ * 设置抽屉：顶部 Tab 分类（数据源 / 直播源 / 播放设置 / 配置），
+ * 每次只渲染一类内容，避免源很多时长距离滚动。
  */
 
 type TestState =
   | { status: 'loading' }
   | { status: 'done'; ok: boolean; ms?: number; count?: number; error?: string };
 
+type SettingsTab = 'sources' | 'live' | 'playback' | 'config';
+
+const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
+  { id: 'sources', label: '数据源' },
+  { id: 'live', label: '直播源' },
+  { id: 'playback', label: '播放设置' },
+  { id: 'config', label: '配置' },
+];
+
 export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const store = useAppStore();
   const { toast } = useToast();
   const [editing, setEditing] = useState<string | null>(null);
   const [tests, setTests] = useState<Record<string, TestState>>({});
+  // Tab 选中态不持久化：每次打开抽屉回到「数据源」
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('sources');
 
   const runTest = async (key: string, url: string) => {
     setTests((prev) => ({ ...prev, [key]: { status: 'loading' } }));
@@ -75,6 +87,26 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
 
   return (
     <Drawer open={open} onClose={onClose} title="设置">
+      {/* 分类 Tab 条：-mt-4 抵消内容容器的上内边距使其贴合标题栏；sticky 吸附在标题栏下方（标题栏高 60px + 1px 边框） */}
+      <div className="sticky top-[61px] z-10 -mx-4 -mt-4 px-4 pt-3 pb-2.5 bg-surface-raised border-b border-line flex gap-1">
+        {SETTINGS_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            className={cn(
+              'px-2.5 py-1 rounded-md text-xs transition-colors',
+              settingsTab === tab.id
+                ? 'bg-accent/10 text-accent font-medium'
+                : 'text-muted hover:text-content hover:bg-hover'
+            )}
+            onClick={() => setSettingsTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {settingsTab === 'sources' && (
+      <>
       <section className="mb-6">
         <SectionTitle
           title="数据源"
@@ -96,6 +128,8 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
           <EmptySourceGuide onAdd={() => setEditing('__new__')} />
         ) : (
           <>
+            {/* 源很多时限高内滚，避免 tab 内长滚 */}
+            <div className="max-h-[50vh] overflow-y-auto scrollbar-thin pr-1">
             {store.envSources.length > 0 && (
               <ul className="space-y-2 mb-2">
                 {store.envSources.map((api) => (
@@ -221,15 +255,19 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
               );
             })}
             </ul>
+            </div>
           </>
         )}
       </section>
-
       <SourceSubscriptions />
+      </>
+      )}
 
-      <LiveSourceManager />
+      {settingsTab === 'live' && <LiveSourceManager />}
 
-      <section className="mb-6 border-t border-line pt-5">
+      {settingsTab === 'playback' && (
+      <>
+      <section className="mb-6">
         <SectionTitle title="播放与过滤" />
         <div className="space-y-3">
           <ToggleRow
@@ -293,11 +331,15 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
           <p className="text-xs text-faint">豆瓣封面在某些网络下直连会被拒绝，可切换为内置代理。</p>
         </div>
       </section>
+      </>
+      )}
 
-      <section className="border-t border-line pt-5">
-        <SectionTitle title="配置" />
-        <ConfigIoButtons />
-      </section>
+      {settingsTab === 'config' && (
+        <section className="pt-5">
+          <SectionTitle title="配置" />
+          <ConfigIoButtons />
+        </section>
+      )}
     </Drawer>
   );
 }
@@ -393,7 +435,7 @@ function SourceSubscriptions() {
           订阅后源列表可随远端更新一键同步；「导出源列表」生成的 JSON 托管到任意 URL 即可分享给他人订阅。
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-2 max-h-[30vh] overflow-y-auto scrollbar-thin pr-1">
           {store.subscriptions.map((sub) => (
             <li key={sub.url} className="bg-card rounded-lg p-3 transition-colors hover:bg-hover/50">
               <div className="flex items-center gap-2">

@@ -174,7 +174,7 @@ export function LiveSourceManager() {
           添加 M3U 订阅后即可在「直播」页按分组浏览与播放频道；部署者也可通过 DEFAULT_LIVE_SOURCES 环境变量预置。
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-2 max-h-[50vh] overflow-y-auto scrollbar-thin pr-1">
           {store.liveEnvSources.map((s) => renderRow(s.url, s.name, s.epg, true))}
           {store.liveSubscriptions.map((s) => renderRow(s.url, s.name || new URL(s.url).hostname, s.epg, false, s.lastSync))}
         </ul>
