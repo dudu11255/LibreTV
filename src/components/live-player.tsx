@@ -37,6 +37,8 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
   const [error, setError] = useState('');
   const [hint, setHint] = useState('');
   const [loading, setLoading] = useState(true);
+  // 手动重试计数：变化时重建整个播放器实例（比 location.reload() 轻得多）
+  const [retryNonce, setRetryNonce] = useState(0);
   // 起播前的品牌占位图（与点播 player-shell 共用 /player-poster.png），实际开始播放后隐藏
   const [showPoster, setShowPoster] = useState(true);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -71,6 +73,7 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
     const setupHls = (video: HTMLVideoElement, mediaUrl: string, allowProxyFallback: boolean) => {
       cleanupEngines();
       let liveNetRetryCount = 0;
+      let mediaRecoverCount = 0;
       const hlsConfig: Partial<HlsConfig> = {
         debug: false,
         enableWorker: true,
@@ -103,7 +106,18 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
         if (disposed || destroyed) return;
         const httpCode = data.response?.code;
         const codeHint = httpCode ? `（HTTP ${httpCode}）` : '';
-        if (data.fatal && !playbackStarted) {
+        if (!data.fatal) return;
+        // 媒体错误：起播前后统一尝试恢复，次数受限防止无限 recover 循环
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          if (mediaRecoverCount < 2) {
+            mediaRecoverCount++;
+            hls.recoverMediaError();
+            return;
+          }
+          setError('直播流解码失败，可能该频道编码不受当前浏览器支持，请尝试其他频道');
+          return;
+        }
+        if (!playbackStarted) {
           if (
             allowProxyFallback &&
             !mediaUrl.startsWith(STREAM_PROXY_PREFIX) &&
@@ -114,12 +128,10 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
             setupHls(video, proxyUrl(url), false);
             return;
           }
-          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            hls.recoverMediaError();
-            return;
-          }
           setError(`直播流加载失败${codeHint}，可能该频道已失效，请尝试其他频道`);
-        } else if (data.fatal && data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          return;
+        }
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
           // 播放中网络抖动：尝试恢复拉流；连续失败达到阈值则报错退出
           liveNetRetryCount++;
           if (liveNetRetryCount > 5) {
@@ -253,7 +265,7 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
       destroyed = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url]);
+  }, [url, retryNonce]);
 
   return (
     <div className="relative w-full h-full">
@@ -285,7 +297,15 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80">
           <p className="text-red-400 text-sm px-4 text-center">{error}</p>
-          <button className="btn-ghost text-xs !bg-white/10 !text-white !border-white/20" onClick={() => location.reload()}>
+          <button
+            className="btn-ghost text-xs !bg-white/10 !text-white !border-white/20"
+            onClick={() => {
+              // 重建播放器实例即可，无需整页刷新
+              setError('');
+              setHint('');
+              setRetryNonce((n) => n + 1);
+            }}
+          >
             重新加载
           </button>
         </div>

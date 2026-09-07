@@ -18,14 +18,19 @@ const DESC_RE = /<desc(?:\s[^>]*)?>([\s\S]*?)<\/desc>/i;
 
 const DEFAULT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+/** 安全解码码点：畸形实体（越界/NaN）返回空串而非抛 RangeError，避免单条脏数据毁掉整份 EPG */
+function safeCodePoint(n: number): string {
+  return Number.isInteger(n) && n >= 0 && n <= 0x10ffff ? String.fromCodePoint(n) : '';
+}
+
 /** 解析 XMLTV 实体（含 CDATA 与数字实体） */
 function decodeXmlText(raw: string): string {
   let text = raw.trim();
   const cdata = text.match(/^<!\[CDATA\[([\s\S]*)\]\]>$/);
   if (cdata) text = cdata[1];
   return text
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => safeCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec: string) => safeCodePoint(parseInt(dec, 10)))
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&lt;/g, '<')
