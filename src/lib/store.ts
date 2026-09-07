@@ -53,6 +53,19 @@ export interface LiveRecentEntry {
   timestamp: number;
 }
 
+/** 测活结果有效期：6 小时内直接复用，过期后重新探测 */
+export const LIVE_PROBE_TTL_MS = 6 * 60 * 60 * 1000;
+
+/** 直播测活结果缓存条目（按流 URL 唯一标识） */
+export interface LiveProbeEntry {
+  ok: boolean;
+  ms?: number;
+  level?: 'segment' | 'manifest' | 'head';
+  error?: string;
+  /** 测活时间戳（epoch ms），配合 TTL 判断有效性 */
+  timestamp: number;
+}
+
 /** 订阅导入的源 key 前缀：sub_<hash8(url)>_<i>，同步时按前缀整体替换 */
 export function subKeyPrefix(url: string): string {
   let h = 5381;
@@ -79,6 +92,8 @@ interface AppState extends AppSettings {
   liveFavorites: string[];
   /** 最近观看频道（上限 20） */
   liveRecent: LiveRecentEntry[];
+  /** 测活结果缓存（6 小时有效，跨会话持久化） */
+  liveProbeResults: Record<string, LiveProbeEntry>;
   addCustomApi: (api: Omit<SourceConfig, 'key'> & { key?: string }) => void;
   updateCustomApi: (key: string, patch: Partial<SourceConfig>) => void;
   removeCustomApi: (key: string) => void;
@@ -97,6 +112,9 @@ interface AppState extends AppSettings {
   toggleLiveSelected: (url: string) => void;
   toggleLiveFavorite: (channelUrl: string) => void;
   addLiveRecent: (entry: Omit<LiveRecentEntry, 'timestamp'>) => void;
+  /** 合并写入测活结果，并顺带清理过期条目 */
+  setLiveProbeResults: (entries: Record<string, LiveProbeEntry>) => void;
+  clearLiveProbeResults: () => void;
   updateSettings: (patch: Partial<Omit<AppSettings, 'customAPIs' | 'selectedKeys'>>) => void;
 }
 
@@ -125,6 +143,7 @@ export const useAppStore = create<AppState>()(
       liveSelectedUrls: [],
       liveFavorites: [],
       liveRecent: [],
+      liveProbeResults: {},
       selectedKeys: [],
       yellowFilter: true,
       adFilter: true,
@@ -296,6 +315,19 @@ export const useAppStore = create<AppState>()(
         set({ liveRecent: [{ ...entry, timestamp: Date.now() }, ...rest].slice(0, 20) });
       },
 
+      setLiveProbeResults: (entries) => {
+        const now = Date.now();
+        // 合并新结果并顺带清理过期条目，避免 localStorage 无限增长
+        const next: Record<string, LiveProbeEntry> = {};
+        for (const [url, e] of Object.entries(get().liveProbeResults)) {
+          if (now - e.timestamp < LIVE_PROBE_TTL_MS) next[url] = e;
+        }
+        for (const [url, e] of Object.entries(entries)) next[url] = e;
+        set({ liveProbeResults: next });
+      },
+
+      clearLiveProbeResults: () => set({ liveProbeResults: {} }),
+
       updateSettings: (patch) => {
         // 打开成人内容过滤时，同步取消勾选所有成人源，避免两者并存
         if (patch.yellowFilter === true) {
@@ -326,6 +358,7 @@ export const useAppStore = create<AppState>()(
         liveSelectedUrls: s.liveSelectedUrls,
         liveFavorites: s.liveFavorites,
         liveRecent: s.liveRecent,
+        liveProbeResults: s.liveProbeResults,
         yellowFilter: s.yellowFilter,
         adFilter: s.adFilter,
         doubanEnabled: s.doubanEnabled,

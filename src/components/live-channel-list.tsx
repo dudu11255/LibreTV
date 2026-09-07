@@ -37,7 +37,7 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect }: Chan
   const [keyword, setKeyword] = useState('');
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [onlyAlive, setOnlyAlive] = useState(false);
-  const { results: probeResults, progress: probeProgress, probe, clear: clearProbe, isProbing } = useLiveProbe();
+  const { results: probeResults, progress: probeProgress, probe, clear: clearProbe, isProbing, hint: probeHint } = useLiveProbe();
 
   const favSet = useMemo(() => new Set(store.liveFavorites), [store.liveFavorites]);
 
@@ -119,7 +119,7 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect }: Chan
           className="btn-ghost !py-1 !px-2 text-xs"
           disabled={isProbing || filtered.length === 0}
           onClick={() => void probe(filtered)}
-          title="轻量探测当前列表频道的可达性与延迟（每批 10 条并发探测）"
+          title="轻量探测当前列表频道的可达性与延迟（每批 10 条并发探测，结果 6 小时内有效）"
         >
           ⚡ 测活
         </button>
@@ -127,6 +127,9 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect }: Chan
           <span className="text-[10px] text-faint">
             探测中 {probeProgress.done}/{probeProgress.total}
           </span>
+        )}
+        {probeHint && !isProbing && (
+          <span className="text-[10px] text-faint">{probeHint}</span>
         )}
         {probeResults.size > 0 && !isProbing && (
           <>
