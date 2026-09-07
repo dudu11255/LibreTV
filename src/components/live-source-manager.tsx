@@ -83,7 +83,7 @@ export function LiveSourceManager() {
   };
 
   const renderRow = (url: string, label: string, epgUrl?: string, preset = false, lastSync?: number) => (
-    <li className="bg-card rounded-lg p-3 transition-colors hover:bg-hover/50">
+    <li key={url} className="bg-card rounded-lg p-3 transition-colors hover:bg-hover/50">
       <div className="flex items-center gap-2">
         <input
           type="checkbox"
