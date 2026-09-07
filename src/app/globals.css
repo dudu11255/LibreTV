@@ -23,24 +23,30 @@
 }
 
 .dark {
-  --c-page: 17 17 17;              /* #111111 旧版页面底色 */
-  --c-surface: 25 25 25;           /* #191919 旧版弹窗/抽屉底色 */
-  --c-surface-raised: 25 25 25;
-  --c-card: 30 30 30;              /* #1e1e1e */
-  --c-chip: 34 34 34;              /* #222222 旧版卡片/输入框底色 */
-  --c-hover: 38 38 38;             /* #262626 */
-  --c-line: 48 48 48;              /* #303030 */
-  --c-content: 231 231 231;        /* #e7e7e7 */
-  --c-muted: 155 155 155;          /* #9b9b9b */
-  --c-faint: 122 122 122;          /* #7a7a7a */
-  --c-accent: 37 99 235;
-  --c-accent-hover: 29 78 216;
+  /* 旧版 LibreTV（backup-2025）赛博影视主题（整体调深一档）：深蓝黑底 + 霓虹蓝/粉点缀 */
+  --c-page: 11 16 26;              /* #0b101a 深蓝黑页面底色 */
+  --c-surface: 20 28 41;           /* #141c29 弹窗/抽屉底色 */
+  --c-surface-raised: 20 28 41;
+  --c-card: 13 20 31;              /* #0d141f 卡片底色 */
+  --c-chip: 22 32 46;              /* #16202e 卡片/输入框底色 */
+  --c-hover: 29 42 61;             /* #1d2a3d 悬停态（chip 提亮） */
+  --c-line: 34 48 69;              /* #223045 边框（近似旧版 rgba(0,204,255,.15) 观感） */
+  --c-content: 230 242 255;        /* #e6f2ff 蓝白主文本（--text-color） */
+  --c-muted: 133 153 178;          /* #8599b2 次级文本（--text-muted） */
+  --c-faint: 107 127 153;          /* #6b7f99 三级文本 */
+  --c-accent: 0 184 230;           /* #00b8e6 霓虹蓝主色（--primary-color 调深一档） */
+  --c-accent-hover: 51 214 255;    /* #33d6ff 霓虹蓝浅变体（--primary-light） */
   color-scheme: dark;
 }
 
 html,
 body {
   @apply bg-page text-content antialiased;
+}
+
+/* 暗色主题：模拟旧版 .page-bg 的深蓝黑纵向渐变 */
+.dark body {
+  background: linear-gradient(180deg, rgb(11 16 26), rgb(20 28 41)) fixed;
 }
 
 body {
