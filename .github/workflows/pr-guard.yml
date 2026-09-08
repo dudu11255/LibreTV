@@ -1,0 +1,114 @@
+name: pr-guard
+
+# 社区 PR 反垃圾识别 + 基础质量门禁：
+#
+# verify：类型检查与单测，作为合并前的最低验证（fork PR 默认只读 token，安全）。
+# triage：启发式识别推广垃圾 PR（典型特征组合——描述空白、新注册账号、
+#         突然新增仓库中从未出现过的外部链接），命中打 spam-suspect 标签并评论。
+#
+# 只标记不自动关闭：启发式必有误判，最终去留留给人工复核。
+# 建议配合仓库设置使用：Settings → Branches → main 分支保护，
+# 要求 verify 通过 + 至少 1 个 approve 才允许合并。
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  triage:
+    runs-on: ubuntu-latest
+    # 维护者与已有协作者的 PR 不做垃圾识别
+    if: >-
+      github.event.pull_request.author_association == 'NONE' ||
+      github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR' ||
+      github.event.pull_request.author_association == 'FIRST_TIMER' ||
+      github.event.pull_request.author_association == 'CONTRIBUTOR'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 评估垃圾 PR 信号
+        id: signals
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          score=0
+          reasons=""
+
+          # 信号 1：PR 描述过短（推广 PR 常见特征：标题正经、正文空白）
+          body_len=${#PR_BODY}
+          if [ "$body_len" -lt 20 ]; then
+            score=$((score+1))
+            reasons="${reasons}PR 描述过短（${body_len} 字符）%0A"
+          fi
+
+          # 信号 2：账号注册不足 7 天（批量垃圾号生命周期短）
+          created=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/users/${AUTHOR}" | jq -r .created_at)
+          age_days=$(( ($(date +%s) - $(date -d "$created" +%s)) / 86400 ))
+          if [ "$age_days" -lt 7 ]; then
+            score=$((score+1))
+            reasons="${reasons}账号注册不足 7 天（${age_days} 天）%0A"
+          fi
+
+          # 信号 3：diff 新增了仓库现有内容中从未出现过的外部域名（推广链接特征）
+          gh pr diff "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" \
+            | grep '^+' | grep -oE 'https?://[a-zA-Z0-9.-]+' \
+            | sed 's|^https\?://||' | sort -u > new_domains.txt || true
+          grep -rhoE 'https?://[a-zA-Z0-9.-]+' \
+            --include='*.ts' --include='*.tsx' --include='*.md' --include='*.json' --include='*.yml' \
+            . | sed 's|^https\?://||' | sort -u > known_domains.txt || true
+          spam_links=0
+          while read -r d; do
+            [ -z "$d" ] && continue
+            # 常见开发基础设施域名不算可疑
+            case "$d" in
+              github.com|raw.githubusercontent.com|objects.githubusercontent.com|api.github.com|registry.npmjs.org) continue ;;
+            esac
+            grep -qxF "$d" known_domains.txt || spam_links=$((spam_links+1))
+          done < new_domains.txt
+          if [ "$spam_links" -gt 2 ]; then
+            score=$((score+1))
+            reasons="${reasons}新增 ${spam_links} 个仓库中从未出现的外部域名%0A"
+          fi
+
+          echo "score=$score" >> "$GITHUB_OUTPUT"
+          echo "reasons=$reasons" >> "$GITHUB_OUTPUT"
+          echo "spam_links=$spam_links" >> "$GITHUB_OUTPUT"
+          echo "age_days=$age_days" >> "$GITHUB_OUTPUT"
+
+      # 两个及以上信号同时命中才标记，降低误伤概率
+      - name: 标记为疑似垃圾 PR
+        if: steps.signals.outputs.score >= 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          gh label create spam-suspect \
+            --repo "$GITHUB_REPOSITORY" \
+            --description "疑似推广垃圾 PR，待人工复核" \
+            --color "D93F0B" || true
+          gh pr edit "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --add-label spam-suspect
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body \
+            "该 PR 命中多项垃圾推广特征，已标记为 \`spam-suspect\`，等待维护者复核：
+          ${{ steps.signals.outputs.reasons }}
+          如为误判请回复说明，维护者会移除标签。"
