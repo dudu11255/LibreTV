@@ -8,6 +8,7 @@ import { formatRelativeTime, validateSourceUrl, cn } from '@/lib/utils';
 import { exportConfig, importConfig } from '@/lib/db';
 import { useAuth } from './auth';
 import { api } from '@/lib/client-api';
+import { syncSourceSubscription } from '@/lib/subscription-sync';
 import { LiveSourceManager } from './live-source-manager';
 
 /**
@@ -360,25 +361,7 @@ function SourceSubscriptions() {
   const sync = async (url: string) => {
     setSyncing(url);
     try {
-      const { name, sources, liveSources } = await api.fetchSourceList(url);
-      if (sources.length === 0 && liveSources.length === 0) {
-        toast('订阅内容为空', 'warning');
-        return;
-      }
-      const vodCount = store.applySubscriptionSources(url, sources);
-      const liveCount = store.applySubscriptionLive(url, liveSources);
-      // 仅对本订阅实际导入的直播源记录同步时间：
-      // 被其他订阅/手动源占用而未导入的 M3U，其 name/epg/lastSync 不得被本订阅覆盖
-      const importedLiveUrls = new Set(
-        useAppStore.getState().liveSubscriptions
-          .filter((s) => s.fromSubscription === url)
-          .map((s) => s.url)
-      );
-      for (const s of liveSources) {
-        if (importedLiveUrls.has(s.url)) store.markLiveSynced(s.url, s.name, s.epg);
-      }
-      store.addSubscription(url, name);
-      store.markSubscriptionSynced(url, name);
+      const { vodCount, liveCount } = await syncSourceSubscription(url);
       toast(`已同步 ${vodCount} 个点播源、${liveCount} 个直播源`, 'success');
       setSubUrl('');
     } catch (err) {

@@ -104,6 +104,8 @@ interface AppState extends AppSettings {
   liveRecent: LiveRecentEntry[];
   /** 测活结果缓存（6 小时有效，跨会话持久化） */
   liveProbeResults: Record<string, LiveProbeEntry>;
+  /** 已出现过的 env 预置订阅 URL（持久化：用户删除后不再被自动加回） */
+  envSubsSeen: string[];
   addCustomApi: (api: Omit<SourceConfig, 'key'> & { key?: string }) => void;
   updateCustomApi: (key: string, patch: Partial<SourceConfig>) => void;
   removeCustomApi: (key: string) => void;
@@ -127,6 +129,7 @@ interface AppState extends AppSettings {
   /** 合并写入测活结果，并顺带清理过期条目 */
   setLiveProbeResults: (entries: Record<string, LiveProbeEntry>) => void;
   clearLiveProbeResults: () => void;
+  markEnvSubsSeen: (urls: string[]) => void;
   updateSettings: (patch: Partial<Omit<AppSettings, 'customAPIs' | 'selectedKeys'>>) => void;
 }
 
@@ -156,6 +159,7 @@ export const useAppStore = create<AppState>()(
       liveFavorites: [],
       liveRecent: [],
       liveProbeResults: {},
+      envSubsSeen: [],
       selectedKeys: [],
       yellowFilter: true,
       adFilter: true,
@@ -389,6 +393,12 @@ export const useAppStore = create<AppState>()(
 
       clearLiveProbeResults: () => set({ liveProbeResults: {} }),
 
+      markEnvSubsSeen: (urls) => {
+        const seen = new Set(get().envSubsSeen);
+        for (const u of urls) seen.add(u);
+        set({ envSubsSeen: [...seen] });
+      },
+
       updateSettings: (patch) => {
         // 打开成人内容过滤时，同步取消勾选所有成人源，避免两者并存
         if (patch.yellowFilter === true) {
@@ -434,6 +444,7 @@ export const useAppStore = create<AppState>()(
         liveFavorites: s.liveFavorites,
         liveRecent: s.liveRecent,
         liveProbeResults: s.liveProbeResults,
+        envSubsSeen: s.envSubsSeen,
         yellowFilter: s.yellowFilter,
         adFilter: s.adFilter,
         doubanEnabled: s.doubanEnabled,

@@ -6,6 +6,7 @@ import { ToastProvider } from './toast';
 import { AuthProvider } from './auth';
 import { ThemeProvider } from './theme';
 import { useAppStore } from '@/lib/store';
+import { syncEnvSubscriptions } from '@/lib/subscription-sync';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -34,6 +35,10 @@ export function Providers({ children }: { children: ReactNode }) {
         }
         if (d && Array.isArray(d.defaultLiveSources)) {
           useAppStore.getState().setLiveEnvSources(d.defaultLiveSources);
+        }
+        // 预置订阅（DEFAULT_SUBSCRIPTIONS）：首次自动导入，超 24h 静默刷新，失败下次重试
+        if (d && Array.isArray(d.defaultSubscriptions) && d.defaultSubscriptions.length > 0) {
+          void syncEnvSubscriptions(d.defaultSubscriptions);
         }
       })
       .catch(() => {});
