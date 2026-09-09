@@ -156,7 +156,7 @@ export function SwitchSourceModal({
             <p className="text-sm text-muted">{phase === 'searching' ? '搜索各资源中...' : '测速中...'}</p>
           </div>
         ) : sorted.length === 0 ? (
-          <p className="text-center text-sm text-faint py-8">其他数据源未找到同名资源</p>
+          <p className="text-center text-sm text-faint py-8">其他点播源未找到同名资源</p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {sorted.map((c) => {

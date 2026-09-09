@@ -142,3 +142,17 @@ export interface LiveEpgResponse {
   next?: EpgProgram;
   programs: EpgProgram[];
 }
+
+// —— 数据源订阅 ——
+
+/**
+ * 远程订阅（LibreTV-SourceList JSON）解析结果。
+ * `sources` 为点播源（Apple CMS 采集站），`liveSources` 为直播源（M3U + 可选 EPG）。
+ * 老格式订阅只有 `sources`，此时 `liveSources` 为空数组。
+ */
+export interface SourceListPayload {
+  /** 订阅列表自带名称 */
+  name?: string;
+  sources: Omit<SourceConfig, 'key'>[];
+  liveSources: Omit<LiveSourceConfig, 'key'>[];
+}

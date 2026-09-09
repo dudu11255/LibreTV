@@ -12,7 +12,7 @@ export default function AboutPage() {
         <section>
           <h1 className="text-xl font-bold text-content mb-3">关于 LibreTV</h1>
           <p className="text-sm text-muted leading-relaxed">
-            LibreTV 是一个免费的在线视频搜索与观看平台。输入片名即可在多个数据源中聚合搜索，
+            LibreTV 是一个免费的在线视频搜索与观看平台。输入片名即可在多个点播源中聚合搜索，
             无需注册、无内嵌广告、不存储任何视频文件。所有播放内容均来自第三方公开接口。
           </p>
         </section>

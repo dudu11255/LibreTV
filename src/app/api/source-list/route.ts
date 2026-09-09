@@ -1,24 +1,21 @@
 import { NextResponse } from 'next/server';
 import { guardRequest } from '@/lib/api-guard';
-import { checkUpstreamAllowed, isValidProxyUrl } from '@/lib/ssrf';
+import { checkLiveUrlAllowed, checkUpstreamAllowed, isValidProxyUrl } from '@/lib/ssrf';
 import { fetchUpstream } from '@/lib/fetch-utils';
+import { parseSourceListPayload } from '@/lib/source-list';
+import type { SourceListPayload } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
-const MAX_SOURCES = 100;
-
-interface RawSource {
-  name?: unknown;
-  url?: unknown;
-  detail?: unknown;
-  isAdult?: unknown;
-}
-
 /**
- * 拉取远程源订阅列表。
- * 接受两种格式：
- * 1. LibreTV-SourceList JSON：{ name?, sources: [{name,url,detail?,isAdult?}] }
- * 2. 裸数组：[{name,url,...}, ...]
+ * 拉取远程数据源订阅。
+ * 接受三种形态：
+ * 1. 完整格式：{ name?, sources: [点播源], liveSources: [直播源] }
+ * 2. 老格式：只有 sources（或裸数组），仅点播
+ * 3. 纯直播订阅：只有 liveSources
+ *
+ * 点播源与直播源的地址放行策略不同（点播一律拒绝内网，直播可用 LIVE_ALLOW_PRIVATE 放行），
+ * 因此两类分别校验，不能共用一把尺子。
  */
 export async function GET(req: Request) {
   const guarded = guardRequest(req);
@@ -40,34 +37,37 @@ export async function GET(req: Request) {
     if (!res.ok) {
       return NextResponse.json({ error: `订阅地址返回 HTTP ${res.status}` }, { status: 502 });
     }
-    const json = (await res.json()) as { name?: unknown; sources?: unknown } | RawSource[];
+    const json: unknown = await res.json();
 
-    const rawList = Array.isArray(json)
-      ? json
-      : Array.isArray((json as { sources?: unknown }).sources)
-        ? ((json as { sources: RawSource[] }).sources)
-        : null;
-    if (!rawList) {
-      return NextResponse.json({ error: '订阅内容格式不正确（缺少 sources 数组）' }, { status: 400 });
+    let parsed;
+    try {
+      parsed = parseSourceListPayload(json);
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : '订阅内容格式不正确' },
+        { status: 400 }
+      );
     }
 
-    const name = Array.isArray(json) ? undefined : (typeof (json as { name?: unknown }).name === 'string' ? (json as { name: string }).name : undefined);
+    // 点播源：拒绝非公网地址（DNS 层校验在搜索/详情请求时另有兜底）
+    const sources = parsed.sources.filter((s) => isValidProxyUrl(s.url));
 
-    const seenUrls = new Set<string>();
-    const sources = rawList.slice(0, MAX_SOURCES).flatMap((s) => {
-      const url = typeof s?.url === 'string' ? s.url.trim().replace(/\/+$/, '') : '';
-      // 拒绝非公网 http(s) 地址（DNS 层校验在搜索/详情请求时另有兜底）
-      if (!isValidProxyUrl(url) || seenUrls.has(url)) return [];
-      seenUrls.add(url);
-      return [{
-        name: typeof s?.name === 'string' && s.name.trim() ? s.name.trim() : new URL(url).hostname,
-        url,
-        detail: typeof s?.detail === 'string' && s.detail.trim() ? s.detail.trim() : undefined,
-        isAdult: s?.isAdult === true,
-      }];
-    });
+    // 直播源：按直播策略校验，EPG 地址非法时丢弃该字段而非整条源
+    const checkedLive = await Promise.all(
+      parsed.liveSources.map(async (s) => {
+        if (!(await checkLiveUrlAllowed(s.url)).ok) return null;
+        if (s.epg && !(await checkLiveUrlAllowed(s.epg)).ok) return { ...s, epg: undefined };
+        return s;
+      })
+    );
 
-    return NextResponse.json({ name, sources });
+    const payload: SourceListPayload = {
+      name: parsed.name,
+      sources,
+      liveSources: checkedLive.filter((s): s is NonNullable<typeof s> => s !== null),
+    };
+
+    return NextResponse.json(payload);
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : '订阅拉取失败' },

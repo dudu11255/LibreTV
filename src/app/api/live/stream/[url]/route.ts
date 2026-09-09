@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { guardRequest, jsonError } from '@/lib/api-guard';
-import { checkUpstreamAllowed, type UpstreamVerdict } from '@/lib/ssrf';
+import { checkLiveUrlAllowed } from '@/lib/ssrf';
 import { rewriteM3u8 } from '@/lib/m3u8';
 
 export const runtime = 'nodejs';
@@ -28,24 +28,6 @@ const UA =
   process.env.USER_AGENT ||
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
-function allowPrivate(): boolean {
-  return process.env.LIVE_ALLOW_PRIVATE === '1';
-}
-
-/** 直播流地址校验：协议必须 http(s)；内网放行仅限显式开启 LIVE_ALLOW_PRIVATE */
-async function checkStreamAllowed(urlString: string): Promise<UpstreamVerdict> {
-  try {
-    const parsed = new URL(urlString);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return { ok: false, reason: '直播流仅支持 http/https 协议' };
-    }
-  } catch {
-    return { ok: false, reason: '无效的直播流地址' };
-  }
-  if (allowPrivate()) return { ok: true };
-  return checkUpstreamAllowed(urlString);
-}
-
 /**
  * 带响应头超时的上游抓取：仅首字节（响应头）限时，超时 abort；
  * 响应头到达后清除计时器，body 流不再受限。手动逐跳跟随重定向，
@@ -60,7 +42,7 @@ async function fetchLiveUpstream(
 ): Promise<{ res: Response; finalUrl: string }> {
   let current = targetUrl;
   for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
-    const verdict = await checkStreamAllowed(current);
+    const verdict = await checkLiveUrlAllowed(current);
     if (!verdict.ok) throw new Error(`跳转目标被拒绝: ${verdict.reason}`);
 
     const timer = setTimeout(() => controller.abort(), HEADER_TIMEOUT_MS);
@@ -92,7 +74,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ url: string }> 
   const guarded = guardRequest(req);
   if (guarded) return guarded;
 
-  const verdict = await checkStreamAllowed(targetUrl);
+  const verdict = await checkLiveUrlAllowed(targetUrl);
   if (!verdict.ok) return jsonError(verdict.reason, 403);
 
   const controller = new AbortController();

@@ -17,6 +17,8 @@ const PAGE_SIZE = 300;
 export interface LiveChannelItem extends LiveChannel {
   /** 来源订阅的 EPG 地址（用于节目单查询） */
   epg?: string;
+  /** 所属直播源地址（M3U 订阅 URL），写入最近观看以便订阅删除时清理 */
+  sourceUrl?: string;
 }
 
 interface ChannelListProps {

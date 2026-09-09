@@ -73,7 +73,7 @@ function HomeContent() {
       return;
     }
     if (selectedSources.length === 0) {
-      toast('请先在设置中添加并勾选数据源', 'warning');
+      toast('请先在设置中添加并勾选点播源', 'warning');
       return;
     }
     router.push(`/?s=${encodeURIComponent(query)}`, { scroll: false });
@@ -199,7 +199,7 @@ function HomeContent() {
 
             {failures.length > 0 && (
               <div className="mb-3 text-xs text-faint bg-chip rounded-lg px-3 py-2">
-                部分数据源请求失败：{failureNames.join('、')}
+                部分点播源请求失败：{failureNames.join('、')}
               </div>
             )}
 
@@ -214,7 +214,7 @@ function HomeContent() {
                     d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <h3 className="text-base text-muted">没有找到匹配的结果</h3>
-                <p className="text-sm text-faint mt-1">请尝试其他关键词或更换数据源</p>
+                <p className="text-sm text-faint mt-1">请尝试其他关键词或更换点播源</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-start">
@@ -271,14 +271,14 @@ function ResultsSkeleton() {
   );
 }
 
-/** 无数据源 / 未勾选数据源时的引导（替代旧版首屏静默空白） */
+/** 无点播源 / 未勾选点播源时的引导（替代旧版首屏静默空白） */
 function NoSourceGuide({ hasSources = false }: { hasSources?: boolean }) {
   return (
     <div className="border border-dashed border-line rounded-xl p-10 text-center max-w-lg mx-auto">
-      <h3 className="text-content font-medium mb-2">{hasSources ? '尚未勾选数据源' : '先添加一个数据源'}</h3>
+      <h3 className="text-content font-medium mb-2">{hasSources ? '尚未勾选点播源' : '先添加一个点播源'}</h3>
       <p className="text-sm text-muted leading-relaxed">
         {hasSources ? (
-          <>点击右上角「设置」，勾选要参与搜索的数据源后重新搜索。</>
+          <>点击右上角「设置」，勾选要参与搜索的点播源后重新搜索。</>
         ) : (
           <>
             LibreTV 不内置任何采集站。点击右上角「设置 → 添加 API」，填入一个

@@ -15,6 +15,15 @@ type TestState =
   | { status: 'loading' }
   | { status: 'done'; ok: boolean; ms?: number; count?: number; error?: string };
 
+/** 取 hostname 作为名称兜底；地址非法时原样返回 */
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
 export function LiveSourceManager() {
   const store = useAppStore();
   const { toast } = useToast();
@@ -82,7 +91,22 @@ export function LiveSourceManager() {
     );
   };
 
-  const renderRow = (url: string, label: string, epgUrl?: string, preset = false, lastSync?: number) => (
+  const renderRow = ({
+    url,
+    label,
+    epgUrl,
+    preset = false,
+    lastSync,
+    fromSubscription,
+  }: {
+    url: string;
+    label: string;
+    epgUrl?: string;
+    preset?: boolean;
+    lastSync?: number;
+    /** 该直播源来自哪个订阅 URL；有值时由订阅统一管理，不可单独删除 */
+    fromSubscription?: string;
+  }) => (
     <li key={url} className="bg-card rounded-lg p-3 transition-colors hover:bg-hover/50">
       <div className="flex items-center gap-2">
         <input
@@ -101,6 +125,14 @@ export function LiveSourceManager() {
                 部署者预置
               </span>
             )}
+            {fromSubscription && (
+              <span
+                className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent align-middle"
+                title="来自数据源订阅，重新同步时此源的名称/地址会以订阅内容为准"
+              >
+                订阅
+              </span>
+            )}
           </div>
           <div className="text-xs text-faint truncate">
             {url}
@@ -117,14 +149,25 @@ export function LiveSourceManager() {
         >
           ⇩
         </button>
-        {!preset && (
+        {fromSubscription ? (
           <button
-            className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-red-400"
-            onClick={() => store.removeLiveSubscription(url)}
-            aria-label="删除订阅"
+            className="rounded-md p-1.5 text-muted/40"
+            onClick={() => toast('该直播源来自数据源订阅；请到「订阅与配置 → 数据源订阅」中删除整个订阅', 'info')}
+            aria-label="订阅源不可单独删除"
+            title="该源来自订阅，单独删除会在下次同步时恢复；如需移除请删除整个订阅"
           >
             ✕
           </button>
+        ) : (
+          !preset && (
+            <button
+              className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-red-400"
+              onClick={() => store.removeLiveSubscription(url)}
+              aria-label="删除直播源"
+            >
+              ✕
+            </button>
+          )
         )}
       </div>
     </li>
@@ -171,12 +214,20 @@ export function LiveSourceManager() {
       </div>
       {store.liveEnvSources.length === 0 && store.liveSubscriptions.length === 0 ? (
         <p className="text-xs text-faint">
-          添加 M3U 订阅后即可在「直播」页按分组浏览与播放频道；部署者也可通过 DEFAULT_LIVE_SOURCES 环境变量预置。
+          添加 M3U 地址后即可在「直播」页按分组浏览与播放频道；也可在「订阅与配置 → 数据源订阅」中一次导入点播源与直播源；部署者还可通过 DEFAULT_LIVE_SOURCES 环境变量预置。
         </p>
       ) : (
         <ul className="space-y-2 max-h-[50vh] overflow-y-auto scrollbar-thin pr-1">
-          {store.liveEnvSources.map((s) => renderRow(s.url, s.name, s.epg, true))}
-          {store.liveSubscriptions.map((s) => renderRow(s.url, s.name || new URL(s.url).hostname, s.epg, false, s.lastSync))}
+          {store.liveEnvSources.map((s) => renderRow({ url: s.url, label: s.name, epgUrl: s.epg, preset: true }))}
+          {store.liveSubscriptions.map((s) =>
+            renderRow({
+              url: s.url,
+              label: s.name || hostnameOf(s.url),
+              epgUrl: s.epg,
+              lastSync: s.lastSync,
+              fromSubscription: s.fromSubscription,
+            })
+          )}
         </ul>
       )}
     </section>

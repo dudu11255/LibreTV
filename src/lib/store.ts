@@ -22,7 +22,10 @@ export interface AppSettings {
   customImageProxy: string;
 }
 
-/** 源订阅：远程源列表（LibreTV-SourceList JSON），可一键同步更新 */
+/**
+ * 数据源订阅：远程源列表（LibreTV-SourceList JSON），可一键同步更新。
+ * 一份订阅同时下发点播源与直播源；老订阅只有点播源。
+ */
 export interface SourceSubscription {
   url: string;
   /** 订阅列表自带名称 */
@@ -31,7 +34,7 @@ export interface SourceSubscription {
   lastSync?: number;
 }
 
-/** 直播订阅：远程 M3U 播放列表（独立于采集站订阅模型，避免 key 前缀冲突） */
+/** 直播源：远程 M3U 播放列表；可来自用户手动添加，也可来自统一订阅 */
 export interface LiveSubscription {
   url: string;
   name?: string;
@@ -39,6 +42,11 @@ export interface LiveSubscription {
   epg?: string;
   /** 上次同步成功时间 */
   lastSync?: number;
+  /**
+   * 该直播源来自哪个订阅 URL；手动添加时为空。
+   * 删除订阅时按此归属精确清理，避免误删用户手动添加的源。
+   */
+  fromSubscription?: string;
 }
 
 /** 直播最近观看条目（上限 20 条，按 url 去重） */
@@ -50,6 +58,8 @@ export interface LiveRecentEntry {
   tvgId?: string;
   /** 来源订阅地址（用于回查 EPG） */
   epg?: string;
+  /** 所属直播源地址（M3U 订阅 URL），删除订阅时按此清理；旧数据缺失则自然淘汰 */
+  sourceUrl?: string;
   timestamp: number;
 }
 
@@ -84,7 +94,7 @@ interface AppState extends AppSettings {
   liveEnvSources: LiveSourceConfig[];
   /** 已出现过的预置直播源 key（持久化：用于「首次自动可见」去重） */
   liveEnvKeysSeen: string[];
-  /** 用户添加的 M3U 订阅 */
+  /** 用户直播源：手动添加的 M3U + 订阅导入的 M3U（后者带 fromSubscription） */
   liveSubscriptions: LiveSubscription[];
   /** 已启用的直播源（按订阅 URL 唯一标识，首次出现自动勾选） */
   liveSelectedUrls: string[];
@@ -103,8 +113,10 @@ interface AppState extends AppSettings {
   addSubscription: (url: string, name?: string) => void;
   removeSubscription: (url: string) => void;
   markSubscriptionSynced: (url: string, name?: string) => void;
-  /** 用订阅内容整体替换该订阅名下的源，返回新增数量 */
+  /** 用订阅内容整体替换该订阅名下的点播源，返回新增数量 */
   applySubscriptionSources: (subUrl: string, list: Omit<SourceConfig, 'key'>[]) => number;
+  /** 用订阅内容整体替换该订阅名下的直播源，返回新增数量 */
+  applySubscriptionLive: (subUrl: string, list: Omit<LiveSourceConfig, 'key'>[]) => number;
   setLiveEnvSources: (list: LiveSourceConfig[]) => void;
   addLiveSubscription: (url: string, name?: string, epg?: string) => void;
   removeLiveSubscription: (url: string) => void;
@@ -217,10 +229,18 @@ export const useAppStore = create<AppState>()(
 
       removeSubscription: (url) => {
         const prefix = subKeyPrefix(url);
+        // 该订阅名下的直播源（M3U 地址集合），用于清理启用状态与最近观看
+        const ownedLive = new Set(
+          get().liveSubscriptions.filter((s) => s.fromSubscription === url).map((s) => s.url)
+        );
         set({
           subscriptions: get().subscriptions.filter((s) => s.url !== url),
           customAPIs: get().customAPIs.filter((a) => !a.key.startsWith(prefix)),
           selectedKeys: get().selectedKeys.filter((k) => !k.startsWith(prefix)),
+          liveSubscriptions: get().liveSubscriptions.filter((s) => s.fromSubscription !== url),
+          liveSelectedUrls: get().liveSelectedUrls.filter((u) => !ownedLive.has(u)),
+          // 收藏的频道是用户主动留下的，删除订阅时保留；其余残留状态一并清理
+          liveRecent: get().liveRecent.filter((r) => !r.sourceUrl || !ownedLive.has(r.sourceUrl)),
         });
       },
 
@@ -250,6 +270,33 @@ export const useAppStore = create<AppState>()(
         set({
           customAPIs: [...keptCustom, ...incoming],
           selectedKeys: [...get().selectedKeys.filter((k) => !k.startsWith(prefix)), ...toSelect],
+        });
+        return incoming.length;
+      },
+
+      applySubscriptionLive: (subUrl, list) => {
+        const existing = get().liveSubscriptions;
+        const owned = existing.filter((s) => s.fromSubscription === subUrl);
+        const ownedUrls = new Set(owned.map((s) => s.url));
+        // 手动添加或其他订阅已占用的 M3U 不再重复导入（手动添加优先）
+        const kept = existing.filter((s) => s.fromSubscription !== subUrl);
+        const keptUrls = new Set(kept.map((s) => s.url));
+        const incoming: LiveSubscription[] = list
+          .filter((s) => !keptUrls.has(s.url))
+          .map((s) => ({ url: s.url, name: s.name, epg: s.epg, fromSubscription: subUrl }));
+        // 本次订阅里已消失的旧源：其最近观看记录一并清掉，收藏保留
+        const stillPresent = new Set(list.map((s) => s.url));
+        const droppedUrls = new Set([...ownedUrls].filter((u) => !stillPresent.has(u)));
+
+        set({
+          liveSubscriptions: [...kept, ...incoming],
+          liveSelectedUrls: [
+            ...new Set([
+              ...get().liveSelectedUrls.filter((u) => !ownedUrls.has(u)),
+              ...incoming.map((s) => s.url),
+            ]),
+          ],
+          liveRecent: get().liveRecent.filter((r) => !r.sourceUrl || !droppedUrls.has(r.sourceUrl)),
         });
         return incoming.length;
       },
@@ -347,6 +394,20 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'libretv-settings',
+      // v1：直播源新增 fromSubscription 归属字段、最近观看新增 sourceUrl。
+      // 此前未声明 version，存量数据会被视为 v0 并走 migrate 补齐（缺失字段按「手动添加」处理）。
+      version: 1,
+      migrate: (persisted, version) => {
+        const state = (persisted ?? {}) as Partial<AppState>;
+        if (version < 1) {
+          return {
+            ...state,
+            liveSubscriptions: Array.isArray(state.liveSubscriptions) ? state.liveSubscriptions : [],
+            liveRecent: Array.isArray(state.liveRecent) ? state.liveRecent : [],
+          } as AppState;
+        }
+        return state as AppState;
+      },
       // envSources 由服务端每次下发，不进 localStorage
       partialize: (s) => ({
         customAPIs: s.customAPIs,

@@ -61,3 +61,28 @@ export async function checkUpstreamAllowed(urlString: string): Promise<UpstreamV
   }
   return { ok: true };
 }
+
+/** 直播场景是否放行内网地址（自建 IPTV）；由部署者显式开启 */
+export function allowLivePrivate(): boolean {
+  return process.env.LIVE_ALLOW_PRIVATE === '1';
+}
+
+/**
+ * 直播地址专用校验：协议必须 http(s)，默认仍拒绝内网，但部署者可用
+ * LIVE_ALLOW_PRIVATE=1 显式放行（自建 IPTV 常位于内网）。
+ *
+ * 与点播侧 checkUpstreamAllowed 的区别只在这一处开关：
+ * 订阅/播放列表若沿用点播那把尺子，会静默过滤掉内网自建源。
+ */
+export async function checkLiveUrlAllowed(urlString: string): Promise<UpstreamVerdict> {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return { ok: false, reason: '直播地址仅支持 http/https 协议' };
+    }
+  } catch {
+    return { ok: false, reason: '无效的直播地址' };
+  }
+  if (allowLivePrivate()) return { ok: true };
+  return checkUpstreamAllowed(urlString);
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import type { SearchResponse, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse } from './types';
+import type { SearchResponse, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse, SourceListPayload } from './types';
 
 /**
  * 客户端 API 封装。401 时触发全局事件打开登录框，
@@ -100,7 +100,7 @@ export const api = {
     }
   },
 
-  /** 数据源探活：以搜索 "test" 的耗时与结果量衡量可用性 */
+  /** 点播源探活：以搜索 "test" 的耗时与结果量衡量可用性 */
   testSource: (url: string) =>
     request<{ ok: boolean; ms: number; count?: number; error?: string }>('/api/source/test', {
       method: 'POST',
@@ -108,10 +108,10 @@ export const api = {
       body: JSON.stringify({ url }),
     }),
 
-  /** 拉取远程源订阅列表（LibreTV-SourceList JSON） */
+  /** 拉取远程数据源订阅（LibreTV-SourceList JSON：点播源 sources + 直播源 liveSources） */
   fetchSourceList: (url: string) => {
     const sp = new URLSearchParams({ url });
-    return request<{ name?: string; sources: SourceConfig[] }>(`/api/source-list?${sp.toString()}`);
+    return request<SourceListPayload>(`/api/source-list?${sp.toString()}`);
   },
 
   /** —— 直播 / IPTV —— */

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Drawer } from './header';
-import { useAppStore } from '@/lib/store';
+import { subKeyPrefix, useAppStore } from '@/lib/store';
 import { useToast } from './toast';
 import { formatRelativeTime, validateSourceUrl, cn } from '@/lib/utils';
 import { exportConfig, importConfig } from '@/lib/db';
@@ -11,7 +11,7 @@ import { api } from '@/lib/client-api';
 import { LiveSourceManager } from './live-source-manager';
 
 /**
- * 设置抽屉：顶部 Tab 分类（数据源 / 直播源 / 播放设置 / 配置），
+ * 设置抽屉：顶部 Tab 分类（点播源 / 直播源 / 播放设置 / 订阅与配置），
  * 每次只渲染一类内容，避免源很多时长距离滚动。
  */
 
@@ -22,10 +22,10 @@ type TestState =
 type SettingsTab = 'sources' | 'live' | 'playback' | 'config';
 
 const SETTINGS_TABS: { id: SettingsTab; label: string }[] = [
-  { id: 'sources', label: '数据源' },
+  { id: 'sources', label: '点播源' },
   { id: 'live', label: '直播源' },
   { id: 'playback', label: '播放设置' },
-  { id: 'config', label: '配置' },
+  { id: 'config', label: '订阅与配置' },
 ];
 
 export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -33,7 +33,7 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
   const { toast } = useToast();
   const [editing, setEditing] = useState<string | null>(null);
   const [tests, setTests] = useState<Record<string, TestState>>({});
-  // Tab 选中态不持久化：每次打开抽屉回到「数据源」
+  // Tab 选中态不持久化：每次打开抽屉回到「点播源」
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('sources');
 
   const runTest = async (key: string, url: string) => {
@@ -107,10 +107,9 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
 
       {settingsTab === 'sources' && (
       <>
-      <SourceSubscriptions />
-      <section className="mb-6 border-t border-line pt-5">
+      <section className="mb-6 pt-5">
         <SectionTitle
-          title="数据源"
+          title="点播源"
           extra={
             <button className="btn-primary !py-1 !px-2.5 text-xs" onClick={() => setEditing('__new__')}>
               + 添加 API
@@ -200,7 +199,7 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
                         {fromSubscription && (
                           <span
                             className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent align-middle"
-                            title="来自源订阅，重新同步时此源的名称/地址会以订阅内容为准"
+                            title="来自数据源订阅，重新同步时此源的名称/地址会以订阅内容为准"
                           >
                             订阅
                           </span>
@@ -335,19 +334,22 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
       )}
 
       {settingsTab === 'config' && (
-        <section className="pt-5">
+      <>
+        <SourceSubscriptions />
+        <section className="mb-6 pt-5 border-t border-line">
           <SectionTitle title="配置" />
           <ConfigIoButtons />
         </section>
+      </>
       )}
     </Drawer>
   );
 }
 
 /**
- * 源订阅 / 分享：
- * - 订阅：填入远程 LibreTV-SourceList JSON 地址，一键拉取导入，可随时重新同步；
- * - 分享：把当前源列表导出为同格式 JSON 文件，托管到任意位置即可被他人订阅。
+ * 数据源订阅 / 分享：
+ * - 订阅：填入远程 LibreTV-SourceList JSON 地址，一次拉取点播源与直播源，可随时重新同步；
+ * - 分享：把当前点播源 + 直播源导出为同格式 JSON 文件，托管到任意位置即可被他人订阅。
  */
 function SourceSubscriptions() {
   const store = useAppStore();
@@ -358,15 +360,18 @@ function SourceSubscriptions() {
   const sync = async (url: string) => {
     setSyncing(url);
     try {
-      const { name, sources } = await api.fetchSourceList(url);
-      if (sources.length === 0) {
+      const { name, sources, liveSources } = await api.fetchSourceList(url);
+      if (sources.length === 0 && liveSources.length === 0) {
         toast('订阅内容为空', 'warning');
         return;
       }
-      const count = store.applySubscriptionSources(url, sources);
+      const vodCount = store.applySubscriptionSources(url, sources);
+      const liveCount = store.applySubscriptionLive(url, liveSources);
+      // 记录直播源同步时间；未实际导入的源在 store 中不存在，写入会被忽略
+      for (const s of liveSources) store.markLiveSynced(s.url, s.name, s.epg);
       store.addSubscription(url, name);
       store.markSubscriptionSynced(url, name);
-      toast(`已同步 ${count} 个数据源`, 'success');
+      toast(`已同步 ${vodCount} 个点播源、${liveCount} 个直播源`, 'success');
       setSubUrl('');
     } catch (err) {
       toast(err instanceof Error ? err.message : '订阅同步失败', 'error');
@@ -395,7 +400,18 @@ function SourceSubscriptions() {
         return true;
       })
       .map(({ name, url, detail, isAdult }) => ({ name, url, detail, isAdult }));
-    const payload = { name: 'LibreTV-SourceList', version: 1, exportedAt: Date.now(), sources };
+
+    // 直播源：预置 + 手动 + 订阅导入，按 URL 去重
+    const liveSeen = new Set<string>();
+    const liveSources = [...store.liveEnvSources, ...store.liveSubscriptions]
+      .filter((s) => {
+        if (liveSeen.has(s.url)) return false;
+        liveSeen.add(s.url);
+        return true;
+      })
+      .map(({ name, url, epg }) => ({ name: name || hostnameOf(url), url, epg }));
+
+    const payload = { name: 'LibreTV-SourceList', version: 2, exportedAt: Date.now(), sources, liveSources };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -403,16 +419,23 @@ function SourceSubscriptions() {
     a.download = `LibreTV-SourceList_${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    toast(`已导出 ${sources.length} 个源，托管后即可被他人订阅`, 'success');
+    toast(`已导出 ${sources.length} 个点播源、${liveSources.length} 个直播源，托管后即可被他人订阅`, 'success');
   };
 
   return (
     <section className="mb-6 pt-5">
       <SectionTitle
-        title="源订阅 / 分享"
+        title="数据源订阅 / 分享"
         extra={
-          <button className="btn-ghost !py-1 !px-2.5 text-xs" onClick={exportSources} disabled={store.customAPIs.length + store.envSources.length === 0}>
-            导出源列表
+          <button
+            className="btn-ghost !py-1 !px-2.5 text-xs"
+            onClick={exportSources}
+            disabled={
+              store.customAPIs.length + store.envSources.length + store.liveSubscriptions.length + store.liveEnvSources.length ===
+              0
+            }
+          >
+            导出数据源
           </button>
         }
       />
@@ -432,44 +455,61 @@ function SourceSubscriptions() {
       </div>
       {store.subscriptions.length === 0 ? (
         <p className="text-xs text-faint">
-          订阅后源列表可随远端更新一键同步；「导出源列表」生成的 JSON 托管到任意 URL 即可分享给他人订阅。
+          一份订阅可同时下发点播源与直播源；「导出数据源」生成的 JSON 托管到任意 URL 即可分享给他人订阅。
         </p>
       ) : (
         <ul className="space-y-2 max-h-[30vh] overflow-y-auto scrollbar-thin pr-1">
-          {store.subscriptions.map((sub) => (
+          {store.subscriptions.map((sub) => {
+            const vodCount = store.customAPIs.filter((a) => a.key.startsWith(subKeyPrefix(sub.url))).length;
+            const liveCount = store.liveSubscriptions.filter((s) => s.fromSubscription === sub.url).length;
+            return (
             <li key={sub.url} className="bg-card rounded-lg p-3 transition-colors hover:bg-hover/50">
               <div className="flex items-center gap-2">
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-content truncate">{sub.name || new URL(sub.url).hostname}</div>
+                  <div className="text-sm font-medium text-content truncate">{sub.name || hostnameOf(sub.url)}</div>
                   <div className="text-xs text-faint truncate">
                     {sub.url}
                     {sub.lastSync && ` · 同步于 ${formatRelativeTime(sub.lastSync)}`}
                   </div>
+                  <div className="mt-1 flex gap-1">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent">点播 {vodCount}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent">直播 {liveCount}</span>
+                  </div>
                 </div>
                 <button
-                  className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-accent disabled:opacity-40"
+                  className="rounded-md p-1.5 shrink-0 text-muted transition-colors hover:bg-hover hover:text-accent disabled:opacity-40"
                   disabled={syncing === sub.url}
                   onClick={() => sync(sub.url)}
                   aria-label="重新同步"
-                  title="重新同步"
+                  title="重新同步（以远端列表为准，整体替换该订阅名下的点播源与直播源）"
                 >
                   {syncing === sub.url ? '…' : '⟳'}
                 </button>
                 <button
-                  className="rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-red-400"
+                  className="rounded-md p-1.5 shrink-0 text-muted transition-colors hover:bg-hover hover:text-red-400"
                   onClick={() => store.removeSubscription(sub.url)}
                   aria-label="删除订阅"
-                  title="删除订阅及其导入的源"
+                  title="删除订阅及其导入的点播源与直播源（保留收藏的频道）"
                 >
                   ✕
                 </button>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
     </section>
   );
+}
+
+/** 取 hostname 作为名称兜底；地址非法时原样返回 */
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
 }
 
 function SectionTitle({ title, extra }: { title: string; extra?: React.ReactNode }) {
@@ -484,10 +524,12 @@ function SectionTitle({ title, extra }: { title: string; extra?: React.ReactNode
 function EmptySourceGuide({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="border border-dashed border-line rounded-lg p-5 text-center">
-      <p className="text-sm text-muted mb-1">还没有添加任何数据源</p>
-      <p className="text-xs text-faint mb-3">添加一个 Apple CMS 采集站 API 即可开始搜索影片</p>
+      <p className="text-sm text-muted mb-1">还没有添加任何点播源</p>
+      <p className="text-xs text-faint mb-3">
+        添加一个 Apple CMS 采集站 API 即可开始搜索影片；也可到「订阅与配置」一次导入点播源与直播源
+      </p>
       <button className="btn-primary text-xs" onClick={onAdd}>
-        添加第一个数据源
+        添加第一个点播源
       </button>
     </div>
   );

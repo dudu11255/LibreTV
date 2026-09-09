@@ -50,7 +50,7 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
       name: item.sourceName,
     });
     if (!source) {
-      setError('数据源配置不存在（可能已被删除），请在设置中重新添加');
+      setError('点播源配置不存在（可能已被删除），请在设置中重新添加');
       return;
     }
     setLoading(true);

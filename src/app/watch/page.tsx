@@ -175,9 +175,9 @@ function WatchContent() {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="text-center max-w-md">
-          <h1 className="text-content font-medium mb-2">数据源不存在</h1>
+          <h1 className="text-content font-medium mb-2">点播源不存在</h1>
           <p className="text-sm text-muted mb-4">
-            该视频来自数据源「{sourceKey}」，但它可能已被删除。请在设置中重新添加后重试。
+            该视频来自点播源「{sourceKey}」，但它可能已被删除。请在设置中重新添加后重试。
           </p>
           <Link href="/" className="btn-primary">返回首页</Link>
         </div>

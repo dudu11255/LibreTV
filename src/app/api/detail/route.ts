@@ -38,7 +38,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: '无效的视频ID' }, { status: 400 });
   }
   if (!source) {
-    return NextResponse.json({ error: '无效的数据源配置' }, { status: 400 });
+    return NextResponse.json({ error: '无效的点播源配置' }, { status: 400 });
   }
 
   try {

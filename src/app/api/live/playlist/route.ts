@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { guardRequest, jsonError } from '@/lib/api-guard';
-import { checkUpstreamAllowed } from '@/lib/ssrf';
+import { checkLiveUrlAllowed } from '@/lib/ssrf';
 import { fetchUpstream, getCache, setCache } from '@/lib/fetch-utils';
 import { parseM3u } from '@/lib/m3u-parser';
 import type { LivePlaylistResponse } from '@/lib/types';
@@ -56,7 +56,8 @@ export async function GET(req: Request) {
   const format = sp.get('format') || 'json';
   const force = sp.get('force') === '1';
 
-  const verdict = await checkUpstreamAllowed(url);
+  // 直播专用校验：默认拒绝内网，部署者可设 LIVE_ALLOW_PRIVATE=1 放行自建 IPTV
+  const verdict = await checkLiveUrlAllowed(url);
   if (!verdict.ok) return jsonError(verdict.reason, 403);
 
   let playlist: LivePlaylistResponse | undefined = force ? undefined : getCache(cacheKey(url));

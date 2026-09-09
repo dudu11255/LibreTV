@@ -84,7 +84,7 @@ function LiveContent() {
       for (const c of result.value.channels) {
         if (seen.has(c.url)) continue;
         seen.add(c.url);
-        list.push({ ...c, epg: source.epg });
+        list.push({ ...c, epg: source.epg, sourceUrl: source.url });
       }
     }
     const groups = [...new Set(list.map((c) => c.group).filter((g): g is string => Boolean(g)))].sort(
@@ -123,6 +123,7 @@ function LiveContent() {
         group: c.group,
         tvgId: c.tvgId,
         epg: c.epg,
+        sourceUrl: c.sourceUrl,
       });
     },
     [router, store]

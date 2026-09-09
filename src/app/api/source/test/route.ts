@@ -6,7 +6,7 @@ import { parseSearchList } from '@/lib/cms-parser';
 
 export const runtime = 'nodejs';
 
-/** 数据源探活：以搜索 "test" 的响应耗时与结果量衡量可用性 */
+/** 点播源探活：以搜索 "test" 的响应耗时与结果量衡量可用性 */
 export async function POST(req: Request) {
   const guarded = guardRequest(req);
   if (guarded) return guarded;
