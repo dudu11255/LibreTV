@@ -66,35 +66,36 @@ export function parseSourceListPayload(json: unknown): SourceListPayload {
     throw new Error('订阅内容格式不正确（缺少 sources / liveSources 数组）');
   }
 
+  // 先去重再截断：上限按去重后的有效条目计，前段重复不挤占名额
   const seenVod = new Set<string>();
-  const sources = rawVod.slice(0, MAX_VOD_SOURCES).flatMap((s) => {
+  const sources: SourceListPayload['sources'] = [];
+  for (const s of rawVod) {
+    if (sources.length >= MAX_VOD_SOURCES) break;
     const url = normalizeUrl(s?.url, true);
-    if (!url || seenVod.has(url)) return [];
+    if (!url || seenVod.has(url)) continue;
     seenVod.add(url);
-    return [
-      {
-        name: optionalString(s?.name) || hostnameOf(url),
-        url,
-        detail: optionalString(s?.detail),
-        isAdult: s?.isAdult === true,
-      },
-    ];
-  });
+    sources.push({
+      name: optionalString(s?.name) || hostnameOf(url),
+      url,
+      detail: optionalString(s?.detail),
+      isAdult: s?.isAdult === true,
+    });
+  }
 
   const seenLive = new Set<string>();
-  const liveSources = rawLive.slice(0, MAX_LIVE_SOURCES).flatMap((s) => {
+  const liveSources: SourceListPayload['liveSources'] = [];
+  for (const s of rawLive) {
+    if (liveSources.length >= MAX_LIVE_SOURCES) break;
     const url = normalizeUrl(s?.url, false);
-    if (!url || seenLive.has(url)) return [];
+    if (!url || seenLive.has(url)) continue;
     seenLive.add(url);
     const epg = normalizeUrl(s?.epg, false);
-    return [
-      {
-        name: optionalString(s?.name) || hostnameOf(url),
-        url,
-        epg,
-      },
-    ];
-  });
+    liveSources.push({
+      name: optionalString(s?.name) || hostnameOf(url),
+      url,
+      epg,
+    });
+  }
 
   const name = asObject ? optionalString(asObject.name) : undefined;
 

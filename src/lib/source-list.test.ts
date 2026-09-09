@@ -119,6 +119,18 @@ describe('parseSourceListPayload', () => {
     expect(result.liveSources).toHaveLength(MAX_LIVE_SOURCES);
   });
 
+  it('截断前先去重：前段重复不挤占上限名额', () => {
+    const sources = [
+      ...Array.from({ length: 60 }, () => ({ url: 'https://dup.example.com/vod' })),
+      ...Array.from({ length: MAX_VOD_SOURCES }, (_, i) => ({ url: `https://vod${i}.example.com/vod` })),
+    ];
+
+    const result = parseSourceListPayload({ sources });
+
+    expect(result.sources).toHaveLength(MAX_VOD_SOURCES);
+    expect(result.sources[0].url).toBe('https://dup.example.com/vod');
+  });
+
   it('既无点播也无直播时抛错', () => {
     expect(() => parseSourceListPayload({ name: '空的' })).toThrow(/格式不正确/);
     expect(() => parseSourceListPayload({ sources: [] })).toThrow(/格式不正确/);

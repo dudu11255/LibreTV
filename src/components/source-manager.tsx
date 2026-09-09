@@ -367,8 +367,16 @@ function SourceSubscriptions() {
       }
       const vodCount = store.applySubscriptionSources(url, sources);
       const liveCount = store.applySubscriptionLive(url, liveSources);
-      // 记录直播源同步时间；未实际导入的源在 store 中不存在，写入会被忽略
-      for (const s of liveSources) store.markLiveSynced(s.url, s.name, s.epg);
+      // 仅对本订阅实际导入的直播源记录同步时间：
+      // 被其他订阅/手动源占用而未导入的 M3U，其 name/epg/lastSync 不得被本订阅覆盖
+      const importedLiveUrls = new Set(
+        useAppStore.getState().liveSubscriptions
+          .filter((s) => s.fromSubscription === url)
+          .map((s) => s.url)
+      );
+      for (const s of liveSources) {
+        if (importedLiveUrls.has(s.url)) store.markLiveSynced(s.url, s.name, s.epg);
+      }
       store.addSubscription(url, name);
       store.markSubscriptionSynced(url, name);
       toast(`已同步 ${vodCount} 个点播源、${liveCount} 个直播源`, 'success');

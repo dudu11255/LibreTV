@@ -259,13 +259,24 @@ export const useAppStore = create<AppState>()(
         const keptCustom = get().customAPIs.filter(
           (a) => !a.key.startsWith(prefix) && !subUrls.has(a.url.replace(/\/+$/, ''))
         );
+        const prevOwned = get().customAPIs.filter((a) => a.key.startsWith(prefix));
+        // key 按序号重生成，勾选状态需按 url 对齐保留；用户停用的源不会被同步反复勾回
+        const prevSelectedUrls = new Set(
+          prevOwned
+            .filter((a) => get().selectedKeys.includes(a.key))
+            .map((a) => a.url.replace(/\/+$/, ''))
+        );
+        const prevUrlSet = new Set(prevOwned.map((a) => a.url.replace(/\/+$/, '')));
         const incoming: SourceConfig[] = list.map((s, i) => ({
           ...s,
           key: `${prefix}_${i}`,
         }));
-        // 自动勾选（成人过滤开启时跳过成人源）
+        // 新源自动勾选（成人过滤开启时跳过成人源），已有源维持原勾选状态
         const toSelect = incoming
-          .filter((s) => !s.isAdult || !get().yellowFilter)
+          .filter((s) => {
+            const u = s.url.replace(/\/+$/, '');
+            return prevUrlSet.has(u) ? prevSelectedUrls.has(u) : !s.isAdult || !get().yellowFilter;
+          })
           .map((s) => s.key);
         set({
           customAPIs: [...keptCustom, ...incoming],
@@ -287,13 +298,16 @@ export const useAppStore = create<AppState>()(
         // 本次订阅里已消失的旧源：其最近观看记录一并清掉，收藏保留
         const stillPresent = new Set(list.map((s) => s.url));
         const droppedUrls = new Set([...ownedUrls].filter((u) => !stillPresent.has(u)));
+        // 仅新导入的源自动启用；已有源维持用户的勾选状态（停用不会被同步反复勾回），
+        // 因此只从勾选中移除本次已消失的源
+        const freshUrls = incoming.filter((s) => !ownedUrls.has(s.url)).map((s) => s.url);
 
         set({
           liveSubscriptions: [...kept, ...incoming],
           liveSelectedUrls: [
             ...new Set([
-              ...get().liveSelectedUrls.filter((u) => !ownedUrls.has(u)),
-              ...incoming.map((s) => s.url),
+              ...get().liveSelectedUrls.filter((u) => !droppedUrls.has(u)),
+              ...freshUrls,
             ]),
           ],
           liveRecent: get().liveRecent.filter((r) => !r.sourceUrl || !droppedUrls.has(r.sourceUrl)),
