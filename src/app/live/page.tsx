@@ -49,17 +49,23 @@ async function copyText(text: string): Promise<boolean> {
 function LiveContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const store = useAppStore();
+  // 精确订阅：避免测活结果等无关字段写回时整页重渲染（进而打断列表行的 memo）
+  const liveSelectedUrls = useAppStore((s) => s.liveSelectedUrls);
+  const liveEnvSources = useAppStore((s) => s.liveEnvSources);
+  const liveSubscriptions = useAppStore((s) => s.liveSubscriptions);
+  const liveFavorites = useAppStore((s) => s.liveFavorites);
   const imageProxyMode = useAppStore((s) => s.imageProxyMode);
   const customImageProxy = useAppStore((s) => s.customImageProxy);
   const { verified } = useAuth();
   const [copied, setCopied] = useState(false);
+  // 移动端：频道列表以底部抽屉呈现（桌面端始终为固定侧栏）
+  const [listOpen, setListOpen] = useState(false);
 
   // 仅聚合已启用的直播源（设置 → 直播源中的勾选状态）
   const sources = useMemo(() => {
-    const selected = new Set(store.liveSelectedUrls);
-    return allLiveSources(store).filter((s) => selected.has(s.url));
-  }, [store]);
+    const selected = new Set(liveSelectedUrls);
+    return allLiveSources({ liveEnvSources, liveSubscriptions }).filter((s) => selected.has(s.url));
+  }, [liveSelectedUrls, liveEnvSources, liveSubscriptions]);
 
   // 聚合全部直播源的 M3U 解析结果（单源失败不影响整体）
   const playlistsQuery = useQuery({
@@ -116,7 +122,7 @@ function LiveContent() {
       if (c.tvgId) sp.set('tvgId', c.tvgId);
       if (c.epg) sp.set('epg', c.epg);
       router.replace(`/live?${sp.toString()}`, { scroll: false });
-      store.addLiveRecent({
+      useAppStore.getState().addLiveRecent({
         url: c.url,
         name: c.name,
         logo: c.logo,
@@ -125,8 +131,9 @@ function LiveContent() {
         epg: c.epg,
         sourceUrl: c.sourceUrl,
       });
+      setListOpen(false);
     },
-    [router, store]
+    [router]
   );
 
   if (!verified) {
@@ -157,7 +164,7 @@ function LiveContent() {
                   <span className="live-dot" />
                   <p className="text-white/60 text-sm">
                     {sources.length === 0
-                      ? store.liveEnvSources.length + store.liveSubscriptions.length > 0
+                      ? liveEnvSources.length + liveSubscriptions.length > 0
                         ? '所有直播源均已停用，请在设置中勾选启用'
                         : '请先在设置中添加直播源（M3U 订阅）'
                       : playlistsQuery.isLoading
@@ -193,17 +200,17 @@ function LiveContent() {
                   <button
                     className={cn(
                       'rounded-md p-2 transition-colors',
-                      store.liveFavorites.includes(currentChannel.url)
+                      liveFavorites.includes(currentChannel.url)
                         ? 'text-amber-400'
                         : 'text-muted hover:text-amber-400 hover:bg-hover'
                     )}
                     aria-label="收藏"
                     title="收藏"
-                    onClick={() => store.toggleLiveFavorite(currentChannel.url)}
+                    onClick={() => useAppStore.getState().toggleLiveFavorite(currentChannel.url)}
                   >
                     <svg
                       className="w-4 h-4"
-                      fill={store.liveFavorites.includes(currentChannel.url) ? 'currentColor' : 'none'}
+                      fill={liveFavorites.includes(currentChannel.url) ? 'currentColor' : 'none'}
                       stroke="currentColor"
                       viewBox="0 0 24 24"
                     >
@@ -253,8 +260,39 @@ function LiveContent() {
             )}
           </div>
 
-          {/* 侧栏：频道列表 */}
-          <aside className="bg-surface-raised border border-line rounded-lg flex flex-col lg:sticky lg:top-20 h-[70vh] lg:h-[calc(100vh-6.5rem)] overflow-hidden">
+          {/* 移动端抽屉遮罩 */}
+          {listOpen && (
+            <div
+              className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+              onClick={() => setListOpen(false)}
+              aria-hidden
+            />
+          )}
+
+          {/* 侧栏：频道列表（移动端为底部抽屉，桌面端为固定侧栏） */}
+          <aside
+            className={cn(
+              'bg-surface-raised border border-line flex flex-col overflow-hidden',
+              // 移动端：底部抽屉
+              'fixed inset-x-0 bottom-0 z-40 h-[75vh] rounded-t-2xl shadow-2xl',
+              listOpen ? 'flex' : 'hidden',
+              // 桌面端：贴右侧的常驻侧栏，恢复静态布局
+              'lg:static lg:flex lg:sticky lg:top-20 lg:h-[calc(100vh-6.5rem)] lg:rounded-lg lg:shadow-none'
+            )}
+          >
+            {/* 移动端抽屉头：标题 + 关闭 */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-line lg:hidden shrink-0">
+              <span className="text-xs font-medium text-content">频道列表</span>
+              <button
+                className="p-1 rounded text-muted hover:text-content hover:bg-hover"
+                aria-label="关闭频道列表"
+                onClick={() => setListOpen(false)}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
             {playlistsQuery.isLoading && channels.length === 0 ? (
               <div className="flex-1 flex items-center justify-center">
                 <div className="h-9 w-9 rounded-full border-4 border-line border-t-accent animate-spin" />
@@ -270,7 +308,7 @@ function LiveContent() {
             {(failedCount > 0 || sources.length === 0) && (
               <p className="text-[10px] text-faint px-3 py-1.5 border-t border-line shrink-0">
                 {sources.length === 0
-                  ? store.liveEnvSources.length + store.liveSubscriptions.length > 0
+                  ? liveEnvSources.length + liveSubscriptions.length > 0
                     ? '所有直播源均已停用，请在设置中勾选启用'
                     : '暂无直播源，请在设置 → 直播源中添加'
                   : `${failedCount > 0 ? `${failedCount} 个订阅拉取失败 · ` : ''}共 ${sources.length} 个已启用源`}
@@ -279,6 +317,19 @@ function LiveContent() {
           </aside>
         </div>
       </main>
+
+      {/* 移动端：打开频道列表抽屉 */}
+      {!listOpen && (
+        <button
+          className="fixed bottom-4 right-4 z-30 lg:hidden flex items-center gap-1.5 rounded-full bg-accent px-4 py-2.5 text-xs font-medium text-white shadow-lg active:scale-95 transition-transform"
+          onClick={() => setListOpen(true)}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+          频道列表
+        </button>
+      )}
     </div>
   );
 }
