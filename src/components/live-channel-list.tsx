@@ -79,7 +79,9 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
   const recentOrder = useMemo(() => new Map(liveRecent.map((r, i) => [r.url, i] as const)), [liveRecent]);
   const normalizedKeyword = useMemo(() => normalizeForSearch(debouncedKeyword.trim()), [debouncedKeyword]);
 
-  const filtered = useMemo(() => {
+  // 先做视图/分组/搜索/排序（不含可用性筛选）：可用性计数必须基于这份列表，
+  // 否则点击筛选后 filtered 收缩，两个计数会跟着变小、与实际展示对不上
+  const matched = useMemo(() => {
     let list: LiveChannelItem[];
     if (view === 'fav') {
       list = channels.filter((c) => favSet.has(c.url));
@@ -97,28 +99,34 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
     if (normalizedKeyword) {
       list = list.filter((c) => matchesKeyword(c, normalizedKeyword));
     }
-    if (aliveFilter !== 'off') {
-      list = list.filter((c) => matchesAlive(probeResults.get(c.url), aliveFilter));
-    }
     return sortChannels(list, sortMode, { recentOrder, probeOf: (url) => probeResults.get(url) });
-  }, [channels, favSet, liveRecent, view, group, normalizedKeyword, aliveFilter, sortMode, recentOrder, probeResults]);
+  }, [channels, favSet, liveRecent, view, group, normalizedKeyword, sortMode, recentOrder, probeResults]);
+
+  const filtered = useMemo(
+    () =>
+      aliveFilter === 'off'
+        ? matched
+        : matched.filter((c) => matchesAlive(probeResults.get(c.url), aliveFilter)),
+    [matched, aliveFilter, probeResults]
+  );
 
   // 上报筛选排序结果给页面（键盘换台用）；列表存父组件 ref，不触发父组件重渲染
   useEffect(() => {
     onFilteredChange?.(filtered);
   }, [filtered, onFilteredChange]);
 
+  // 口径与两个筛选按钮一致：绿点=分片级验证且吞吐达标（排除限速源），可播=任何验证级别通过
   const aliveCounts = useMemo(() => {
     let ok = 0;
     let green = 0;
-    for (const c of filtered) {
+    for (const c of matched) {
       const p = probeResults.get(c.url);
       if (!p?.ok) continue;
       ok++;
-      if (p.level === 'segment') green++;
+      if (matchesAlive(p, 'green')) green++;
     }
     return { ok, green };
-  }, [filtered, probeResults]);
+  }, [matched, probeResults]);
 
   // 切换筛选/排序/频道时：重置渐进渲染与键盘光标，并把当前播放频道滚入视区
   useEffect(() => {
@@ -249,6 +257,19 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
         >
           ⚡ 测活
         </button>
+        {probeResults.size > 0 && (
+          <button
+            className="btn-ghost !py-1 !px-2 text-xs"
+            disabled={isProbing}
+            onClick={() => {
+              clearProbe();
+              setAliveFilter('off');
+            }}
+            title="清除全部测活结果，并取消可用性筛选"
+          >
+            ✕ 清除
+          </button>
+        )}
         {isProbing && probeProgress && (
           <span className="text-[10px] text-faint">
             探测中 {probeProgress.done}/{probeProgress.total}
@@ -282,15 +303,6 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
               title="看所有验证通过（含直链/清单级弱验证）的频道"
             >
               可播 {aliveCounts.ok}
-            </button>
-            <button
-              className="text-[10px] text-faint hover:text-content transition-colors"
-              onClick={() => {
-                clearProbe();
-                setAliveFilter('off');
-              }}
-            >
-              清除结果
             </button>
           </>
         )}
