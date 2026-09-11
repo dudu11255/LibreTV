@@ -64,6 +64,10 @@ function LiveContent() {
   const [listOpen, setListOpen] = useState(false);
   /** 侧栏上报的筛选排序结果（键盘换台沿此列表顺序）；ref 存储，不触发重渲染 */
   const filteredRef = useRef<LiveChannelItem[]>([]);
+  /** 当前频道镜像：selectChannel 内读取最近一次播放的频道，用于记录"上一个频道" */
+  const currentChannelRef = useRef<LiveChannelItem | undefined>(undefined);
+  /** 上一个频道：退格键/按钮一键切回（电视遥控器 back 键习惯） */
+  const lastChannelRef = useRef<LiveChannelItem | null>(null);
 
   // 仅聚合已启用的直播源（设置 → 直播源中的勾选状态）
   const sources = useMemo(() => {
@@ -119,8 +123,14 @@ function LiveContent() {
     } as LiveChannelItem;
   }, [channels, currentUrl, searchParams]);
 
+  useEffect(() => {
+    currentChannelRef.current = currentChannel;
+  }, [currentChannel]);
+
   const selectChannel = useCallback(
     (c: LiveChannelItem) => {
+      const cur = currentChannelRef.current;
+      if (cur && cur.url !== c.url) lastChannelRef.current = cur;
       const sp = new URLSearchParams({ url: c.url, name: c.name });
       if (c.group) sp.set('group', c.group);
       if (c.tvgId) sp.set('tvgId', c.tvgId);
@@ -160,10 +170,20 @@ function LiveContent() {
   const goPrevChannel = useCallback(() => switchChannelByOffset(-1), [switchChannelByOffset]);
   const goNextChannel = useCallback(() => switchChannelByOffset(1), [switchChannelByOffset]);
 
-  // 全局键盘换台：↑↓ 直接切台。输入框/列表光标导航场景让位（列表聚焦时由列表内 ↑↓ 管理光标）
+  /** 切回上一个频道（Backspace / 信息条按钮） */
+  const backToPrevChannel = useCallback(() => {
+    const prev = lastChannelRef.current;
+    if (!prev) return;
+    lastChannelRef.current = null;
+    selectChannel(prev);
+  }, [selectChannel]);
+
+  // 全局键盘：↑↓ 直接切台，Backspace 切回上一个频道。
+  // 输入框/列表光标导航场景让位（列表聚焦时由列表内 ↑↓ 管理光标）
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      const isChannelKey = e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Backspace';
+      if (!isChannelKey) return;
       if (e.repeat || e.altKey || e.ctrlKey || e.metaKey) return;
       const target = e.target as HTMLElement | null;
       if (target) {
@@ -173,11 +193,12 @@ function LiveContent() {
         if (target.closest('[data-channel-list]')) return;
       }
       e.preventDefault();
-      switchChannelByOffset(e.key === 'ArrowDown' ? 1 : -1);
+      if (e.key === 'Backspace') backToPrevChannel();
+      else switchChannelByOffset(e.key === 'ArrowDown' ? 1 : -1);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [switchChannelByOffset]);
+  }, [switchChannelByOffset, backToPrevChannel]);
 
   const handleSelect = useCallback(
     (c: LiveChannelItem) => {
@@ -255,6 +276,26 @@ function LiveContent() {
                   <p className="text-xs text-faint truncate mt-0.5">{currentChannel.url}</p>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    className={cn(
+                      'rounded-md p-2 transition-colors',
+                      lastChannelRef.current
+                        ? 'text-muted hover:text-accent hover:bg-hover'
+                        : 'text-faint/40 cursor-default'
+                    )}
+                    aria-label="上一个频道"
+                    title={lastChannelRef.current ? `上一个频道：${lastChannelRef.current.name}（Backspace）` : '暂无上一个频道'}
+                    onClick={backToPrevChannel}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 15L4 10l5-5m-5 5h10.5a5.5 5.5 0 015.5 5.5V17"
+                      />
+                    </svg>
+                  </button>
                   <button
                     className="rounded-md p-2 text-muted hover:text-accent hover:bg-hover transition-colors"
                     aria-label="上一台"

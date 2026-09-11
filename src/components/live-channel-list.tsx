@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildImageUrl, cn } from '@/lib/utils';
 import { useAppStore } from '@/lib/store';
 import {
+  isSlowSource,
   matchesAlive,
   matchesKeyword,
   normalizeForSearch,
@@ -403,9 +404,11 @@ const ChannelRow = memo(function ChannelRow({
 
   // H.265/HEVC：国内 IPTV 常见，测活通过但 Chromium 内核通常无法软解
   const isHevc = Boolean(probe?.codec && /hvc1|hev1|hevc/i.test(probe.codec));
-  // 状态点语义：绿=分片级验证通过；琥珀=弱验证（直链/清单级）或超时（源可能只是慢）；红=不可达
+  // 源限速：分片可达但吞吐不足，绿点却播不了的主因
+  const slow = isSlowSource(probe);
+  // 状态点语义：绿=分片级验证且吞吐达标；琥珀=限速/弱验证（直链/清单级）或超时；红=不可达
   const weakLevel = probe?.ok && probe.level !== 'segment';
-  const amber = Boolean(probe && (weakLevel || (!probe.ok && probe.timedOut)));
+  const amber = Boolean(probe && (weakLevel || (!probe.ok && probe.timedOut) || slow));
   const dotClass = amber ? 'bg-amber-400' : probe?.ok ? 'bg-green-500' : 'bg-red-400';
   const levelText =
     probe?.level === 'segment'
@@ -413,9 +416,15 @@ const ChannelRow = memo(function ChannelRow({
       : probe?.level === 'head'
         ? '直链可达（未验证可播性）'
         : '播放列表可达（无分片，未验证可播）';
+  const speedText =
+    probe?.kbps != null && probe.level === 'segment'
+      ? ` · ≈${probe.kbps >= 1000 ? `${(probe.kbps / 1000).toFixed(1)}Mbps` : `${probe.kbps}kbps`}`
+      : '';
   const probeTitle = probe
     ? probe.ok
-      ? `${levelText}${probe.ms != null && probe.level === 'segment' ? ` · 分片耗时 ${probe.ms}ms` : ''}${isHevc ? ' · H.265 编码，需 Edge/Safari' : ''}`
+      ? slow
+        ? `源限速${speedText.replace(' · ', ' ')}，缓冲跟不上，可能无法流畅播放`
+        : `${levelText}${speedText}${probe.ms != null && probe.level === 'segment' ? ` · 延迟 ${probe.ms}ms` : ''}${isHevc ? ' · H.265 编码，需 Edge/Safari' : ''}`
       : probe.timedOut
         ? `${probe.error || '探测超时'} · 源可能只是慢，可直接试播确认`
         : probe.error || '不可用'

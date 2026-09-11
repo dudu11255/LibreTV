@@ -26,6 +26,7 @@ export const dynamic = 'force-dynamic';
  * - 请求带源站 Referer，消除「源校验 Referer 导致的可播却测不通」假阴性；
  * - 校验 m3u8 的 #EXTM3U 前缀与直链的 content-type，剔除 200 的 HTML/JSON 错误页；
  * - master playlist 解析 CODECS 一并返回，前端据此提示 H.265 等浏览器无法解码的情况；
+ * - 分片级通过后额外采样 128KB 实际吞吐（kbps），识别「可达但限速」的源；
  * - 走直播侧 SSRF 口径（allowPrivate）：LIVE_ALLOW_PRIVATE=1 时自建内网 IPTV 同样能测通；
  * - `?stream=1` 以 NDJSON 逐条推送结果（命中缓存的立即返回），前端状态点可边测边亮；
  *   不带该参数时仍返回整批 JSON，保持向后兼容。
@@ -43,6 +44,15 @@ const URL_BUDGET_MS = 10_000;
 const LEVEL_TIMEOUT_MS = 5000;
 /** 分片级最长等待：分片只需响应头；部分服务器忽略 Range 会整段返回，留足余量 */
 const SEGMENT_TIMEOUT_MS = 4000;
+/**
+ * 分片吞吐采样：Range 拉 128KB（或 2.5s 截止）估算实际带宽。
+ * Range: bytes=0-1 只能验证「分片可达」，覆盖不了「限速源」——
+ * 实测存在 206 秒回但整段下载仅 ~58kbps 的源，永远缓冲不起来（绿点却播不了）。
+ */
+const THROUGHPUT_BYTES = 128 * 1024;
+const THROUGHPUT_BUDGET_MS = 2500;
+/** 吞吐采样所需的最低剩余预算：预算不足时跳过采样，避免拖长探测长尾 */
+const THROUGHPUT_MIN_REMAINING_MS = 1500;
 /** 结果缓存：成功结果稳定，失败可能是瞬断，分开设置 */
 const CACHE_TTL_OK_MS = 10 * 60 * 1000;
 const CACHE_TTL_FAIL_MS = 2 * 60 * 1000;
@@ -62,6 +72,8 @@ interface ProbeOutcome {
   codec?: string;
   /** 因超出时间预算而失败（源可能只是慢，不代表不可播），前端据此区分展示 */
   timedOut?: boolean;
+  /** 分片吞吐估算（kbps）：低于阈值的源前端标记为「源限速」琥珀色 */
+  kbps?: number;
 }
 
 interface FetchHeadResult {
@@ -198,6 +210,49 @@ function elapsed(start: number): number {
   return Math.round(performance.now() - start);
 }
 
+/**
+ * 分片吞吐采样：Range 拉 128KB（或 2.5s 截止），按实际收到的字节数估算 kbps。
+ * 与分片可达性检查是两次独立请求（前者只取响应头即 cancel）。
+ * 服务器忽略 Range 时按整段返回，读到 THROUGHPUT_BYTES 即停，不影响估算。
+ */
+async function measureThroughput(segmentUrl: string, referer?: string): Promise<number | undefined> {
+  const start = performance.now();
+  try {
+    const { res } = await fetchUpstreamWithMeta(segmentUrl, {
+      timeoutMs: 3000,
+      retries: 0,
+      headers: {
+        'User-Agent': UA,
+        Accept: '*/*',
+        Range: `bytes=0-${THROUGHPUT_BYTES - 1}`,
+        ...(referer ? { Referer: referer } : {}),
+      },
+      allowPrivate: true,
+    });
+    if (!res.ok || !res.body) return undefined;
+    const reader = res.body.getReader();
+    let bytes = 0;
+    for (;;) {
+      const remaining = THROUGHPUT_BUDGET_MS - (performance.now() - start);
+      if (remaining <= 0) break;
+      const chunk = await Promise.race([
+        reader.read(),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), remaining)),
+      ]);
+      if (!chunk || chunk.done) break;
+      bytes += chunk.value?.length ?? 0;
+      if (bytes >= THROUGHPUT_BYTES) break;
+    }
+    try { await reader.cancel(); } catch { /* 忽略 */ }
+    try { await res.body.cancel(); } catch { /* 忽略 */ }
+    const secs = (performance.now() - start) / 1000;
+    if (bytes <= 0 || secs < 0.05) return undefined;
+    return Math.round((bytes * 8) / secs / 1000);
+  } catch {
+    return undefined;
+  }
+}
+
 /** 两级探测：manifest →（master 时穿透 variant）→ 分片 */
 async function probeOne(url: string): Promise<ProbeOutcome> {
   const start = performance.now();
@@ -292,14 +347,30 @@ async function probeOne(url: string): Promise<ProbeOutcome> {
     );
     // ms 只统计分片往返：三级累计耗时当作「延迟」对用户没有参考意义
     const segmentMs = elapsed(segmentStart);
+    if (!segment.ok) {
+      return {
+        url,
+        ok: false,
+        status: segment.status,
+        ms: segmentMs,
+        level: 'segment',
+        codec,
+        error: `分片响应 ${segment.status}`,
+      };
+    }
+    // 分片可达：采样实际吞吐，识别「可达但限速」的源（绿点却播不了的主因）
+    const kbps =
+      remaining() > THROUGHPUT_MIN_REMAINING_MS
+        ? await measureThroughput(segmentUrl, referer)
+        : undefined;
     return {
       url,
-      ok: segment.ok,
+      ok: true,
       status: segment.status,
       ms: segmentMs,
       level: 'segment',
       codec,
-      error: segment.ok ? undefined : `分片响应 ${segment.status}`,
+      kbps,
     };
   } catch (err) {
     const timedOut = performance.now() >= deadline;

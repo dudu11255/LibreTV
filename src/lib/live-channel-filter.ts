@@ -12,10 +12,27 @@ export interface ProbeLike {
   ms?: number;
   level?: 'segment' | 'manifest' | 'head';
   timedOut?: boolean;
+  kbps?: number;
 }
 
 export type LiveSortMode = 'default' | 'name' | 'group' | 'probe' | 'recent';
 export type AliveFilter = 'off' | 'ok' | 'green';
+
+/**
+ * 「源限速」阈值（kbps）：分片可达但吞吐低于该值的源无法流畅缓冲。
+ * 低于 1Mbps 的直播流基本必然卡顿，标记为琥珀色（介于绿点与不可达之间）。
+ */
+export const SLOW_SOURCE_KBPS = 1000;
+
+/** 分片可达但吞吐不足（测活绿点却播不了的主因） */
+export function isSlowSource(probe: ProbeLike | undefined): boolean {
+  return Boolean(
+    probe?.ok &&
+      probe.level === 'segment' &&
+      probe.kbps != null &&
+      probe.kbps < SLOW_SOURCE_KBPS
+  );
+}
 
 /** 常见台名分隔符（空格、连字符、下划线、点、竖线、括号等），搜索时忽略 */
 const SEPARATOR_RE = /[\s\-_./·|+()（）[\]【】]/g;
@@ -41,20 +58,24 @@ export function matchesKeyword(channel: KeywordMatchable, normalizedKeyword: str
 
 /**
  * 可用性筛选：
- * - 'ok'：任何验证级别通过（绿点或琥珀中的弱验证）
- * - 'green'：仅分片级验证通过（真实可播置信度最高）
+ * - 'ok'：任何验证级别通过（绿点、限速源或琥珀中的弱验证）
+ * - 'green'：仅「分片级验证通过且吞吐达标」（真实可流畅播放置信度最高）
  */
 export function matchesAlive(probe: ProbeLike | undefined, mode: AliveFilter): boolean {
   if (mode === 'off') return true;
   if (!probe?.ok) return false;
-  return mode === 'ok' || probe.level === 'segment';
+  if (mode === 'green') return probe.level === 'segment' && !isSlowSource(probe);
+  return true;
 }
 
-/** 探测状态排序权重：绿点 → 弱验证 → 超时 → 失败 → 未测 */
+/** 探测状态排序权重：绿点 → 限速分片 → 弱验证 → 超时 → 失败 → 未测 */
 export function probeRank(probe: ProbeLike | undefined): number {
-  if (!probe) return 4;
-  if (probe.ok) return probe.level === 'segment' ? 0 : 1;
-  return probe.timedOut ? 2 : 3;
+  if (!probe) return 5;
+  if (probe.ok) {
+    if (probe.level !== 'segment') return 2;
+    return isSlowSource(probe) ? 1 : 0;
+  }
+  return probe.timedOut ? 3 : 4;
 }
 
 export interface SortContext {
@@ -87,6 +108,8 @@ export function sortChannels<T extends KeywordMatchable & { url: string }>(
         const pb = probeOf?.(b.url);
         const rank = probeRank(pa) - probeRank(pb);
         if (rank !== 0) return rank;
+        // 同级内：有吞吐数据的按带宽降序，否则按分片延迟升序
+        if (pa?.kbps != null && pb?.kbps != null && pa.kbps !== pb.kbps) return pb.kbps - pa.kbps;
         return (pa?.ms ?? Number.POSITIVE_INFINITY) - (pb?.ms ?? Number.POSITIVE_INFINITY);
       });
       break;

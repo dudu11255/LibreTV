@@ -260,7 +260,9 @@ describe('POST /api/live/probe', () => {
 
     const segmentCalls = seen.filter((s) => s.url.includes('seg1.ts'));
     expect(segmentCalls.length).toBeGreaterThan(0);
-    expect(segmentCalls.every((c) => c.range === 'bytes=0-1')).toBe(true);
+    // 可达性检查 bytes=0-1（收到响应头即 cancel）+ 吞吐采样 bytes=0-131071
+    expect(segmentCalls.some((c) => c.range === 'bytes=0-1')).toBe(true);
+    expect(segmentCalls.every((c) => c.range === 'bytes=0-1' || c.range === 'bytes=0-131071')).toBe(true);
   });
 
   it('未开启 LIVE_ALLOW_PRIVATE 时拒绝内网地址', async () => {

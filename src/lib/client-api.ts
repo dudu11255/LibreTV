@@ -31,6 +31,8 @@ export interface LiveProbeResult {
   codec?: string;
   /** 因超时失败：源可能只是慢，前端以琥珀色区分于真正的不可达 */
   timedOut?: boolean;
+  /** 分片吞吐估算（kbps）：低于阈值的源前端标记为「源限速」 */
+  kbps?: number;
 }
 
 export function onUnauthorized(handler: (event: CustomEvent) => void): () => void {

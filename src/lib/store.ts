@@ -76,6 +76,8 @@ export interface LiveProbeEntry {
   codec?: string;
   /** 因超时失败（源可能只是慢），前端以琥珀色区分展示 */
   timedOut?: boolean;
+  /** 分片吞吐估算（kbps）：低于阈值的源前端标记为「源限速」琥珀色 */
+  kbps?: number;
   /** 测活时间戳（epoch ms），配合 TTL 判断有效性 */
   timestamp: number;
 }

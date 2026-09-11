@@ -58,7 +58,21 @@ export function LivePlayer({ url, title, onPrevChannel, onNextChannel }: LivePla
   const [retryNonce, setRetryNonce] = useState(0);
   // 起播前的品牌占位图（与点播 player-shell 共用 /player-poster.png），实际开始播放后隐藏
   const [showPoster, setShowPoster] = useState(true);
+  // 换台 OSD：切台后短暂显示频道名（键盘换台/控制条换台时的视觉反馈，全屏内同样可见）
+  const [osdTitle, setOsdTitle] = useState('');
+  const osdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // url 变化即换台：显示频道名 2.5s
+  useEffect(() => {
+    if (!url) return;
+    setOsdTitle(title);
+    if (osdTimerRef.current) clearTimeout(osdTimerRef.current);
+    osdTimerRef.current = setTimeout(() => setOsdTitle(''), 2500);
+    return () => {
+      if (osdTimerRef.current) clearTimeout(osdTimerRef.current);
+    };
+  }, [url, title]);
 
   const showHint = (text: string) => {
     setHint(text);
@@ -373,6 +387,12 @@ export function LivePlayer({ url, title, onPrevChannel, onNextChannel }: LivePla
         <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/60 px-2 py-1 rounded-full pointer-events-none">
           <span className="live-dot" />
           <span className="text-[10px] font-semibold text-white tracking-wider">LIVE</span>
+        </div>
+      )}
+      {/* 换台 OSD：频道名（全屏内同样可见） */}
+      {osdTitle && !error && (
+        <div className="absolute top-3 left-3 flex items-center max-w-[70%] bg-black/60 px-3 py-1.5 rounded-full pointer-events-none animate-fade-in">
+          <span className="text-sm font-medium text-white truncate">{osdTitle}</span>
         </div>
       )}
       {loading && !error && (

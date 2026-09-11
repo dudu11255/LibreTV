@@ -21,6 +21,8 @@ export interface ProbeResult {
   codec?: string;
   /** 因超时失败（源可能只是慢） */
   timedOut?: boolean;
+  /** 分片吞吐估算（kbps），低于阈值为「源限速」 */
+  kbps?: number;
 }
 
 const CHUNK_SIZE = 50;
@@ -72,6 +74,7 @@ export function useLiveProbe() {
               error: e.error,
               codec: e.codec,
               timedOut: e.timedOut,
+              kbps: e.kbps,
             };
       if (!known || known.timestamp !== e.timestamp) identities.set(url, { timestamp: e.timestamp, result });
       map.set(url, result);
@@ -164,6 +167,7 @@ export function useLiveProbe() {
                   error: r.error,
                   codec: r.codec,
                   timedOut: r.timedOut,
+                  kbps: r.kbps,
                   timestamp: Date.now(),
                 };
                 done++;

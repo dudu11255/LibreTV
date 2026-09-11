@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isSlowSource,
   matchesAlive,
   matchesKeyword,
   normalizeForSearch,
@@ -47,6 +48,8 @@ describe('matchesKeyword', () => {
 
 describe('matchesAlive', () => {
   const green: ProbeLike = { ok: true, level: 'segment' };
+  const fast: ProbeLike = { ok: true, level: 'segment', kbps: 3000 };
+  const slow: ProbeLike = { ok: true, level: 'segment', kbps: 60 };
   const weak: ProbeLike = { ok: true, level: 'head' };
   const timeout: ProbeLike = { ok: false, timedOut: true };
   const dead: ProbeLike = { ok: false };
@@ -56,23 +59,40 @@ describe('matchesAlive', () => {
     expect(matchesAlive(dead, 'off')).toBe(true);
   });
 
-  it('ok 档：任何验证级别通过', () => {
-    expect(matchesAlive(green, 'ok')).toBe(true);
+  it('ok 档：任何验证级别通过（含限速源）', () => {
+    expect(matchesAlive(fast, 'ok')).toBe(true);
+    expect(matchesAlive(slow, 'ok')).toBe(true);
     expect(matchesAlive(weak, 'ok')).toBe(true);
     expect(matchesAlive(timeout, 'ok')).toBe(false);
     expect(matchesAlive(dead, 'ok')).toBe(false);
     expect(matchesAlive(undefined, 'ok')).toBe(false);
   });
 
-  it('green 档：仅分片级验证', () => {
-    expect(matchesAlive(green, 'green')).toBe(true);
+  it('green 档：仅分片级验证且吞吐达标', () => {
+    expect(matchesAlive(fast, 'green')).toBe(true);
+    expect(matchesAlive(green, 'green')).toBe(true); // 无吞吐数据不排除
+    expect(matchesAlive(slow, 'green')).toBe(false);
     expect(matchesAlive(weak, 'green')).toBe(false);
   });
 });
 
+describe('isSlowSource', () => {
+  it('分片级 + kbps 低于阈值判为限速', () => {
+    expect(isSlowSource({ ok: true, level: 'segment', kbps: 58 })).toBe(true);
+    expect(isSlowSource({ ok: true, level: 'segment', kbps: 5000 })).toBe(false);
+    expect(isSlowSource({ ok: true, level: 'segment' })).toBe(false); // 未采样
+    expect(isSlowSource({ ok: true, level: 'head', kbps: 58 })).toBe(false);
+    expect(isSlowSource({ ok: false, level: 'segment', kbps: 58 })).toBe(false);
+    expect(isSlowSource(undefined)).toBe(false);
+  });
+});
+
 describe('probeRank', () => {
-  it('绿点 < 弱验证 < 超时 < 失败 < 未测', () => {
-    expect(probeRank({ ok: true, level: 'segment' })).toBeLessThan(probeRank({ ok: true, level: 'head' }));
+  it('绿点 < 限速分片 < 弱验证 < 超时 < 失败 < 未测', () => {
+    expect(probeRank({ ok: true, level: 'segment', kbps: 3000 })).toBeLessThan(
+      probeRank({ ok: true, level: 'segment', kbps: 60 })
+    );
+    expect(probeRank({ ok: true, level: 'segment', kbps: 60 })).toBeLessThan(probeRank({ ok: true, level: 'head' }));
     expect(probeRank({ ok: true, level: 'head' })).toBeLessThan(probeRank({ ok: false, timedOut: true }));
     expect(probeRank({ ok: false, timedOut: true })).toBeLessThan(probeRank({ ok: false }));
     expect(probeRank({ ok: false })).toBeLessThan(probeRank(undefined));
@@ -104,11 +124,24 @@ describe('sortChannels', () => {
     expect(order.map((c) => c.url)).toEqual(['u2', 'u3']);
   });
 
-  it('probe 可用优先、同级按耗时升序', () => {
+  it('probe 可用优先、同级按带宽降序', () => {
     const probeOf = (url: string): ProbeLike | undefined =>
-      url === 'u3' ? { ok: true, level: 'head' } : url === 'u1' ? { ok: true, level: 'segment', ms: 200 } : { ok: false };
-    // u1 绿点最快 → u3 弱验证 → u2 失败
+      url === 'u3' ? { ok: true, level: 'head' } : url === 'u1' ? { ok: true, level: 'segment', ms: 200, kbps: 3000 } : { ok: false };
+    // u1 绿点（带宽达标）→ u3 弱验证 → u2 失败
     expect(sortChannels(list, 'probe', { probeOf }).map((c) => c.url)).toEqual(['u1', 'u3', 'u2']);
+  });
+
+  it('probe 同级绿点按带宽降序', () => {
+    const probeOf = (url: string): ProbeLike | undefined =>
+      url === 'u1' ? { ok: true, level: 'segment', kbps: 2000 } : url === 'u2' ? { ok: true, level: 'segment', kbps: 6000 } : { ok: true, level: 'segment', kbps: 4000 };
+    expect(sortChannels(list, 'probe', { probeOf }).map((c) => c.url)).toEqual(['u2', 'u3', 'u1']);
+  });
+
+  it('probe 限速源排在正常绿点之后', () => {
+    const probeOf = (url: string): ProbeLike | undefined =>
+      url === 'u1' ? { ok: true, level: 'segment', kbps: 60, ms: 10 } : url === 'u2' ? { ok: true, level: 'segment', kbps: 3000, ms: 500 } : { ok: false };
+    // u1 延迟更低但限速 → 排在 u2 之后
+    expect(sortChannels(list, 'probe', { probeOf }).map((c) => c.url)).toEqual(['u2', 'u1', 'u3']);
   });
 
   it('probe 未测频道排在已测之后', () => {
