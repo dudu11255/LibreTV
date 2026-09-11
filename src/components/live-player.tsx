@@ -39,9 +39,12 @@ interface LivePlayerProps {
   /** 上游直播流地址（直连优先，失败自动走代理） */
   url: string;
   title: string;
+  /** 上一台/下一台：传入时注册为播放器控制条按钮（全屏内也可操作） */
+  onPrevChannel?: () => void;
+  onNextChannel?: () => void;
 }
 
-export function LivePlayer({ url, title }: LivePlayerProps) {
+export function LivePlayer({ url, title, onPrevChannel, onNextChannel }: LivePlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const artRef = useRef<any>(null);
@@ -244,6 +247,31 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
     };
 
     const engine = engineOf(url);
+    // 上一台/下一台：注册到播放器控制条（普通态与全屏均可见），未传不显示
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const controls: any[] = [];
+    const channelBtnSvg = (path: string) =>
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="${path}"/></svg>`;
+    if (onPrevChannel) {
+      controls.push({
+        name: 'prev-channel',
+        position: 'left',
+        index: 0,
+        html: channelBtnSvg('M11 19l-7-7 7-7m8 14l-7-7 7-7'),
+        tooltip: '上一台',
+        click: () => onPrevChannel(),
+      });
+    }
+    if (onNextChannel) {
+      controls.push({
+        name: 'next-channel',
+        position: 'left',
+        index: 1,
+        html: channelBtnSvg('M13 5l7 7-7 7M5 5l7 7-7 7'),
+        tooltip: '下一台',
+        click: () => onNextChannel(),
+      });
+    }
     const art = new Artplayer({
       container: containerRef.current,
       url,
@@ -266,6 +294,7 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
       playsInline: true,
       airplay: true,
       theme: '#2563eb',
+      controls,
       lang: navigator.language.toLowerCase().startsWith('zh') ? 'zh-cn' : 'en',
       moreVideoAttr: { playsInline: true },
       customType: {
@@ -322,7 +351,7 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
       destroyed = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url, retryNonce]);
+  }, [url, retryNonce, onPrevChannel, onNextChannel]);
 
   return (
     <div className="relative w-full h-full">

@@ -130,6 +130,10 @@ interface AppState extends AppSettings {
   toggleLiveSelected: (url: string) => void;
   toggleLiveFavorite: (channelUrl: string) => void;
   addLiveRecent: (entry: Omit<LiveRecentEntry, 'timestamp'>) => void;
+  /** 删除单条最近观看（按流 URL） */
+  removeLiveRecent: (channelUrl: string) => void;
+  /** 清空最近观看 */
+  clearLiveRecent: () => void;
   /** 合并写入测活结果，并顺带清理过期条目 */
   setLiveProbeResults: (entries: Record<string, LiveProbeEntry>) => void;
   clearLiveProbeResults: () => void;
@@ -383,6 +387,12 @@ export const useAppStore = create<AppState>()(
         const rest = get().liveRecent.filter((r) => r.url !== entry.url);
         set({ liveRecent: [{ ...entry, timestamp: Date.now() }, ...rest].slice(0, 20) });
       },
+
+      removeLiveRecent: (channelUrl) => {
+        set({ liveRecent: get().liveRecent.filter((r) => r.url !== channelUrl) });
+      },
+
+      clearLiveRecent: () => set({ liveRecent: [] }),
 
       setLiveProbeResults: (entries) => {
         const now = Date.now();

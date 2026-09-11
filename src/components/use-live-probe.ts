@@ -51,20 +51,35 @@ export function useLiveProbe() {
     abortRef.current?.abort();
   }, []);
 
-  // 仅暴露 6 小时内的结果，过期条目对 UI 不可见
+  // 仅暴露 6 小时内的结果，过期条目对 UI 不可见。
+  // 结果对象按 (url, timestamp) 复用身份：节流写回只更新被探测到的频道，
+  // 未变化的条目保持同一对象引用，下游 memo 行组件才能精确跳过重渲染。
+  const identityRef = useRef(new Map<string, { timestamp: number; result: ProbeResult }>());
   const results = useMemo(() => {
     const now = Date.now();
     const map = new Map<string, ProbeResult>();
+    const identities = identityRef.current;
     for (const [url, e] of Object.entries(cache)) {
-      if (now - e.timestamp < LIVE_PROBE_TTL_MS) {
-        map.set(url, {
-          ok: e.ok,
-          ms: e.ms,
-          level: e.level,
-          error: e.error,
-          codec: e.codec,
-          timedOut: e.timedOut,
-        });
+      if (now - e.timestamp >= LIVE_PROBE_TTL_MS) continue;
+      const known = identities.get(url);
+      const result =
+        known && known.timestamp === e.timestamp
+          ? known.result
+          : {
+              ok: e.ok,
+              ms: e.ms,
+              level: e.level,
+              error: e.error,
+              codec: e.codec,
+              timedOut: e.timedOut,
+            };
+      if (!known || known.timestamp !== e.timestamp) identities.set(url, { timestamp: e.timestamp, result });
+      map.set(url, result);
+    }
+    // 清理已过期频道的身份缓存，避免无界增长
+    if (identities.size > map.size) {
+      for (const url of identities.keys()) {
+        if (!map.has(url)) identities.delete(url);
       }
     }
     return map;
