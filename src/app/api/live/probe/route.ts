@@ -12,8 +12,9 @@ export const dynamic = 'force-dynamic';
  * 单级「manifest 可访问」不足以判断可播：大量 IPTV 源 manifest 正常但
  * 分片请求被拒（token/Referer 校验、源瞬断）。因此探测追到真实分片：
  *
- *   m3u8 → [master playlist → 第一个 variant] → media playlist → 第一个分片
+ *   m3u8 → [master playlist → 第一个 variant] → media playlist → 初始化段/最新分片
  *   分片以 Range: bytes=0-1 请求，收到响应头即 cancel body，不下载媒体数据。
+ *   manifest 请求**不带 Range**（部分源会严格按 Range 截断，只回 2 字节）。
  *
  * 非 m3u8（FLV 等）维持单级探测。结果 level 标识探测深度：
  *   segment=分片级（最可信）/ manifest=仅 manifest 级 / head=单级直探
@@ -85,17 +86,24 @@ function refererOf(url: string): string | undefined {
   }
 }
 
-/** 请求一个资源，拿到响应头即断开 body（m3u8 额外读取文本以供解析） */
+/**
+ * 请求一个资源，拿到响应头即断开 body（m3u8 额外读取文本以供解析）。
+ *
+ * range 仅用于分片级探测：部分源（openresty 等）对 Range 请求严格截断，
+ * 若给 manifest 也带 `Range: bytes=0-1` 会只拿到 2 字节（如 `#E`），
+ * 导致 m3u8 解析与 #EXTM3U 校验失败而被误判为不可用。
+ */
 async function fetchHeadersOnly(
   url: string,
   timeoutMs: number,
-  referer?: string
+  referer?: string,
+  range = false
 ): Promise<FetchHeadResult> {
   const headers: Record<string, string> = {
     'User-Agent': UA,
     Accept: '*/*',
-    Range: 'bytes=0-1',
   };
+  if (range) headers.Range = 'bytes=0-1';
   if (referer) headers.Referer = referer;
 
   // allowPrivate：与直播流代理同一把尺子，LIVE_ALLOW_PRIVATE=1 时自建内网 IPTV 才能测通；
@@ -121,8 +129,15 @@ async function fetchHeadersOnly(
   return { ok: res.ok, status: res.status, text, finalUrl, contentType, isM3u8 };
 }
 
-/** 从 media playlist 中取第一个分片/初始化段 URL */
-function firstSegmentUrl(content: string, baseUrl: string): string | undefined {
+/**
+ * 从 media playlist 中选一个用于探测的分片：优先初始化段（EXT-X-MAP），
+ * 否则取**窗口内最后一个**（最新）分片。
+ *
+ * 不取第一个：直播是滑动窗口，列表首个分片最接近过期，
+ * manifest 解析与分片请求之间的几十毫秒延迟就可能让它 404 而在测活中误判为不可用。
+ */
+function lastSegmentUrl(content: string, baseUrl: string): string | undefined {
+  let last: string | undefined;
   for (const rawLine of content.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line) continue;
@@ -132,9 +147,9 @@ function firstSegmentUrl(content: string, baseUrl: string): string | undefined {
       continue;
     }
     if (line.startsWith('#')) continue;
-    return new URL(line, baseUrl).href;
+    last = new URL(line, baseUrl).href;
   }
-  return undefined;
+  return last;
 }
 
 /** 从 master playlist 中取第一个 variant 的地址（无 STREAM-INF 则视为 media playlist 返回 null） */
@@ -229,13 +244,18 @@ async function probeOne(url: string): Promise<ProbeOutcome> {
     }
 
     // 第三级：分片
-    const segmentUrl = firstSegmentUrl(mediaText, mediaUrl);
+    const segmentUrl = lastSegmentUrl(mediaText, mediaUrl);
     if (!segmentUrl) {
       // 空 media playlist（直播源刚启动/无分片）视为 manifest 级通过
       return { url, ok: true, status: entry.status, ms: elapsed(start), level: 'manifest', codec };
     }
     const segmentStart = performance.now();
-    const segment = await fetchHeadersOnly(segmentUrl, Math.min(timeout(), SEGMENT_TIMEOUT_MS), referer);
+    const segment = await fetchHeadersOnly(
+      segmentUrl,
+      Math.min(timeout(), SEGMENT_TIMEOUT_MS),
+      referer,
+      true
+    );
     // ms 只统计分片往返：三级累计耗时当作「延迟」对用户没有参考意义
     const segmentMs = elapsed(segmentStart);
     return {
