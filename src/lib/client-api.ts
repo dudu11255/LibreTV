@@ -29,6 +29,8 @@ export interface LiveProbeResult {
   error?: string;
   /** master playlist 的 CODECS，用于前端提示 H.265 等不可解码情况 */
   codec?: string;
+  /** 因超时失败：源可能只是慢，前端以琥珀色区分于真正的不可达 */
+  timedOut?: boolean;
 }
 
 export function onUnauthorized(handler: (event: CustomEvent) => void): () => void {

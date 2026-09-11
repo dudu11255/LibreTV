@@ -74,6 +74,8 @@ export interface LiveProbeEntry {
   error?: string;
   /** 流编码（master playlist 的 CODECS 属性），用于提示 H.265 等不可解码情况 */
   codec?: string;
+  /** 因超时失败（源可能只是慢），前端以琥珀色区分展示 */
+  timedOut?: boolean;
   /** 测活时间戳（epoch ms），配合 TTL 判断有效性 */
   timestamp: number;
 }

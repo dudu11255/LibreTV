@@ -125,6 +125,66 @@ describe('POST /api/live/probe', () => {
     expect(fn.mock.calls.length).toBe(callsAfterFirst);
   });
 
+  it('重定向到错误占位资源（令牌失效）时判为不可用', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/channel/expired')) {
+          return new Response(null, {
+            status: 302,
+            headers: { location: 'https://static.err.test/status/error_account_pirated.mp4' },
+          });
+        }
+        return new Response('mp4-bytes', {
+          status: 200,
+          headers: { 'content-type': 'video/mp4' },
+        });
+      })
+    );
+    const res = await POST(makeRequest(['https://tv.test/channel/expired?token=x'], true));
+    const [line] = await readNdjson(res);
+    expect(line.ok).toBe(false);
+    expect(String(line.error)).toContain('错误占位');
+  });
+
+  it('重定向到仍在 /status/ 下的正常 m3u8 时不误判为错误占位', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes('/entry')) {
+          return new Response(null, {
+            status: 302,
+            headers: { location: 'https://cdn.ok.test/status/live.m3u8' },
+          });
+        }
+        if (url.includes('/status/live.m3u8')) {
+          return jsonRes(MEDIA, 'application/vnd.apple.mpegurl');
+        }
+        return new Response('x', { status: 206, headers: { 'content-type': 'video/mp2t' } });
+      })
+    );
+    const res = await POST(makeRequest(['https://cdn.ok.test/entry?token=x'], true));
+    const [line] = await readNdjson(res);
+    expect(line.ok).toBe(true);
+    expect(line.level).toBe('segment');
+  });
+
+  it('直链 MP4 只标记为 head（可达但未验证可播性）', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('mp4-bytes', {
+        status: 200,
+        headers: { 'content-type': 'video/mp4' },
+      }))
+    );
+    const res = await POST(makeRequest(['https://direct.test/live/stream?id=1'], true));
+    const [line] = await readNdjson(res);
+    expect(line.ok).toBe(true);
+    expect(line.level).toBe('head');
+  });
+
   it('探测窗口内最新分片（滑动窗口下最不易过期）', async () => {
     const MEDIA3 = [
       '#EXTM3U',

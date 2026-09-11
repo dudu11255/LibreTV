@@ -60,6 +60,8 @@ interface ProbeOutcome {
   error?: string;
   /** master playlist 的 CODECS 属性（如 hvc1.1.6.L93.B0,mp4a.40.2），用于前端提示编码兼容性 */
   codec?: string;
+  /** 因超出时间预算而失败（源可能只是慢，不代表不可播），前端据此区分展示 */
+  timedOut?: boolean;
 }
 
 interface FetchHeadResult {
@@ -70,6 +72,15 @@ interface FetchHeadResult {
   contentType: string;
   isM3u8: boolean;
 }
+
+/**
+ * 错误占位资源：不少 IPTV 服务在令牌失效/账号异常时 302 到一段错误提示视频或图片
+ * （如 `https://static.xxx/status/error_account_pirated.mp4`）。
+ * 响应是 200 的合法媒体，单看可达性会误判为可用，这里按最终 URL 路径特征识别。
+ * 仅在发生重定向时判定，避免误伤正常路径。
+ */
+const ERROR_PLACEHOLDER_RE =
+  /(^|\/)(error|errors|status|denied|forbidden|expired|invalid|pirated|unauthorized)([_\-./]|$)/i;
 
 /** 明显的网页/接口响应（200 的 HTML/JSON 错误页不能当成流） */
 function isWebPageType(contentType: string): boolean {
@@ -203,7 +214,24 @@ async function probeOne(url: string): Promise<ProbeOutcome> {
       return { url, ok: false, status: entry.status, ms: elapsed(start), error: `入口响应 ${entry.status}` };
     }
 
-    // 非 m3u8（FLV/TS 直链）：拒绝明显的网页/接口响应，其余单级判定
+    // 令牌失效/账号异常时，源常重定向到错误提示资源：本质不可用，但 HTTP 层是 200。
+    // 仍以 m3u8 结尾的重定向视为正常播放列表（如 /status/live.m3u8），不按占位资源处理。
+    if (entry.finalUrl !== url) {
+      try {
+        const pathname = new URL(entry.finalUrl).pathname;
+        if (!/\.m3u8?$/i.test(pathname) && ERROR_PLACEHOLDER_RE.test(pathname)) {
+          return {
+            url,
+            ok: false,
+            status: entry.status,
+            ms: elapsed(start),
+            error: '源返回错误占位内容（令牌失效 / 账号异常）',
+          };
+        }
+      } catch { /* 忽略 URL 解析失败 */ }
+    }
+
+    // 非 m3u8（FLV/TS 直链）：拒绝明显的网页/接口响应，其余仅标记"可达"（level=head，未验证可播性）
     if (!entry.isM3u8) {
       if (isWebPageType(entry.contentType)) {
         return {
@@ -279,6 +307,7 @@ async function probeOne(url: string): Promise<ProbeOutcome> {
       url,
       ok: false,
       ms: elapsed(start),
+      timedOut: timedOut || undefined,
       error: timedOut ? `探测超时（${URL_BUDGET_MS}ms）` : err instanceof Error ? err.message : '探测失败',
     };
   }

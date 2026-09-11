@@ -6,8 +6,11 @@ import Hls, { type HlsConfig } from 'hls.js';
 
 /**
  * 直播播放器：与点播 player-shell 完全独立。
- * - 协议分发：.m3u8 → hls.js（直播参数）；.flv → mpegts.js（动态加载，按需 ~150KB）；
- * - 直连失败自动切换到 /api/live/stream/ 代理通道重试一次；
+ * - 引擎分发：.m3u8 → hls.js（直播参数）；.flv → mpegts.js（动态加载，按需 ~150KB）；
+ *   mp4/webm 等原生容器 → <video> 直接播放；
+ * - 无扩展名的地址（如 /channel/xxx?token=...）默认按 HLS 处理，
+ *   HLS 直连与代理均失败后**回退原生播放**一次（覆盖"内容是 MP4 却无 .m3u8 后缀"的源）；
+ * - 每级直连失败自动切换到 /api/live/stream/ 代理通道重试一次；
  * - 直播态 UI：无进度条、无倍速、无截图、无连播。
  */
 
@@ -15,6 +18,17 @@ const STREAM_PROXY_PREFIX = '/api/live/stream/';
 
 export function isFlvUrl(url: string): boolean {
   return /\.flv(\?|$)/i.test(url);
+}
+
+/** 浏览器原生可播的直链容器（非 HLS/FLV） */
+const NATIVE_MEDIA_RE = /\.(mp4|m4v|webm|ogv|ogg|mov)(\?|$)/i;
+
+type Engine = 'hls' | 'flv' | 'native';
+
+function engineOf(url: string): Engine {
+  if (isFlvUrl(url)) return 'flv';
+  if (NATIVE_MEDIA_RE.test(url)) return 'native';
+  return 'hls';
 }
 
 function proxyUrl(url: string): string {
@@ -58,6 +72,8 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
     let playbackStarted = false;
     let disposed = false;
     let destroyed = false;
+    /** 原生播放注册的 error 监听清理函数（切台/销毁时调用） */
+    let nativeCleanup: (() => void) | null = null;
 
     const cleanupEngines = () => {
       hlsRef.current?.destroy();
@@ -67,10 +83,44 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
         try { mpegtsRef.current.destroy(); } catch { /* 忽略 */ }
         mpegtsRef.current = null;
       }
+      if (nativeCleanup) {
+        try { nativeCleanup(); } catch { /* 忽略 */ }
+        nativeCleanup = null;
+      }
+    };
+
+    /**
+     * 原生播放：mp4/webm 等容器交给 <video> 直接播放。
+     * 也作为 HLS 两级都失败后的兜底——覆盖"地址没有 .m3u8 后缀但内容其实是 MP4"的源。
+     * 直连失败（CORS/混合内容）时再走一次代理。
+     */
+    const setupNative = (
+      video: HTMLVideoElement,
+      mediaUrl: string,
+      allowProxyFallback: boolean,
+      failMessage?: string
+    ) => {
+      cleanupEngines();
+      const onError = () => {
+        video.removeEventListener('error', onError);
+        nativeCleanup = null;
+        if (disposed || destroyed) return;
+        if (allowProxyFallback && !mediaUrl.startsWith(STREAM_PROXY_PREFIX)) {
+          showHint('直连失败，改用代理重试...');
+          setupNative(video, proxyUrl(url), false, failMessage);
+          return;
+        }
+        setError(failMessage || '该地址不是可播放的直播流（内容可能是文件或错误提示）');
+      };
+      video.addEventListener('error', onError);
+      nativeCleanup = () => video.removeEventListener('error', onError);
+      video.src = mediaUrl;
+      video.load();
+      video.play().catch(() => {});
     };
 
     /** HLS 直播参数：小缓冲、快速追帧；与点播（大缓冲、进度恢复）刻意区分 */
-    const setupHls = (video: HTMLVideoElement, mediaUrl: string, allowProxyFallback: boolean) => {
+    const setupHls = (video: HTMLVideoElement, mediaUrl: string, stage: 'direct' | 'proxy') => {
       cleanupEngines();
       let liveNetRetryCount = 0;
       let mediaRecoverCount = 0;
@@ -119,16 +169,18 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
         }
         if (!playbackStarted) {
           if (
-            allowProxyFallback &&
+            stage === 'direct' &&
             !mediaUrl.startsWith(STREAM_PROXY_PREFIX) &&
             (data.details === 'manifestLoadError' || data.type === Hls.ErrorTypes.NETWORK_ERROR)
           ) {
             showHint('直连失败，改用代理重试...');
             // 直播 manifest 重写需要本站前缀，交给代理通道
-            setupHls(video, proxyUrl(url), false);
+            setupHls(video, proxyUrl(url), 'proxy');
             return;
           }
-          setError(`直播流加载失败${codeHint}，可能该频道已失效，请尝试其他频道`);
+          // HLS 直连与代理均失败：可能是"无 .m3u8 后缀但内容是 MP4"的源，回退原生播放
+          showHint('HLS 解析失败，尝试原生播放...');
+          setupNative(video, url, true, `直播流加载失败${codeHint}，可能该频道已失效，请尝试其他频道`);
           return;
         }
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
@@ -191,10 +243,12 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
       player.play().catch(() => {});
     };
 
+    const engine = engineOf(url);
     const art = new Artplayer({
       container: containerRef.current,
       url,
-      type: isFlvUrl(url) ? 'flv' : 'm3u8',
+      // 原生容器统一用 'mp4'（仅用于选择处理函数，实际容器由浏览器嗅探）
+      type: engine === 'flv' ? 'flv' : engine === 'native' ? 'mp4' : 'm3u8',
       volume: 0.9,
       autoplay: true,
       // —— 直播态：关闭点播专属能力 ——
@@ -216,10 +270,13 @@ export function LivePlayer({ url, title }: LivePlayerProps) {
       moreVideoAttr: { playsInline: true },
       customType: {
         m3u8: (video: HTMLVideoElement) => {
-          setupHls(video, url, true);
+          setupHls(video, url, 'direct');
         },
         flv: (video: HTMLVideoElement) => {
           void setupFlv(video, url, true);
+        },
+        mp4: (video: HTMLVideoElement) => {
+          setupNative(video, url, true);
         },
       },
     });

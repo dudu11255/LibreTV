@@ -19,6 +19,8 @@ export interface ProbeResult {
   level?: 'segment' | 'manifest' | 'head';
   error?: string;
   codec?: string;
+  /** 因超时失败（源可能只是慢） */
+  timedOut?: boolean;
 }
 
 const CHUNK_SIZE = 50;
@@ -55,7 +57,14 @@ export function useLiveProbe() {
     const map = new Map<string, ProbeResult>();
     for (const [url, e] of Object.entries(cache)) {
       if (now - e.timestamp < LIVE_PROBE_TTL_MS) {
-        map.set(url, { ok: e.ok, ms: e.ms, level: e.level, error: e.error, codec: e.codec });
+        map.set(url, {
+          ok: e.ok,
+          ms: e.ms,
+          level: e.level,
+          error: e.error,
+          codec: e.codec,
+          timedOut: e.timedOut,
+        });
       }
     }
     return map;
@@ -139,6 +148,7 @@ export function useLiveProbe() {
                   level: r.level,
                   error: r.error,
                   codec: r.codec,
+                  timedOut: r.timedOut,
                   timestamp: Date.now(),
                 };
                 done++;

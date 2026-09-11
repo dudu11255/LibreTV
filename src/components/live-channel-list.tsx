@@ -254,12 +254,22 @@ function ChannelRow({
 
   // H.265/HEVC：国内 IPTV 常见，测活通过但 Chromium 内核通常无法软解
   const isHevc = Boolean(probe?.codec && /hvc1|hev1|hevc/i.test(probe.codec));
+  // 状态点语义：绿=分片级验证通过；琥珀=仅弱验证（直链/清单级）或超时（源可能只是慢）；红=不可达
+  const weakLevel = probe?.ok && probe.level !== 'segment';
+  const amber = Boolean(probe && (weakLevel || (!probe.ok && probe.timedOut)));
+  const dotClass = amber ? 'bg-amber-400' : probe?.ok ? 'bg-green-500' : 'bg-red-400';
   const levelText =
-    probe?.level === 'segment' ? '分片可用' : probe?.level === 'head' ? '直链可达' : 'manifest 可用';
+    probe?.level === 'segment'
+      ? '分片可用'
+      : probe?.level === 'head'
+        ? '直链可达（未验证可播性）'
+        : '播放列表可达（无分片，未验证可播）';
   const probeTitle = probe
     ? probe.ok
-      ? `${levelText}${probe.ms != null ? ` · 分片耗时 ${probe.ms}ms` : ''}${isHevc ? ' · H.265 编码，需 Edge/Safari' : ''}`
-      : probe.error || '不可用'
+      ? `${levelText}${probe.ms != null && probe.level === 'segment' ? ` · 分片耗时 ${probe.ms}ms` : ''}${isHevc ? ' · H.265 编码，需 Edge/Safari' : ''}`
+      : probe.timedOut
+        ? `${probe.error || '探测超时'} · 源可能只是慢，可直接试播确认`
+        : probe.error || '不可用'
     : undefined;
 
   return (
@@ -307,10 +317,7 @@ function ChannelRow({
           <div className="flex items-center gap-1.5 min-w-0">
             {probe && (
               <span
-                className={cn(
-                  'w-1.5 h-1.5 rounded-full shrink-0',
-                  probe.ok ? 'bg-green-500' : 'bg-red-400'
-                )}
+                className={cn('w-1.5 h-1.5 rounded-full shrink-0', dotClass)}
                 title={probeTitle}
               />
             )}
