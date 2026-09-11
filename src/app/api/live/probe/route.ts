@@ -33,10 +33,16 @@ export const dynamic = 'force-dynamic';
 
 const MAX_URLS = 50;
 const CONCURRENCY = 16;
-/** 单个频道三级探测的总预算（含 SSRF 校验与各级请求） */
-const URL_BUDGET_MS = 6000;
-/** 分片级最长等待：分片只需响应头，超时说明源不可用 */
-const SEGMENT_TIMEOUT_MS = 2500;
+/**
+ * 单个频道三级探测的总预算（含各级请求）。
+ * 6s 对跨网慢 CDN 不够用：实测存在 TCP 0.4s + TLS 1.5s 的源，
+ * 单是 variant 就要 3~4s，会导致"能播却超时判红"。放宽到 10s。
+ */
+const URL_BUDGET_MS = 10_000;
+/** 单级请求上限（入口/variant），避免某一级吃光总预算 */
+const LEVEL_TIMEOUT_MS = 5000;
+/** 分片级最长等待：分片只需响应头；部分服务器忽略 Range 会整段返回，留足余量 */
+const SEGMENT_TIMEOUT_MS = 4000;
 /** 结果缓存：成功结果稳定，失败可能是瞬断，分开设置 */
 const CACHE_TTL_OK_MS = 10 * 60 * 1000;
 const CACHE_TTL_FAIL_MS = 2 * 60 * 1000;
@@ -188,7 +194,7 @@ async function probeOne(url: string): Promise<ProbeOutcome> {
   const remaining = () => deadline - performance.now();
 
   const referer = refererOf(url);
-  const timeout = () => Math.max(500, Math.round(remaining()));
+  const timeout = () => Math.min(LEVEL_TIMEOUT_MS, Math.max(500, Math.round(remaining())));
 
   try {
     // 第一级：入口地址
