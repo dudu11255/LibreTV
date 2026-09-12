@@ -55,13 +55,27 @@ function isDoubanHost(host: string): boolean {
   );
 }
 
+/**
+ * 未登录即可代理的图片域白名单（精确后缀匹配，防 `evil-bgm.tv` 类绕过）：
+ * 豆瓣封面需要 Referer 伪装；热榜 cover_proxy 镜像与 Bangumi 封面
+ * 均为公开图片 CDN，无 Referer 校验，仅需防开放代理滥用。
+ */
+function isAnonymousImageHost(host: string): boolean {
+  const h = host.toLowerCase();
+  return (
+    isDoubanHost(h) ||
+    h === 'doubanio.viki.moe' || h.endsWith('.doubanio.viki.moe') ||
+    h === 'bgm.tv' || h.endsWith('.bgm.tv')
+  );
+}
+
 // 未鉴权的图片等资源也允许走代理（豆瓣防盗链需要 Referer 伪装）；
-// 但为防止被当作开放代理滥用，仅放行豆瓣域下的目标，其余必须已登录。
+// 但为防止被当作开放代理滥用，仅放行上述公开图片域，其余必须已登录。
 function looksLikeImageUrl(target: string): boolean {
   const host = (() => {
     try { return new URL(target).hostname; } catch { return ''; }
   })();
-  return isDoubanHost(host);
+  return isAnonymousImageHost(host);
 }
 
 /**

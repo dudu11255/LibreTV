@@ -24,8 +24,11 @@ export function parseSearchList(
 ): SearchResultItem[] {
   if (!data || typeof data !== 'object') throw new Error('API返回的数据格式无效');
   const list = (data as { list?: unknown }).list;
-  if (!Array.isArray(list)) throw new Error('API返回的数据格式无效');
-  return list.map((item) => {
+  // 部分源站无结果时返回 list: null（而非 []），视为空结果而非格式错误
+  if (list !== null && list !== undefined && !Array.isArray(list)) {
+    throw new Error('API返回的数据格式无效');
+  }
+  return (Array.isArray(list) ? list : []).map((item) => {
     const vod = item as Record<string, unknown>;
     return {
       sourceKey: source.key,

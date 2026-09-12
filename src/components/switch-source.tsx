@@ -40,10 +40,17 @@ export function SwitchSourceModal({
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [phase, setPhase] = useState<'searching' | 'testing' | 'done'>('searching');
 
-  const sources = useMemo(
-    () => store.selectedKeys.map((key) => resolveSource(store, key)).filter(Boolean) as SourceConfig[],
-    [store]
-  );
+  const sources = useMemo(() => {
+    // selectedKeys 可能含历史残留的重复 key：按 key 去重，避免同源重复搜索/测速与 React key 撞车
+    const seen = new Set<string>();
+    return store.selectedKeys
+      .map((key) => resolveSource(store, key))
+      .filter((s): s is SourceConfig => {
+        if (!s || seen.has(s.key)) return false;
+        seen.add(s.key);
+        return true;
+      });
+  }, [store]);
 
   useEffect(() => {
     // 弹窗打开期间锁定背景滚动
@@ -164,7 +171,7 @@ export function SwitchSourceModal({
               const img = buildImageUrl(c.result.pic, store.imageProxyMode, store.customImageProxy);
               return (
                 <button
-                  key={c.source.key}
+                  key={`${c.source.key}_${c.result.vodId}`}
                   className={cn('text-left group relative rounded-lg overflow-hidden bg-card transition-transform', !isCurrent && 'hover:scale-[1.03] cursor-pointer', isCurrent && 'cursor-default')}
                   onClick={() => !isCurrent && switchTo(c)}
                   disabled={isCurrent}
