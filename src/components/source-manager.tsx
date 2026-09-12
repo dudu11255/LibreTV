@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Drawer } from './header';
-import { subKeyPrefix, useAppStore } from '@/lib/store';
+import { isSourceDisabled, subKeyPrefix, useAppStore } from '@/lib/store';
 import { useToast } from './toast';
 import { formatRelativeTime, validateSourceUrl, cn } from '@/lib/utils';
 import { exportConfig, importConfig } from '@/lib/db';
@@ -53,6 +53,57 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
         [key]: { status: 'done', ok: false, error: err instanceof Error ? err.message : '测试失败' },
       }));
     }
+  };
+
+  /** 搜索健康度徽章：展示最近一次搜索该源的结果；被自动停用的源提供手动恢复入口 */
+  const healthBadge = (key: string) => {
+    const e = store.sourceHealth[key];
+    if (!e) return null;
+    if (isSourceDisabled(store, key)) {
+      const remainMin = Math.max(1, Math.ceil(((e.disabledUntil ?? 0) - Date.now()) / 60000));
+      return (
+        <span className="flex items-center gap-1 shrink-0">
+          <span
+            className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500"
+            title={`连续 ${e.failStreak} 次超时/失败，${remainMin} 分钟后自动恢复`}
+          >
+            ⏱ 已停用 {remainMin} 分
+          </span>
+          <button
+            className="text-[10px] px-1 text-muted hover:text-accent"
+            aria-label="恢复此源"
+            title="清除健康度记录，立即恢复参与搜索"
+            onClick={() => {
+              store.clearSourceHealth(key);
+              toast('已恢复，下次搜索重新参与', 'success');
+            }}
+          >
+            恢复
+          </button>
+        </span>
+      );
+    }
+    if (e.ok) {
+      return (
+        <span
+          className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/15 text-green-600 dark:text-green-400 shrink-0"
+          title={`上次搜索 ${e.ms}ms`}
+        >
+          ✓ {e.ms}ms
+        </span>
+      );
+    }
+    return (
+      <span
+        className={cn(
+          'text-[10px] px-1.5 py-0.5 rounded shrink-0',
+          e.timedOut ? 'bg-amber-500/15 text-amber-500' : 'bg-red-500/15 text-red-500'
+        )}
+        title={e.error}
+      >
+        {e.timedOut ? '⏱' : '✗'} 连续 {e.failStreak} 次失败
+      </span>
+    );
   };
 
   const testButton = (key: string, url: string) => {
@@ -158,6 +209,7 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
                         </div>
                         <div className="text-xs text-faint truncate">{api.url}</div>
                       </div>
+                      {healthBadge(api.key)}
                       {testButton(api.key, api.url)}
                     </div>
                   </li>
@@ -208,6 +260,7 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
                       </div>
                       <div className="text-xs text-faint truncate">{api.url}</div>
                     </div>
+                    {healthBadge(api.key)}
                     {testButton(api.key, api.url)}
                     {fromSubscription ? (
                       // 订阅源由远端列表管理：编辑会被下次同步覆盖，删除会复活，引导到订阅区操作
@@ -271,12 +324,6 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
         <SectionTitle title="播放与过滤" />
         <div className="space-y-3">
           <ToggleRow
-            label="成人内容过滤"
-            description="过滤“伦理片”等分类的结果"
-            checked={store.yellowFilter}
-            onChange={(v) => store.updateSettings({ yellowFilter: v })}
-          />
-          <ToggleRow
             label="广告过滤"
             description="过滤 m3u8 中的广告分片"
             checked={store.adFilter}
@@ -287,22 +334,6 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
             description="单集播放结束后自动播放下一集"
             checked={store.autoplayNext}
             onChange={(v) => store.updateSettings({ autoplayNext: v })}
-          />
-          <ToggleRow
-            label="首页推荐"
-            description="在首页展示推荐内容"
-            checked={store.doubanEnabled}
-            onChange={(v) => store.updateSettings({ doubanEnabled: v })}
-          />
-          <SelectRow
-            label="推荐数据源"
-            value={store.recommendSource}
-            onChange={(v) => store.updateSettings({ recommendSource: v as 'douban' | 'bangumi' | 'hot-list' })}
-            options={[
-              { value: 'douban', label: '豆瓣（电影/剧集）' },
-              { value: 'bangumi', label: 'Bangumi 新番放送' },
-              { value: 'hot-list', label: '影视榜单（豆瓣周榜/百度热播）' },
-            ]}
           />
         </div>
       </section>
@@ -337,6 +368,33 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
       {settingsTab === 'config' && (
       <>
         <SourceSubscriptions />
+        <section className="mb-6 pt-5 border-t border-line">
+          <SectionTitle title="首页与内容过滤" />
+          <div className="space-y-3">
+            <ToggleRow
+              label="成人内容过滤"
+              description="过滤“伦理片”等分类的结果"
+              checked={store.yellowFilter}
+              onChange={(v) => store.updateSettings({ yellowFilter: v })}
+            />
+            <ToggleRow
+              label="首页推荐"
+              description="在首页展示推荐内容"
+              checked={store.doubanEnabled}
+              onChange={(v) => store.updateSettings({ doubanEnabled: v })}
+            />
+            <SelectRow
+              label="推荐数据源"
+              value={store.recommendSource}
+              onChange={(v) => store.updateSettings({ recommendSource: v as 'douban' | 'bangumi' | 'hot-list' })}
+              options={[
+                { value: 'douban', label: '豆瓣（电影/剧集）' },
+                { value: 'bangumi', label: 'Bangumi 新番放送' },
+                { value: 'hot-list', label: '影视榜单（豆瓣周榜/百度热播）' },
+              ]}
+            />
+          </div>
+        </section>
         <section className="mb-6 pt-5 border-t border-line">
           <SectionTitle title="配置" />
           <ConfigIoButtons />

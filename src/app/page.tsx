@@ -7,9 +7,9 @@ import { Header } from '@/components/header';
 import { RecommendSection } from '@/components/douban-section';
 import { DetailModal } from '@/components/detail-modal';
 import { AggregatedCard, aggregateResults } from '@/components/video-card';
-import { useAppStore, resolveSource } from '@/lib/store';
+import { useAppStore, resolveSource, isSourceDisabled, SOURCE_DISABLE_TTL_MS } from '@/lib/store';
 import { api } from '@/lib/client-api';
-import type { SearchResultItem } from '@/lib/types';
+import type { SearchResultItem, SourceSearchOutcome } from '@/lib/types';
 import { addSearchHistory, db, removeSearchHistory } from '@/lib/db';
 import { cn, validateSourceUrl } from '@/lib/utils';
 import { useToast } from '@/components/toast';
@@ -36,6 +36,8 @@ function HomeContent() {
   const store = useAppStore();
   const [input, setInput] = useState(urlQuery);
   const [detailItem, setDetailItem] = useState<SearchResultItem | null>(null);
+  /** 流式搜索中已结算的源（data 就绪前用于增量渲染） */
+  const [streamedOutcomes, setStreamedOutcomes] = useState<SourceSearchOutcome[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // URL 驱动搜索：?s= 变化时回填输入框
@@ -43,18 +45,46 @@ function HomeContent() {
     if (urlQuery) setInput(urlQuery);
   }, [urlQuery]);
 
-  const selectedSources = useMemo(
-    () =>
-      store.selectedKeys
-        .map((key) => resolveSource(store, key))
-        .filter((s): s is NonNullable<typeof s> => Boolean(s) && validateSourceUrl(s!.url)),
+  // 源名回显：失败/停用提示里显示友好名称而非裸 key
+  const sourceName = (key: string) =>
+    store.customAPIs.find((a) => a.key === key)?.name ??
+    store.envSources.find((a) => a.key === key)?.name ??
+    key;
+
+  const selectedSources = useMemo(() => {
+    // selectedKeys 可能含历史残留的重复 key：按 key 去重，避免同源重复搜索
+    const seen = new Set<string>();
+    return store.selectedKeys
+      .map((key) => resolveSource(store, key))
+      .filter((s): s is NonNullable<typeof s> => {
+        if (!s || !validateSourceUrl(s.url) || seen.has(s.key)) return false;
+        seen.add(s.key);
+        return true;
+      })
+      // 自动停用期内的源不参与搜索（到期自动恢复）
+      .filter((s) => !isSourceDisabled(store, s.key));
+  }, [store]);
+  const disabledSources = useMemo(
+    () => store.selectedKeys.filter((key) => isSourceDisabled(store, key)),
     [store]
   );
 
   const searchQuery = useQuery({
     queryKey: ['search', urlQuery, store.selectedKeys, store.yellowFilter],
     // 与 runSearch 的截断规则保持一致：顶栏搜索 / 手动构造长链接不会绕过上限
-    queryFn: ({ signal }) => api.search(urlQuery.slice(0, 100), selectedSources, store.yellowFilter, signal),
+    queryFn: ({ signal }) => {
+      setStreamedOutcomes([]);
+      return api.search(urlQuery.slice(0, 100), selectedSources, store.yellowFilter, {
+        signal,
+        // 逐源结算即更新：结果边搜边渲染，同时滚动健康度
+        onSource: (outcome) => {
+          setStreamedOutcomes((prev) => [...prev, outcome]);
+          for (const key of store.recordSourceHealth([outcome])) {
+            toast(`「${sourceName(key)}」连续超时/失败，已临时停用 30 分钟`, 'warning');
+          }
+        },
+      });
+    },
     enabled: Boolean(urlQuery) && selectedSources.length > 0,
     // 5 分钟内从播放页返回时直接使用缓存，不重新搜索（服务端另有 60s 结果缓存兜底）
     staleTime: 300_000,
@@ -80,17 +110,23 @@ function HomeContent() {
     addSearchHistory(query).catch(() => {});
   };
 
-  const list = useMemo(() => searchQuery.data?.list ?? [], [searchQuery.data]);
-  const failures = searchQuery.data?.failures ?? [];
+  const isSearching = Boolean(urlQuery) && searchQuery.isFetching && !searchQuery.data;
+  // 聚合数据未就绪时，用已结算源的结果增量渲染（健康源不再等坏源超时）
+  const streamedList = useMemo(
+    () => streamedOutcomes.flatMap((o) => o.list),
+    [streamedOutcomes]
+  );
+  const list = useMemo(
+    () => searchQuery.data?.list ?? (isSearching ? streamedList : []),
+    [searchQuery.data, isSearching, streamedList]
+  );
+  const failures =
+    searchQuery.data?.failures ??
+    streamedOutcomes
+      .filter((o) => !o.ok)
+      .map((o) => ({ sourceKey: o.sourceKey, error: o.error || '请求失败', timedOut: o.timedOut }));
   // 跨源同名聚合：同名影片合并为一张卡片，展开后可选择具体来源
   const groups = useMemo(() => aggregateResults(list), [list]);
-  // 失败源显示友好名称而非裸 key
-  const failureNames = failures.map(
-    (f) =>
-      store.customAPIs.find((a) => a.key === f.sourceKey)?.name ??
-      store.envSources.find((a) => a.key === f.sourceKey)?.name ??
-      f.sourceKey
-  );
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -189,34 +225,43 @@ function HomeContent() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm text-muted">
                 “<span className="text-content">{urlQuery}</span>” 的搜索结果
-                {searchQuery.data && (
+                {isSearching ? (
                   <span className="text-faint">
-                    （{groups.length} 部影片 · {list.length} 条结果{failures.length > 0 && `，${failures.length} 个源失败`}）
+                    （已就绪 {streamedOutcomes.length}/{selectedSources.length} 个源…）
                   </span>
+                ) : (
+                  searchQuery.data && (
+                    <span className="text-faint">
+                      （{groups.length} 部影片 · {list.length} 条结果{failures.length > 0 && `，${failures.length} 个源失败`}）
+                    </span>
+                  )
                 )}
               </h2>
             </div>
 
             {failures.length > 0 && (
-              <div className="mb-3 text-xs text-faint bg-chip rounded-lg px-3 py-2">
-                部分点播源请求失败：{failureNames.join('、')}
+              <div className="mb-3 text-xs bg-chip rounded-lg px-3 py-2 flex flex-wrap gap-x-3 gap-y-1">
+                <span className="text-faint">{isSearching ? '以下源暂时无响应：' : '部分点播源请求失败：'}</span>
+                {failures.map((f) => (
+                  <span key={f.sourceKey} className={f.timedOut ? 'text-amber-400' : 'text-faint'}>
+                    {f.timedOut ? '⏱' : '✗'} {sourceName(f.sourceKey)}
+                    {f.timedOut ? ' 超时' : ''}
+                  </span>
+                ))}
               </div>
             )}
 
-            {searchQuery.isLoading ? (
-              <ResultsSkeleton />
-            ) : selectedSources.length === 0 ? (
-              <NoSourceGuide hasSources={store.customAPIs.length > 0 || store.envSources.length > 0} />
-            ) : list.length === 0 ? (
-              <div className="text-center py-16">
-                <svg className="mx-auto h-10 w-10 text-faint mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                    d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <h3 className="text-base text-muted">没有找到匹配的结果</h3>
-                <p className="text-sm text-faint mt-1">请尝试其他关键词或更换点播源</p>
+            {disabledSources.length > 0 && (
+              <div className="mb-3 text-xs text-faint bg-chip rounded-lg px-3 py-2">
+                {disabledSources.length} 个源因连续超时/失败已临时停用（
+                {Math.round(SOURCE_DISABLE_TTL_MS / 60000)} 分钟后自动恢复）：
+                {disabledSources.map((key) => sourceName(key)).join('、')}
               </div>
-            ) : (
+            )}
+
+            {selectedSources.length === 0 ? (
+              <NoSourceGuide hasSources={store.customAPIs.length > 0 || store.envSources.length > 0} />
+            ) : list.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-start">
                 {groups.map((group) => (
                   <AggregatedCard
@@ -225,6 +270,17 @@ function HomeContent() {
                     onOpen={(item) => setDetailItem(item)}
                   />
                 ))}
+              </div>
+            ) : isSearching ? (
+              <ResultsSkeleton />
+            ) : (
+              <div className="text-center py-16">
+                <svg className="mx-auto h-10 w-10 text-faint mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                    d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h3 className="text-base text-muted">没有找到匹配的结果</h3>
+                <p className="text-sm text-faint mt-1">请尝试其他关键词或更换点播源</p>
               </div>
             )}
           </section>

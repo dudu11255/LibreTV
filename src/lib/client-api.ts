@@ -1,6 +1,6 @@
 'use client';
 
-import type { SearchResponse, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse, SourceListPayload } from './types';
+import type { SearchResponse, SearchStreamEvent, SourceSearchOutcome, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse, SourceListPayload } from './types';
 
 /**
  * 客户端 API 封装。401 时触发全局事件打开登录框，
@@ -80,13 +80,29 @@ export const api = {
 
   logout: () => request<{ success: boolean }>('/api/auth', { method: 'DELETE' }),
 
-  search: (wd: string, sources: SourceConfig[], filterAdult: boolean, signal?: AbortSignal) =>
-    request<SearchResponse>('/api/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ wd, sources, filterAdult }),
-      signal,
-    }),
+  /**
+   * 聚合搜索。传入 onSource 时走 /api/search?stream=1 的 NDJSON 流：
+   * 每个源结算立即回调（健康源结果不再等坏源超时），最终以聚合结果 resolve。
+   * 未传 onSource 或流不可用时回退为一次性 JSON 请求。
+   */
+  search: async (
+    wd: string,
+    sources: SourceConfig[],
+    filterAdult: boolean,
+    opts?: { signal?: AbortSignal; onSource?: (outcome: SourceSearchOutcome) => void }
+  ): Promise<SearchResponse> => {
+    const signal = opts?.signal;
+    const onSource = opts?.onSource;
+    if (!onSource) {
+      return request<SearchResponse>('/api/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wd, sources, filterAdult }),
+        signal,
+      });
+    }
+    return searchStream(wd, sources, filterAdult, onSource, signal);
+  },
 
   detail: (id: string, source: SourceConfig, signal?: AbortSignal) => {
     const sp = new URLSearchParams({ id, source: JSON.stringify(source) });
@@ -232,6 +248,67 @@ export const api = {
 export interface SearchFailure {
   sourceKey: string;
   error: string;
+  timedOut?: boolean;
+}
+
+/** 聚合搜索流式消费：逐源回调 + 最终聚合结果（NDJSON 行协议，同 liveProbeStream） */
+async function searchStream(
+  wd: string,
+  sources: SourceConfig[],
+  filterAdult: boolean,
+  onSource: (outcome: SourceSearchOutcome) => void,
+  signal?: AbortSignal
+): Promise<SearchResponse> {
+  const res = await fetch('/api/search?stream=1', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ wd, sources, filterAdult }),
+    signal,
+  });
+  if (res.status === 401) {
+    window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
+    throw new ApiError('需要登录', 401);
+  }
+  if (res.status === 503) {
+    window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT, { detail: 'setup' }));
+    throw new ApiError('服务器未配置密码', 503);
+  }
+  if (!res.ok || !res.body) throw new ApiError(`请求失败 (${res.status})`, res.status);
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let final: SearchResponse | undefined;
+  const consume = (line: string) => {
+    const text = line.trim();
+    if (!text) return;
+    let event: SearchStreamEvent;
+    try {
+      event = JSON.parse(text) as SearchStreamEvent;
+    } catch {
+      return; // 坏行跳过，不影响其余结果
+    }
+    if (event.type === 'source') {
+      onSource(event);
+    } else if (event.type === 'done') {
+      final = { list: event.list, failures: event.failures };
+    }
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buffer.indexOf('\n')) >= 0) {
+      consume(buffer.slice(0, idx));
+      buffer = buffer.slice(idx + 1);
+    }
+  }
+  buffer += decoder.decode();
+  consume(buffer);
+
+  // done 事件缺失（流被截断）时退化为空结果，不让整次搜索报错
+  return final ?? { list: [], failures: [] };
 }
 
 export type { SearchResponse, SearchResultItem };

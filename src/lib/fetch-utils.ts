@@ -34,13 +34,18 @@ export async function fetchUpstream(url: string, options: FetchOptions = {}): Pr
 /** 同 fetchUpstream，额外返回重定向后的最终 URL */
 export async function fetchUpstreamWithMeta(url: string, options: FetchOptions = {}): Promise<FetchResult> {
   const { timeoutMs = 8000, retries = 0, safeRedirects = true, allowPrivate = false, ...init } = options;
+  // 外部 signal（调用方的总死线中断）与单次超时合并：任一触发即中断请求
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const signal = init.signal
+    ? AbortSignal.any([init.signal, timeoutSignal])
+    : timeoutSignal;
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       if (!safeRedirects) {
         const res = await fetch(url, {
           ...init,
-          signal: AbortSignal.timeout(timeoutMs),
+          signal,
           redirect: init.redirect ?? 'follow',
         });
         return { res, finalUrl: res.url || url };
@@ -57,7 +62,7 @@ export async function fetchUpstreamWithMeta(url: string, options: FetchOptions =
         const res = await fetch(current, {
           ...init,
           redirect: 'manual',
-          signal: AbortSignal.timeout(timeoutMs),
+          signal,
         });
         if (!REDIRECT_STATUSES.has(res.status)) return { res, finalUrl: current };
         const location = res.headers.get('location');

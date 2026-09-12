@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { SourceConfig, LiveSourceConfig } from './types';
+import type { SourceConfig, LiveSourceConfig, SourceSearchOutcome } from './types';
 
 /**
  * 全局设置（zustand + localStorage 持久化）。
@@ -89,6 +89,24 @@ export function subKeyPrefix(url: string): string {
   return `sub_${h.toString(36)}`;
 }
 
+/** 点播源自动停用阈值：连续失败/超时达到该次数即临时摘除 */
+export const SOURCE_DISABLE_THRESHOLD = 2;
+/** 点播源自动停用时长：到期后自动恢复参与搜索 */
+export const SOURCE_DISABLE_TTL_MS = 30 * 60 * 1000;
+
+/** 点播源健康度条目（按 sourceKey），随搜索结果滚动更新 */
+export interface SourceHealthEntry {
+  ok: boolean;
+  ms?: number;
+  error?: string;
+  timedOut?: boolean;
+  /** 连续失败/超时次数；成功时归零 */
+  failStreak: number;
+  /** 命中阈值后的临时停用截止时间（epoch ms）；恢复成功后清除 */
+  disabledUntil?: number;
+  timestamp: number;
+}
+
 interface AppState extends AppSettings {
   /** 部署者通过 DEFAULT_SOURCES 环境变量预置的源（服务端下发，不持久化） */
   envSources: SourceConfig[];
@@ -110,6 +128,8 @@ interface AppState extends AppSettings {
   liveRecent: LiveRecentEntry[];
   /** 测活结果缓存（6 小时有效，跨会话持久化） */
   liveProbeResults: Record<string, LiveProbeEntry>;
+  /** 点播源健康度（随搜索滚动更新，跨会话持久化） */
+  sourceHealth: Record<string, SourceHealthEntry>;
   /** 已出现过的 env 预置订阅 URL（持久化：用户删除后不再被自动加回） */
   envSubsSeen: string[];
   addCustomApi: (api: Omit<SourceConfig, 'key'> & { key?: string }) => void;
@@ -139,6 +159,15 @@ interface AppState extends AppSettings {
   /** 合并写入测活结果，并顺带清理过期条目 */
   setLiveProbeResults: (entries: Record<string, LiveProbeEntry>) => void;
   clearLiveProbeResults: () => void;
+  /**
+   * 记录一次搜索的逐源健康度；连续失败/超时达到阈值即标记临时停用。
+   * 不直接改 selectedKeys（用户勾选意图保留，且避免变更引用触发搜索重发），
+   * 参与搜索与否由调用方经 isSourceDisabled 过滤；到期自动恢复。
+   * 返回本次新被自动停用的源 key 列表（供调用方 toast 提示）。
+   */
+  recordSourceHealth: (outcomes: SourceSearchOutcome[]) => string[];
+  /** 清除单个源的健康度记录（手动恢复入口） */
+  clearSourceHealth: (key: string) => void;
   markEnvSubsSeen: (urls: string[]) => void;
   updateSettings: (patch: Partial<Omit<AppSettings, 'customAPIs' | 'selectedKeys'>>) => void;
 }
@@ -169,6 +198,7 @@ export const useAppStore = create<AppState>()(
       liveFavorites: [],
       liveRecent: [],
       liveProbeResults: {},
+      sourceHealth: {},
       envSubsSeen: [],
       selectedKeys: [],
       yellowFilter: true,
@@ -409,6 +439,46 @@ export const useAppStore = create<AppState>()(
 
       clearLiveProbeResults: () => set({ liveProbeResults: {} }),
 
+      recordSourceHealth: (outcomes) => {
+        if (outcomes.length === 0) return [];
+        const now = Date.now();
+        const health: Record<string, SourceHealthEntry> = {};
+        // 顺带清理陈旧条目（停用 TTL 早已过期的死记录）
+        for (const [key, e] of Object.entries(get().sourceHealth)) {
+          if (now - e.timestamp < 7 * 24 * 60 * 60 * 1000) health[key] = e;
+        }
+        const newlyDisabled: string[] = [];
+        for (const o of outcomes) {
+          const prev = health[o.sourceKey];
+          const failStreak = o.ok ? 0 : (prev?.failStreak ?? 0) + 1;
+          // entry 直接覆盖旧记录：成功时 disabledUntil 随之消失（立即恢复），
+          // 未达阈值时保留旧停用标记不动
+          const entry: SourceHealthEntry = {
+            ok: o.ok,
+            ms: o.ms,
+            error: o.error,
+            timedOut: o.timedOut,
+            failStreak,
+            timestamp: now,
+          };
+          if (!o.ok && failStreak >= SOURCE_DISABLE_THRESHOLD) {
+            entry.disabledUntil = now + SOURCE_DISABLE_TTL_MS;
+            if (!prev?.disabledUntil || prev.disabledUntil < now) {
+              newlyDisabled.push(o.sourceKey);
+            }
+          }
+          health[o.sourceKey] = entry;
+        }
+        set({ sourceHealth: health });
+        return newlyDisabled;
+      },
+
+      clearSourceHealth: (key) => {
+        const next = { ...get().sourceHealth };
+        delete next[key];
+        set({ sourceHealth: next });
+      },
+
       markEnvSubsSeen: (urls) => {
         const seen = new Set(get().envSubsSeen);
         for (const u of urls) seen.add(u);
@@ -460,6 +530,7 @@ export const useAppStore = create<AppState>()(
         liveFavorites: s.liveFavorites,
         liveRecent: s.liveRecent,
         liveProbeResults: s.liveProbeResults,
+        sourceHealth: s.sourceHealth,
         envSubsSeen: s.envSubsSeen,
         yellowFilter: s.yellowFilter,
         adFilter: s.adFilter,
@@ -494,4 +565,17 @@ export function resolveSource(
     };
   }
   return undefined;
+}
+
+/**
+ * 源当前是否处于自动停用期（连续超时/失败触发）。
+ * 停用到期后此判断自然翻转为 false，即「到期自动恢复参与搜索」的懒实现。
+ */
+export function isSourceDisabled(
+  state: Pick<AppState, 'sourceHealth'>,
+  key: string,
+  now = Date.now()
+): boolean {
+  const e = state.sourceHealth[key];
+  return !!e?.disabledUntil && e.disabledUntil > now;
 }

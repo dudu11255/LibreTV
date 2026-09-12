@@ -58,14 +58,23 @@ export interface SourceSearchOutcome {
   ok: boolean;
   list: SearchResultItem[];
   error?: string;
+  /** 因超时失败：源可能只是慢，前端以琥珀色区分于真正的失败 */
+  timedOut?: boolean;
+  /** 该源搜索总耗时（ms），用于健康徽章 */
+  ms?: number;
 }
 
 // —— API 响应结构 ——
 
 export interface SearchResponse {
   list: SearchResultItem[];
-  failures: { sourceKey: string; error: string }[];
+  failures: { sourceKey: string; error: string; timedOut?: boolean }[];
 }
+
+/** /api/search?stream=1 的 NDJSON 事件：逐源推送 + 最终聚合 */
+export type SearchStreamEvent =
+  | ({ type: 'source' } & SourceSearchOutcome)
+  | { type: 'done'; list: SearchResultItem[]; failures: SearchResponse['failures'] };
 
 export interface DoubanResponse {
   items: DoubanItem[];
