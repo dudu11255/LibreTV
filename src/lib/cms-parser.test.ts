@@ -37,10 +37,12 @@ describe('parseSearchList', () => {
     expect(items[0].name).toBe('');
   });
 
-  it('拒绝无效响应', () => {
+  it('拒绝无效响应；list 缺失或 null 视为空结果', () => {
     expect(() => parseSearchList(null, source)).toThrow();
-    expect(() => parseSearchList({}, source)).toThrow();
     expect(() => parseSearchList({ list: 'nope' }, source)).toThrow();
+    // 部分源站无结果时返回 list: null（或缺失），按空结果兼容
+    expect(parseSearchList({ list: null }, source)).toEqual([]);
+    expect(parseSearchList({}, source)).toEqual([]);
   });
 });
 
