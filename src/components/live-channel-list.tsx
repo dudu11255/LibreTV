@@ -274,34 +274,35 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
           onClick={() => void probe(filtered)}
           title="探测当前列表频道是否可播（分片级校验；量大时自动分批排队跑完，结果 6 小时内有效）"
         >
-          ⚡ 测活
+          测活
         </button>
-        {probeResults.size > 0 && (
+        {/* 同一操作位按时机切换：测活中=取消（保留已完成结果）；空闲且有结果=清除全部 */}
+        {isProbing ? (
           <button
             className="btn-ghost !py-1 !px-2 text-xs"
-            disabled={isProbing}
-            onClick={() => {
-              clearProbe();
-              setAliveFilter('off');
-            }}
-            title="清除全部测活结果，并取消可用性筛选"
+            onClick={cancelProbe}
+            title="中止本次测活，已完成的结果会保留"
           >
-            ✕ 清除
+            取消
           </button>
-        )}
-        {isProbing && probeProgress && (
-          <>
-            <span className="text-[10px] text-faint whitespace-nowrap">
-              探测中 {formatProbeProgress(probeProgress)}
-            </span>
+        ) : (
+          probeResults.size > 0 && (
             <button
               className="btn-ghost !py-1 !px-2 text-xs"
-              onClick={cancelProbe}
-              title="中止本次测活，已完成的结果会保留"
+              onClick={() => {
+                clearProbe();
+                setAliveFilter('off');
+              }}
+              title="清除全部测活结果，并取消可用性筛选"
             >
-              取消
+              清除
             </button>
-          </>
+          )
+        )}
+        {isProbing && probeProgress && (
+          <span className="text-[10px] text-faint whitespace-nowrap">
+            探测中 {formatProbeProgress(probeProgress)}
+          </span>
         )}
         {probeHint && (
           <span className="text-[10px] text-faint">{probeHint}</span>
