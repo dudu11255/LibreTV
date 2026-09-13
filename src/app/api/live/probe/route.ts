@@ -22,7 +22,9 @@ export const dynamic = 'force-dynamic';
  *
  * 性能与准确性要点：
  * - 每个频道有整体时间预算（URL_BUDGET_MS），三级探测共享，避免逐级 5s 叠加成长尾；
- * - 结果带短 TTL 缓存（成功 10min / 失败 2min），多用户重复测活不再重复打上游；
+ * - 结果带短 TTL 缓存（成功 30min / 失败 2min），多用户重复测活不再重复打上游；
+ * - 全局按 host 限并发（单 host 在途 ≤3）：同一运营商的频道常共用 host，
+ *   批量测活不限流会以 16×N 的并发冲击同一弱源，被打挂甚至封服务器 IP（越测越红）；
  * - 请求带源站 Referer，消除「源校验 Referer 导致的可播却测不通」假阴性；
  * - 校验 m3u8 的 #EXTM3U 前缀与直链的 content-type，剔除 200 的 HTML/JSON 错误页；
  * - master playlist 解析 CODECS 一并返回，前端据此提示 H.265 等浏览器无法解码的情况；
@@ -53,10 +55,14 @@ const THROUGHPUT_BYTES = 128 * 1024;
 const THROUGHPUT_BUDGET_MS = 2500;
 /** 吞吐采样所需的最低剩余预算：预算不足时跳过采样，避免拖长探测长尾 */
 const THROUGHPUT_MIN_REMAINING_MS = 1500;
-/** 结果缓存：成功结果稳定，失败可能是瞬断，分开设置 */
-const CACHE_TTL_OK_MS = 10 * 60 * 1000;
+/**
+ * 结果缓存：成功结果稳定，失败可能是瞬断，分开设置。
+ * 成功 30min：客户端结果本身有 6h TTL，这里覆盖多用户/多轮补测场景，避免重复打上游；
+ * 容量需 ≥ 典型全量频道数：几千频道的列表一轮测完若把缓存挤爆（逐出最旧），重测时会全部穿透。
+ */
+const CACHE_TTL_OK_MS = 30 * 60 * 1000;
 const CACHE_TTL_FAIL_MS = 2 * 60 * 1000;
-const CACHE_MAX_ENTRIES = 2000;
+const CACHE_MAX_ENTRIES = 20_000;
 const UA =
   process.env.USER_AGENT ||
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
@@ -384,6 +390,59 @@ async function probeOne(url: string): Promise<ProbeOutcome> {
   }
 }
 
+/**
+ * 全局按 host 限并发：IPTV 列表里同一运营商的几十个频道常共用一个 host，
+ * 批量测活若不限流，会以「客户端多批次 × 服务端 CONCURRENCY」的并发冲击同一源，
+ * 弱源服务器会被打挂甚至封掉本服务 IP（表现为越测越红）。
+ * 同一 host 最多 PER_HOST_CONCURRENCY 个在途探测，跨请求共享（模块级闸门），
+ * 不同 host 互不影响；名额满时 FIFO 排队，空闲闸门及时清理避免 Map 无界增长。
+ */
+const PER_HOST_CONCURRENCY = 3;
+
+const hostGates = new Map<string, { active: number; waiters: (() => void)[] }>();
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
+/** 取一个该 host 的在途名额，返回释放函数；名额满时排队等待 */
+function acquireHostSlot(host: string): Promise<() => void> {
+  let gate = hostGates.get(host);
+  if (!gate) {
+    gate = { active: 0, waiters: [] };
+    hostGates.set(host, gate);
+  }
+  const g = gate;
+  return new Promise((resolve) => {
+    const take = () => {
+      g.active++;
+      resolve(() => {
+        g.active--;
+        // 唤醒的等待者同步接管名额（active-- 后立即 ++），不留被新请求插队的竞态窗口
+        const next = g.waiters.shift();
+        if (next) next();
+        else if (g.active === 0) hostGates.delete(host);
+      });
+    };
+    if (g.active < PER_HOST_CONCURRENCY) take();
+    else g.waiters.push(take);
+  });
+}
+
+/** 在 host 闸门内探测单个频道（probeOne 内部已兜底，不会抛出） */
+async function probeWithHostLimit(url: string): Promise<ProbeOutcome> {
+  const release = await acquireHostSlot(hostOf(url));
+  try {
+    return await probeOne(url);
+  } finally {
+    release();
+  }
+}
+
 const NDJSON_HEADERS = {
   'Content-Type': 'application/x-ndjson; charset=utf-8',
   'Cache-Control': 'no-store, no-transform',
@@ -431,7 +490,7 @@ function ndjsonResponse(urls: string[], reqSignal: AbortSignal): Response {
         while (cursor < pending.length) {
           if (closed || reqSignal.aborted) return;
           const url = pending[cursor++];
-          const outcome = await probeOne(url);
+          const outcome = await probeWithHostLimit(url);
           if (closed || reqSignal.aborted) return;
           cacheSet(url, outcome);
           send(outcome);
@@ -518,7 +577,7 @@ export async function POST(req: Request) {
   const worker = async () => {
     while (cursor < pending.length) {
       const url = pending[cursor++];
-      const outcome = await probeOne(url);
+      const outcome = await probeWithHostLimit(url);
       cacheSet(url, outcome);
       outcomes.set(url, outcome);
     }

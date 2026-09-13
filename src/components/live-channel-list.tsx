@@ -29,6 +29,16 @@ import type { LiveChannel } from '@/lib/types';
 
 const SEARCH_DEBOUNCE_MS = 200;
 
+/** 测活进度文案：按已完成均速估算剩余时间（长尾在途期间由每秒 tick 重渲染保持走动） */
+function formatProbeProgress(p: { done: number; total: number; startedAt: number }): string {
+  const base = `${p.done}/${p.total}`;
+  const remaining = p.total - p.done;
+  if (remaining <= 0) return base;
+  if (p.done <= 0) return `${base} · 估算中…`;
+  const remainMin = Math.ceil(((Date.now() - p.startedAt) / p.done) * remaining / 60000);
+  return `${base} · 预计剩余 ${Math.max(1, remainMin)} 分钟`;
+}
+
 export interface LiveChannelItem extends LiveChannel {
   /** 来源订阅的 EPG 地址（用于节目单查询） */
   epg?: string;
@@ -72,7 +82,23 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
   /** 键盘光标（filtered 的下标），与"正在播放"高亮独立 */
   const [cursor, setCursor] = useState(-1);
   const listRef = useRef<HTMLDivElement>(null);
-  const { results: probeResults, progress: probeProgress, probe, clear: clearProbe, isProbing, hint: probeHint } = useLiveProbe();
+  const {
+    results: probeResults,
+    progress: probeProgress,
+    probe,
+    cancel: cancelProbe,
+    clear: clearProbe,
+    isProbing,
+    hint: probeHint,
+  } = useLiveProbe();
+
+  // 测活 ETA 每秒刷新：探测长尾（在途请求未返回）期间进度不推进，剩余时间也要走动
+  const [, setProbeTick] = useState(0);
+  useEffect(() => {
+    if (!isProbing) return;
+    const timer = setInterval(() => setProbeTick((n) => n + 1), 1000);
+    return () => clearInterval(timer);
+  }, [isProbing]);
 
   const favSet = useMemo(() => new Set(liveFavorites), [liveFavorites]);
   const recentOrder = useMemo(() => new Map(liveRecent.map((r, i) => [r.url, i] as const)), [liveRecent]);
@@ -246,7 +272,7 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
           className="btn-ghost !py-1 !px-2 text-xs"
           disabled={isProbing || filtered.length === 0}
           onClick={() => void probe(filtered)}
-          title="探测当前列表频道是否可播（分片级校验，每批 50 条并发，结果 6 小时内有效）"
+          title="探测当前列表频道是否可播（分片级校验；量大时自动分批排队跑完，结果 6 小时内有效）"
         >
           ⚡ 测活
         </button>
@@ -264,11 +290,20 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
           </button>
         )}
         {isProbing && probeProgress && (
-          <span className="text-[10px] text-faint">
-            探测中 {probeProgress.done}/{probeProgress.total}
-          </span>
+          <>
+            <span className="text-[10px] text-faint whitespace-nowrap">
+              探测中 {formatProbeProgress(probeProgress)}
+            </span>
+            <button
+              className="btn-ghost !py-1 !px-2 text-xs"
+              onClick={cancelProbe}
+              title="中止本次测活，已完成的结果会保留"
+            >
+              取消
+            </button>
+          </>
         )}
-        {probeHint && !isProbing && (
+        {probeHint && (
           <span className="text-[10px] text-faint">{probeHint}</span>
         )}
         {probeResults.size > 0 && !isProbing && (
