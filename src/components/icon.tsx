@@ -17,6 +17,7 @@ export type IconName =
   | 'search'
   | 'clock'
   | 'check'
+  | 'arrowDown'
   | 'undo'
   | 'trash'
   | 'filter'
@@ -77,6 +78,9 @@ const PATHS: Record<IconName, ReactNode> = {
     />
   ),
   check: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m4.5 12.75 6 6 9-13.5" />,
+  arrowDown: (
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+  ),
   undo: (
     <path
       strokeLinecap="round"

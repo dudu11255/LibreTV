@@ -8,6 +8,7 @@ import { api } from '@/lib/client-api';
 import { PlayerShell } from '@/components/player-shell';
 import { EmptyState, LoadingState, Spinner } from '@/components/states';
 import { SwitchSourceModal } from '@/components/switch-source';
+import { Icon } from '@/components/icon';
 import { useAuth } from '@/components/auth';
 import { resolveSource, useAppStore } from '@/lib/store';
 import {
@@ -250,9 +251,6 @@ function WatchContent() {
               >
                 下一集
               </button>
-              <button className="btn-ghost btn-sm" onClick={() => setReversed((v) => !v)}>
-                {reversed ? '正序排列' : '倒序排列'}
-              </button>
               <label className="flex items-center gap-1.5 text-xs text-muted ml-auto cursor-pointer">
                 <input
                   type="checkbox"
@@ -267,10 +265,25 @@ function WatchContent() {
 
           {/* 剧集侧栏 */}
           <aside className="bg-surface-raised rounded-lg p-3 h-fit">
-            <div className="flex items-center justify-between mb-2.5">
+            <div className="flex items-center justify-between gap-2 mb-2.5">
               <h2 className="text-sm font-semibold text-content">
                 剧集列表{episodes.length > 0 && `（${episodes.length}）`}
               </h2>
+              {/* 排列开关紧贴它所作用的列表：放在这里才看得出它管的是这一栏的顺序 */}
+              {episodes.length > 1 && (
+                <button
+                  className="btn-ghost btn-sm shrink-0"
+                  onClick={() => setReversed((v) => !v)}
+                  aria-label={reversed ? '切换为正序排列' : '切换为倒序排列'}
+                  title="调整剧集列表的排列顺序"
+                >
+                  <Icon
+                    name="arrowDown"
+                    className={cn('w-3.5 h-3.5 transition-transform', reversed && 'rotate-180')}
+                  />
+                  {reversed ? '正序排列' : '倒序排列'}
+                </button>
+              )}
             </div>
             {episodes.length === 0 ? (
               detailQuery.isLoading ? (

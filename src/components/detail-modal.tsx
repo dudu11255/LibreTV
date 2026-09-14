@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { addSearchHistory } from '@/lib/db';
 import { EmptyState, ErrorState, LoadingState } from './states';
 import { useFocusTrap } from './use-focus-trap';
+import { Icon } from './icon';
 
 /**
  * 详情弹窗：剧集列表 + 排序 + 复制链接。
@@ -195,11 +196,13 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
                       <button
                         className="btn-ghost btn-sm"
                         onClick={() => setReversed((v) => !v)}
-                        aria-label={reversed ? '切换为正序' : '切换为倒序'}
+                        aria-label={reversed ? '切换为正序排列' : '切换为倒序排列'}
+                        title="调整剧集列表的排列顺序"
                       >
-                        <svg className={cn('w-3.5 h-3.5 transition-transform', reversed && 'rotate-180')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                        </svg>
+                        <Icon
+                          name="arrowDown"
+                          className={cn('w-3.5 h-3.5 transition-transform', reversed && 'rotate-180')}
+                        />
                         {reversed ? '正序排列' : '倒序排列'}
                       </button>
                       <span className="text-sm text-faint">共 {episodes.length} 集</span>
