@@ -58,6 +58,15 @@ export function validateSourceUrl(url: string): boolean {
   return /^https?:\/\/.+/.test(url);
 }
 
+/** 取 hostname 作为名称兜底；地址非法时原样返回 */
+export function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
+}
+
 /** 为分享链接等场景构造观看页 URL */
 export function buildWatchUrl(params: {
   sourceKey: string;

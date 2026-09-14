@@ -183,3 +183,65 @@ describe('订阅同步的 store 语义', () => {
     expect(store().liveFavorites).toContain(exclusive);
   });
 });
+
+describe('可撤销删除与订阅同步状态', () => {
+  it('删除点播源返回快照，撤销后恢复条目与勾选状态', () => {
+    useAppStore.setState({
+      customAPIs: [{ key: 'manual_0', name: '源A', url: 'https://x/api.php/provide/vod' }],
+      selectedKeys: ['manual_0'],
+    });
+
+    const snapshot = store().removeCustomApi('manual_0');
+    expect(snapshot).not.toBeNull();
+    expect(store().customAPIs).toHaveLength(0);
+    expect(store().selectedKeys).toHaveLength(0);
+
+    expect(store().restoreCustomApi(snapshot!)).toBe(true);
+    expect(store().customAPIs.map((a) => a.key)).toEqual(['manual_0']);
+    expect(store().selectedKeys).toEqual(['manual_0']);
+  });
+
+  it('原 key 被重新占用时放弃撤销，避免出现重复条目', () => {
+    useAppStore.setState({
+      customAPIs: [{ key: 'manual_0', name: '源A', url: 'https://x/api.php/provide/vod' }],
+      selectedKeys: [],
+    });
+    const snapshot = store().removeCustomApi('manual_0')!;
+    // 期间同 key 的源又出现（如订阅重新同步生成）
+    useAppStore.setState({
+      customAPIs: [{ key: 'manual_0', name: '新源', url: 'https://y/api.php/provide/vod' }],
+    });
+
+    expect(store().restoreCustomApi(snapshot)).toBe(false);
+    expect(store().customAPIs).toHaveLength(1);
+    expect(store().customAPIs[0].name).toBe('新源');
+  });
+
+  it('删除不存在的点播源返回 null', () => {
+    expect(store().removeCustomApi('nope')).toBeNull();
+  });
+
+  it('删除直播源返回快照，撤销后恢复条目与启用状态', () => {
+    store().addLiveSubscription('https://live.example.com/1.m3u', '手动');
+    const snapshot = store().removeLiveSubscription('https://live.example.com/1.m3u');
+    expect(snapshot).not.toBeNull();
+    expect(store().liveSubscriptions).toHaveLength(0);
+    expect(store().liveSelectedUrls).toHaveLength(0);
+
+    store().restoreLiveSubscription(snapshot!);
+    expect(store().liveSubscriptions.map((s) => s.url)).toEqual(['https://live.example.com/1.m3u']);
+    expect(store().liveSelectedUrls).toEqual(['https://live.example.com/1.m3u']);
+  });
+
+  it('同步成功记录状态与数量；同步失败记录原因且保留上次数量', () => {
+    const url = 'https://a.example.com/list.json';
+    store().addSubscription(url, 'A');
+    store().markSubscriptionSynced(url, 'A', { vod: 3, live: 1 });
+    expect(store().subscriptions[0]).toMatchObject({ lastStatus: 'ok', lastCounts: { vod: 3, live: 1 } });
+    expect(typeof store().subscriptions[0].lastSync).toBe('number');
+
+    store().markSubscriptionFailed(url, '网络错误');
+    expect(store().subscriptions[0]).toMatchObject({ lastStatus: 'error', lastError: '网络错误' });
+    expect(store().subscriptions[0].lastCounts).toEqual({ vod: 3, live: 1 });
+  });
+});

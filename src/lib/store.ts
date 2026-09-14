@@ -23,6 +23,12 @@ export interface AppSettings {
   customImageProxy: string;
 }
 
+/** 一次订阅同步导入的数量（点播 / 直播），用于列表内展示同步结果 */
+export interface SubscriptionSyncCounts {
+  vod: number;
+  live: number;
+}
+
 /**
  * 数据源订阅：远程源列表（LibreTV-SourceList JSON 或 TVBOX 配置 JSON，由服务端自动识别），可一键同步更新。
  * 一份订阅同时下发点播源与直播源；老订阅只有点播源。订阅内容一律归一化为本站源结构，故存储层与格式无关。
@@ -33,6 +39,24 @@ export interface SourceSubscription {
   name?: string;
   /** 上次同步成功时间 */
   lastSync?: number;
+  /** 上次同步结果；undefined 表示尚未同步过 */
+  lastStatus?: 'ok' | 'error';
+  /** 上次同步的失败原因（lastStatus 为 error 时展示，保留到下次同步） */
+  lastError?: string;
+  /** 上次成功同步导入的数量统计 */
+  lastCounts?: SubscriptionSyncCounts;
+}
+
+/** 删除点播源后的撤销快照 */
+export interface RemovedSourceSnapshot {
+  entry: SourceConfig;
+  selected: boolean;
+}
+
+/** 删除直播源后的撤销快照 */
+export interface RemovedLiveSnapshot {
+  entry: LiveSubscription;
+  selected: boolean;
 }
 
 /** 直播源：远程 M3U 播放列表；可来自用户手动添加，也可来自统一订阅 */
@@ -147,20 +171,30 @@ interface AppState extends AppSettings {
   envSubsSeen: string[];
   addCustomApi: (api: Omit<SourceConfig, 'key'> & { key?: string }) => void;
   updateCustomApi: (key: string, patch: Partial<SourceConfig>) => void;
-  removeCustomApi: (key: string) => void;
+  /** 删除点播源；返回被删快照供撤销，key 不存在时返回 null */
+  removeCustomApi: (key: string) => RemovedSourceSnapshot | null;
+  /** 撤销删除；原 key 已被占用（如订阅重新同步占用）时放弃并返回 false */
+  restoreCustomApi: (snapshot: RemovedSourceSnapshot) => boolean;
   toggleSourceSelected: (key: string) => void;
   setSelectedKeys: (keys: string[]) => void;
   setEnvSources: (list: SourceConfig[]) => void;
   addSubscription: (url: string, name?: string) => void;
   removeSubscription: (url: string) => void;
-  markSubscriptionSynced: (url: string, name?: string) => void;
+  markSubscriptionSynced: (url: string, name?: string, counts?: SubscriptionSyncCounts) => void;
+  /** 记录一次同步失败（保留该订阅与已导入的源，仅更新状态供列表展示） */
+  markSubscriptionFailed: (url: string, error: string) => void;
   /** 用订阅内容整体替换该订阅名下的点播源，返回新增数量 */
   applySubscriptionSources: (subUrl: string, list: Omit<SourceConfig, 'key'>[]) => number;
   /** 用订阅内容整体替换该订阅名下的直播源，返回新增数量 */
   applySubscriptionLive: (subUrl: string, list: Omit<LiveSourceConfig, 'key'>[]) => number;
   setLiveEnvSources: (list: LiveSourceConfig[]) => void;
   addLiveSubscription: (url: string, name?: string, epg?: string) => void;
-  removeLiveSubscription: (url: string) => void;
+  /** 删除直播源；返回被删快照供撤销，不存在时返回 null */
+  removeLiveSubscription: (url: string) => RemovedLiveSnapshot | null;
+  /** 撤销删除直播源（恢复条目与其启用状态） */
+  restoreLiveSubscription: (snapshot: RemovedLiveSnapshot) => void;
+  /** 更新直播源的名称/EPG（地址不可改：换地址等于换源，会影响启用状态与最近观看关联） */
+  updateLiveSubscription: (url: string, patch: { name?: string; epg?: string }) => void;
   markLiveSynced: (url: string, name?: string, epg?: string) => void;
   toggleLiveSelected: (url: string) => void;
   toggleLiveFavorite: (channelUrl: string) => void;
@@ -243,10 +277,24 @@ export const useAppStore = create<AppState>()(
       },
 
       removeCustomApi: (key) => {
+        const entry = get().customAPIs.find((a) => a.key === key);
+        if (!entry) return null;
+        const selected = get().selectedKeys.includes(key);
         set({
           customAPIs: get().customAPIs.filter((a) => a.key !== key),
           selectedKeys: get().selectedKeys.filter((k) => k !== key),
         });
+        return { entry, selected };
+      },
+
+      restoreCustomApi: ({ entry, selected }) => {
+        // key 已被重新占用（如订阅重新同步生成了同 key 的源）时放弃撤销，避免出现重复条目
+        if (get().customAPIs.some((a) => a.key === entry.key)) return false;
+        set({
+          customAPIs: [...get().customAPIs, entry],
+          selectedKeys: selected ? [...get().selectedKeys, entry.key] : get().selectedKeys,
+        });
+        return true;
       },
 
       toggleSourceSelected: (key) => {
@@ -308,10 +356,28 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-      markSubscriptionSynced: (url, name) => {
+      markSubscriptionSynced: (url, name, counts) => {
         set({
           subscriptions: get().subscriptions.map((s) =>
-            s.url === url ? { ...s, lastSync: Date.now(), name: name ?? s.name } : s
+            s.url === url
+              ? {
+                  ...s,
+                  lastSync: Date.now(),
+                  name: name ?? s.name,
+                  lastStatus: 'ok',
+                  lastError: undefined,
+                  lastCounts: counts ?? s.lastCounts,
+                }
+              : s
+          ),
+        });
+      },
+
+      markSubscriptionFailed: (url, error) => {
+        // 失败不清空已导入的源（旧数据保留），仅记录状态供列表展示
+        set({
+          subscriptions: get().subscriptions.map((s) =>
+            s.url === url ? { ...s, lastStatus: 'error', lastError: error } : s
           ),
         });
       },
@@ -421,9 +487,29 @@ export const useAppStore = create<AppState>()(
       },
 
       removeLiveSubscription: (url) => {
+        const entry = get().liveSubscriptions.find((s) => s.url === url);
+        if (!entry) return null;
+        const selected = get().liveSelectedUrls.includes(url);
         set({
           liveSubscriptions: get().liveSubscriptions.filter((s) => s.url !== url),
           liveSelectedUrls: get().liveSelectedUrls.filter((u) => u !== url),
+        });
+        return { entry, selected };
+      },
+
+      restoreLiveSubscription: ({ entry, selected }) => {
+        if (get().liveSubscriptions.some((s) => s.url === entry.url)) return;
+        set({
+          liveSubscriptions: [...get().liveSubscriptions, entry],
+          liveSelectedUrls: selected
+            ? [...new Set([...get().liveSelectedUrls, entry.url])]
+            : get().liveSelectedUrls,
+        });
+      },
+
+      updateLiveSubscription: (url, patch) => {
+        set({
+          liveSubscriptions: get().liveSubscriptions.map((s) => (s.url === url ? { ...s, ...patch } : s)),
         });
       },
 
