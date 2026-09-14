@@ -8,7 +8,7 @@ vi.mock('./db', () => ({
   saveLiveProbeResults: vi.fn(async () => {}),
 }));
 
-import { keyBelongsToSubscription, subKeyPrefix, useAppStore } from './store';
+import { isInDisabledSubscription, isSourceDisabled, keyBelongsToSubscription, SOURCE_DISABLE_LADDER, subKeyPrefix, useAppStore } from './store';
 import type { SourceConfig } from './types';
 
 const store = () => useAppStore.getState();
@@ -243,5 +243,124 @@ describe('可撤销删除与订阅同步状态', () => {
     store().markSubscriptionFailed(url, '网络错误');
     expect(store().subscriptions[0]).toMatchObject({ lastStatus: 'error', lastError: '网络错误' });
     expect(store().subscriptions[0].lastCounts).toEqual({ vod: 3, live: 1 });
+  });
+});
+
+describe('点播源自动停用阶梯', () => {
+  const fail = (key: string) => ({ sourceKey: key, ok: false, error: '超时', list: [] });
+  const okOutcome = (key: string) => ({ sourceKey: key, ok: true, ms: 12, list: [] });
+  /** 连续两次搜索失败（每次搜索各记录一次），返回两次调用产生的停用事件合集 */
+  const failTwice = (key: string) => [
+    ...store().recordSourceHealth([fail(key)]),
+    ...store().recordSourceHealth([fail(key)]),
+  ];
+  /** 模拟停用到期：把截止时间挪到过去 */
+  const expire = (key: string) => {
+    const entry = store().sourceHealth[key];
+    useAppStore.setState({
+      sourceHealth: { ...store().sourceHealth, [key]: { ...entry, disabledUntil: Date.now() - 1 } },
+    });
+  };
+
+  beforeEach(() => useAppStore.setState({ sourceHealth: {} }));
+
+  it('达到阈值才停用，首次为 30 分钟', () => {
+    expect(store().recordSourceHealth([fail('a')])).toEqual([]);
+    expect(isSourceDisabled(store(), 'a')).toBe(false);
+
+    const events = failTwice('a');
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ key: 'a', level: 1, permanent: false, ttlMs: SOURCE_DISABLE_LADDER[0] });
+    expect(isSourceDisabled(store(), 'a')).toBe(true);
+  });
+
+  it('到期恢复后再次连续失败 → 升级为 24 小时', () => {
+    failTwice('a');
+    expire('a');
+    // 到期即恢复参与搜索（懒判断，无需清理标记）
+    expect(isSourceDisabled(store(), 'a')).toBe(false);
+
+    const events = failTwice('a');
+    expect(events[0]).toMatchObject({ level: 2, permanent: false, ttlMs: SOURCE_DISABLE_LADDER[1] });
+  });
+
+  it('阶梯用尽 → 长期停用，不随到期恢复，须手动清除', () => {
+    failTwice('a');
+    expire('a');
+    failTwice('a');
+    expire('a');
+    const events = failTwice('a');
+    expect(events[0]).toMatchObject({ level: 3, permanent: true });
+    expect(events[0].ttlMs).toBeUndefined();
+
+    // 即便把停用时间挪到过去也不会自动恢复
+    expire('a');
+    expect(isSourceDisabled(store(), 'a')).toBe(true);
+
+    store().clearSourceHealth('a');
+    expect(isSourceDisabled(store(), 'a')).toBe(false);
+  });
+
+  it('成功一次降一级：偶发抽风的源不会一路升到长期停用', () => {
+    failTwice('a'); // 第 1 级
+    expire('a');
+    failTwice('a'); // 第 2 级
+    expire('a');
+
+    store().recordSourceHealth([okOutcome('a')]);
+    expect(store().sourceHealth['a'].disableCount).toBe(1);
+
+    const events = failTwice('a');
+    expect(events[0]).toMatchObject({ level: 2, permanent: false });
+  });
+
+  it('成功后立即清除停用标记与失败连击', () => {
+    failTwice('a');
+    expect(isSourceDisabled(store(), 'a')).toBe(true);
+
+    store().recordSourceHealth([okOutcome('a')]);
+    expect(isSourceDisabled(store(), 'a')).toBe(false);
+    expect(store().sourceHealth['a'].failStreak).toBe(0);
+  });
+});
+
+describe('订阅整体开关', () => {
+  const subUrl = 'https://sub.example.com/list.json';
+  const otherUrl = 'https://other.example.com/list.json';
+
+  beforeEach(() => {
+    useAppStore.setState({ customAPIs: [], selectedKeys: [], subscriptions: [], sourceHealth: {} });
+  });
+
+  it('未设置 enabled 的订阅视为启用，不影响其源', () => {
+    store().addSubscription(subUrl, 'S');
+    expect(store().subscriptions[0].enabled).toBeUndefined();
+    expect(isInDisabledSubscription(store(), `${subKeyPrefix(subUrl)}_0`)).toBe(false);
+  });
+
+  it('停用订阅仅影响搜索采用：源数据与勾选状态都保留，可无损恢复', () => {
+    store().addSubscription(subUrl, 'S');
+    const key = `${subKeyPrefix(subUrl)}_0`;
+    store().addCustomApi({ key, name: 'A', url: 'https://a.example.com/api.php/provide/vod' });
+    store().setSelectedKeys([key]);
+
+    store().setSubscriptionEnabled(subUrl, false);
+    expect(isInDisabledSubscription(store(), key)).toBe(true);
+    // 关键：无损——源还在、勾选也还在
+    expect(store().customAPIs.map((a) => a.key)).toContain(key);
+    expect(store().selectedKeys).toContain(key);
+
+    store().setSubscriptionEnabled(subUrl, true);
+    expect(isInDisabledSubscription(store(), key)).toBe(false);
+  });
+
+  it('只影响本订阅名下的源，其他订阅与手动添加的源不受牵连', () => {
+    store().addSubscription(subUrl, 'S');
+    store().addSubscription(otherUrl, 'O');
+    store().setSubscriptionEnabled(subUrl, false);
+
+    expect(isInDisabledSubscription(store(), `${subKeyPrefix(subUrl)}_1`)).toBe(true);
+    expect(isInDisabledSubscription(store(), `${subKeyPrefix(otherUrl)}_1`)).toBe(false);
+    expect(isInDisabledSubscription(store(), 'manual_0')).toBe(false);
   });
 });

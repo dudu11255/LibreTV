@@ -5,7 +5,8 @@ import { useAppStore } from '@/lib/store';
 import { useToast } from './toast';
 import { api } from '@/lib/client-api';
 import { formatRelativeTime, hostnameOf, validateSourceUrl, cn } from '@/lib/utils';
-import { EmptyState, SearchInput, SectionTitle, TestBadge, useSourceTests } from './settings-shared';
+import { SearchInput, SectionTitle, TestBadge, useSourceTests } from './settings-shared';
+import { EmptyState } from './states';
 import { Icon } from './icon';
 
 /**
@@ -112,7 +113,7 @@ export function LiveSourceManager() {
         title="直播源"
         hint={empty ? 'M3U 订阅 · /live 页面播放' : `共 ${store.liveEnvSources.length + store.liveSubscriptions.length} 个 · 已启用 ${store.liveSelectedUrls.length}`}
         extra={
-          <button className="btn-primary !py-1 !px-2.5 text-xs" onClick={() => setAdding(true)}>
+          <button className="btn-primary btn-sm" onClick={() => setAdding(true)}>
             <Icon name="plus" className="w-3.5 h-3.5" />
             添加直播源
           </button>
@@ -146,7 +147,7 @@ export function LiveSourceManager() {
           title="还没有添加任何直播源"
           description="添加 M3U 地址后即可在「直播」页按分组浏览与播放频道；也可在「数据源订阅」中一次导入点播源与直播源；部署者还可通过 DEFAULT_LIVE_SOURCES 环境变量预置。"
           action={
-            <button className="btn-primary text-xs" onClick={() => setAdding(true)}>
+            <button className="btn-primary btn-sm" onClick={() => setAdding(true)}>
               添加第一个直播源
             </button>
           }
@@ -160,7 +161,7 @@ export function LiveSourceManager() {
                 <button
                   key={f.id}
                   className={cn(
-                    'px-2 py-0.5 rounded-full text-[11px] transition-colors',
+                    'chip',
                     filter === f.id ? 'bg-accent/10 text-accent font-medium' : 'text-muted hover:text-content hover:bg-hover'
                   )}
                   onClick={() => setFilter(f.id)}
@@ -171,24 +172,31 @@ export function LiveSourceManager() {
               ))}
               <span className="ml-auto text-[11px] text-faint">显示 {rows.length} 个</span>
             </div>
-            <button className="btn-ghost !py-1 !px-2 text-[11px]" onClick={toggleAll} disabled={rows.length === 0}>
+            <button className="btn-ghost btn-sm" onClick={toggleAll} disabled={rows.length === 0}>
               {allEnabled ? '全部停用' : '全部启用'}
             </button>
           </div>
 
           {rows.length === 0 ? (
-            <p className="text-xs text-faint py-6 text-center">没有符合条件的源</p>
+            <EmptyState variant="plain" title="没有符合条件的源" />
           ) : (
             <ul className="space-y-2">
               {rows.map((row) => {
                 const enabled = store.liveSelectedUrls.includes(row.url);
                 const fromSubscription = row.fromSubscriptions.length > 0;
                 return (
-                  <li key={row.url} className="bg-card rounded-lg p-3 transition-colors hover:bg-hover/50">
+                  <li
+                    key={row.url}
+                    className={cn(
+                      'bg-card rounded-lg p-3 transition-colors hover:bg-hover/50',
+                      // 未勾选 = 不参与直播列表：淡显，与点播源面板保持同一套停用观感
+                      !enabled && 'opacity-70'
+                    )}
+                  >
                     <div className="flex items-center gap-2">
                       <input
                         type="checkbox"
-                        className="h-4 w-4 accent-[#2563eb] shrink-0"
+                        className="h-4 w-4 accent-accent shrink-0"
                         checked={enabled}
                         onChange={() => useAppStore.getState().toggleLiveSelected(row.url)}
                         aria-label={enabled ? `停用 ${row.label}` : `启用 ${row.label}`}
@@ -262,7 +270,7 @@ export function LiveSourceManager() {
                             <Icon name="edit" className="w-4 h-4" />
                           </button>
                           <button
-                            className="rounded-md p-2 text-muted transition-colors hover:bg-hover hover:text-red-400 shrink-0"
+                            className="rounded-md p-2 text-muted transition-colors hover:bg-hover hover:text-danger shrink-0"
                             onClick={() => removeWithUndo(row)}
                             aria-label="删除直播源"
                             title="移除（可在提示中撤销）"
@@ -328,6 +336,7 @@ function LiveSourceForm({
     <div className="space-y-2 border border-line rounded-lg p-3 bg-chip mb-2">
       <input
         className="input w-full disabled:opacity-60"
+        aria-label="M3U 订阅地址"
         placeholder="M3U 订阅地址，如 https://example.com/list.m3u"
         value={url}
         maxLength={500}
@@ -337,6 +346,7 @@ function LiveSourceForm({
       />
       <input
         className="input w-full"
+        aria-label="直播源名称（可选）"
         placeholder="名称（可选），如 我的频道列表"
         value={name}
         maxLength={50}
@@ -344,16 +354,17 @@ function LiveSourceForm({
       />
       <input
         className="input w-full"
+        aria-label="EPG 节目单地址（可选）"
         placeholder="EPG 节目单地址（可选，XMLTV xml/xml.gz）"
         value={epg}
         maxLength={500}
         onChange={(e) => setEpg(e.target.value)}
       />
       <div className="flex gap-2 justify-end">
-        <button className="btn-ghost !py-1 text-xs" onClick={onCancel}>
+        <button className="btn-ghost btn-sm" onClick={onCancel}>
           取消
         </button>
-        <button className="btn-primary !py-1 text-xs" onClick={submit}>
+        <button className="btn-primary btn-sm" onClick={submit}>
           添加
         </button>
       </div>

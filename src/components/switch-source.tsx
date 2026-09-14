@@ -1,12 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/client-api';
 import type { SourceConfig, SearchResultItem } from '@/lib/types';
 import { buildImageUrl, buildWatchUrl, cn } from '@/lib/utils';
 import { useAppStore, resolveSource } from '@/lib/store';
 import { useToast } from './toast';
+import { Icon } from './icon';
+import { EmptyState, LoadingState } from './states';
+import { useFocusTrap } from './use-focus-trap';
 
 /**
  * 换源面板：跨源按标题搜索 → 匹配同名资源 → 并发测速（详情接口耗时）→ 按速度排序展示。
@@ -39,6 +42,12 @@ export function SwitchSourceModal({
   const { toast } = useToast();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [phase, setPhase] = useState<'searching' | 'testing' | 'done'>('searching');
+  /** 封面加载失败记录（按卡片 key）；失败后降级为占位图标，避免破图 */
+  const [imgFailed, setImgFailed] = useState<Record<string, boolean>>({});
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // 打开时把焦点移入弹窗、Tab 圈闭在弹窗内、关闭后归还焦点
+  useFocusTrap(true, panelRef);
 
   const sources = useMemo(() => {
     // selectedKeys 可能含历史残留的重复 key：按 key 去重，避免同源重复搜索/测速与 React key 撞车
@@ -53,22 +62,32 @@ export function SwitchSourceModal({
   }, [store]);
 
   useEffect(() => {
-    // 弹窗打开期间锁定背景滚动
+    // 弹窗打开期间锁定背景滚动；Esc 关闭（与其它弹窗一致）
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
     };
-  }, []);
+  }, [onClose]);
 
   useEffect(() => {
+    // 关闭弹窗时中止在途请求：否则 N 个源的搜索 + N 个详情测速会继续占用网络与后端
+    const controller = new AbortController();
     let cancelled = false;
 
     (async () => {
       // 1) 并行搜索所有选中源
       setPhase('searching');
       try {
-        const { list } = await api.search(currentTitle, sources, false);
+        const { list } = await api.search(currentTitle, sources, false, { signal: controller.signal });
         if (cancelled) return;
 
         // 每个源取完全同名结果，否则取第一个
@@ -83,7 +102,7 @@ export function SwitchSourceModal({
         setPhase('testing');
         await Promise.all(
           matched.map(async (c) => {
-            const r = await api.detailSpeed(c.result.vodId, c.source);
+            const r = await api.detailSpeed(c.result.vodId, c.source, controller.signal);
             if (cancelled) return;
             c.ok = r.ok;
             c.ms = r.ms;
@@ -94,7 +113,9 @@ export function SwitchSourceModal({
         setCandidates(matched);
         setPhase('done');
       } catch (err) {
-        if (!cancelled) {
+        // 主动中止不算失败，不提示
+        const aborted = err instanceof DOMException && err.name === 'AbortError';
+        if (!cancelled && !aborted) {
           toast(err instanceof Error ? err.message : '换源搜索失败', 'error');
           setPhase('done');
         }
@@ -103,6 +124,7 @@ export function SwitchSourceModal({
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTitle]);
@@ -142,12 +164,25 @@ export function SwitchSourceModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-surface-raised rounded-xl w-full max-w-3xl shadow-2xl p-5 animate-slide-up" role="dialog" aria-modal>
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="bg-surface-raised rounded-xl w-full max-w-3xl shadow-2xl p-5 animate-slide-up outline-none"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`换源：${currentTitle}`}
+      >
         <div className="flex items-center justify-between mb-4">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-content truncate">{currentTitle}</h2>
+            <h2 className="text-lg font-semibold text-content truncate" title={currentTitle}>
+              {currentTitle}
+            </h2>
             <p className="text-xs text-faint">
-              {phase === 'searching' ? '正在搜索各资源...' : phase === 'testing' ? '正在测试各资源速率...' : `共 ${sorted.length} 个可用资源`}
+              {phase === 'searching'
+                ? '正在搜索各资源...'
+                : phase === 'testing'
+                  ? '正在测试各资源速率...'
+                  : `共 ${sorted.length} 个来源 · ${sorted.filter((c) => c.ok).length} 个可用`}
             </p>
           </div>
           <button className="p-1.5 rounded-md text-muted hover:text-content hover:bg-hover" onClick={onClose} aria-label="关闭">
@@ -158,17 +193,16 @@ export function SwitchSourceModal({
         </div>
 
         {phase !== 'done' ? (
-          <div className="flex flex-col items-center py-10 gap-3">
-            <div className="h-8 w-8 rounded-full border-4 border-line border-t-accent animate-spin" />
-            <p className="text-sm text-muted">{phase === 'searching' ? '搜索各资源中...' : '测速中...'}</p>
-          </div>
+          <LoadingState label={phase === 'searching' ? '搜索各资源中...' : '测速中...'} />
         ) : sorted.length === 0 ? (
-          <p className="text-center text-sm text-faint py-8">其他点播源未找到同名资源</p>
+          <EmptyState variant="plain" title="其他点播源未找到同名资源" />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {sorted.map((c) => {
               const isCurrent = c.source.key === currentSourceKey && String(c.result.vodId) === String(currentVodId);
+              const cardKey = `${c.source.key}_${c.result.vodId}`;
               const img = buildImageUrl(c.result.pic, store.imageProxyMode, store.customImageProxy);
+              const coverFailed = imgFailed[cardKey] ?? false;
               return (
                 <button
                   key={`${c.source.key}_${c.result.vodId}`}
@@ -177,27 +211,37 @@ export function SwitchSourceModal({
                   disabled={isCurrent}
                 >
                   <div className="relative aspect-[2/3] bg-chip">
-                    {img ? (
+                    {img && !coverFailed ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={img} alt={c.result.name} className="w-full h-full object-cover" loading="lazy" />
+                      <img
+                        src={img}
+                        alt={c.result.name}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={() => setImgFailed((prev) => ({ ...prev, [cardKey]: true }))}
+                      />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-faint text-xs">无封面</div>
+                      <div className="w-full h-full flex items-center justify-center text-faint">
+                        <Icon name="link" className="w-6 h-6" />
+                      </div>
                     )}
                     <span
                       className={cn(
                         'absolute top-1.5 right-1.5 tag',
-                        !c.ok ? 'bg-red-500/80 text-white' : c.ms! > 2000 ? 'bg-yellow-600/80 text-white' : 'bg-green-600/80 text-white'
+                        !c.ok ? 'bg-danger-solid/85 text-white' : c.ms! > 2000 ? 'bg-warning-solid/85 text-white' : 'bg-success-solid/85 text-white'
                       )}
                     >
                       {!c.ok ? '失败' : `${c.ms}ms`}
                     </span>
                     {isCurrent && (
-                      <span className="absolute inset-x-0 bottom-0 bg-accent/90 text-white text-xs text-center py-1">当前播放</span>
+                      <span className="absolute inset-x-0 bottom-0 bg-accent/90 text-on-accent text-xs text-center py-1">当前播放</span>
                     )}
                   </div>
                   <div className="p-2">
-                    <div className="text-xs font-medium text-content truncate">{c.source.name}</div>
-                    <div className="text-[10px] text-faint mt-0.5">{c.episodes ? `${c.episodes} 集` : '无资源'}</div>
+                    <div className="text-xs font-medium text-content truncate" title={c.source.name}>
+                      {c.source.name}
+                    </div>
+                    <div className="text-xs text-faint mt-0.5">{c.episodes ? `${c.episodes} 集` : '无资源'}</div>
                   </div>
                 </button>
               );

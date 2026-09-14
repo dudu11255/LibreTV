@@ -15,6 +15,7 @@ import {
 } from '@/lib/live-channel-filter';
 import { useLiveProbe, type ProbeResult } from './use-live-probe';
 import type { LiveChannel } from '@/lib/types';
+import { EmptyState } from './states';
 
 /**
  * 直播频道侧栏：全部/收藏/最近三个视图 + 分组横向标签条 + 关键字搜索 + 排序。
@@ -269,7 +270,7 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
       {/* 测活 + 可用性筛选工具条 */}
       <div className="flex items-center gap-1.5 px-3 pb-2 shrink-0 flex-wrap">
         <button
-          className="btn-ghost !py-1 !px-2 text-xs"
+          className="btn-ghost btn-sm"
           disabled={isProbing || filtered.length === 0}
           onClick={() => void probe(filtered)}
           title="探测当前列表频道是否可播（分片级校验；量大时自动分批排队跑完，结果 6 小时内有效）"
@@ -279,7 +280,7 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
         {/* 同一操作位按时机切换：测活中=取消（保留已完成结果）；空闲且有结果=清除全部 */}
         {isProbing ? (
           <button
-            className="btn-ghost !py-1 !px-2 text-xs"
+            className="btn-ghost btn-sm"
             onClick={cancelProbe}
             title="中止本次测活，已完成的结果会保留"
           >
@@ -288,7 +289,7 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
         ) : (
           probeResults.size > 0 && (
             <button
-              className="btn-ghost !py-1 !px-2 text-xs"
+              className="btn-ghost btn-sm"
               onClick={() => {
                 clearProbe();
                 setAliveFilter('off');
@@ -313,7 +314,7 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
               className={cn(
                 'shrink-0 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap transition-colors border',
                 aliveFilter === 'green'
-                  ? 'bg-accent text-white border-accent'
+                  ? 'bg-accent text-on-accent border-accent'
                   : 'bg-chip text-muted border-line hover:text-content hover:bg-hover'
               )}
               onClick={() => setAliveFilter((v) => (v === 'green' ? 'off' : 'green'))}
@@ -325,7 +326,7 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
               className={cn(
                 'shrink-0 px-2 py-0.5 rounded-full text-[10px] whitespace-nowrap transition-colors border',
                 aliveFilter === 'ok'
-                  ? 'bg-accent text-white border-accent'
+                  ? 'bg-accent text-on-accent border-accent'
                   : 'bg-chip text-muted border-line hover:text-content hover:bg-hover'
               )}
               onClick={() => setAliveFilter((v) => (v === 'ok' ? 'off' : 'ok'))}
@@ -355,20 +356,24 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
         data-channel-list
         tabIndex={0}
         onKeyDown={onListKeyDown}
-        className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-2 pb-2 focus:outline-none"
+        className="flex-1 min-h-0 overflow-y-auto scrollbar-thin px-2 pb-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/40"
       >
         {filtered.length === 0 ? (
-          <p className="text-center text-xs text-faint py-10">
-            {view === 'fav'
-              ? '暂无收藏频道，点击频道右侧星标即可收藏'
-              : view === 'recent'
-                ? '暂无观看记录'
-                : channels.length === 0
-                  ? '暂无频道，请先在设置中添加直播源'
-                  : aliveFilter !== 'off' && probeResults.size > 0
-                    ? '没有匹配该可用性的频道，可放宽或清除筛选'
-                    : '没有匹配的频道'}
-          </p>
+          <EmptyState
+            variant="plain"
+            className="!py-10"
+            title={
+              view === 'fav'
+                ? '暂无收藏频道，点击频道右侧星标即可收藏'
+                : view === 'recent'
+                  ? '暂无观看记录'
+                  : channels.length === 0
+                    ? '暂无频道，请先在设置中添加直播源'
+                    : aliveFilter !== 'off' && probeResults.size > 0
+                      ? '没有匹配该可用性的频道，可放宽或清除筛选'
+                      : '没有匹配的频道'
+            }
+          />
         ) : (
           <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
             {virtualizer.getVirtualItems().map((vi) => (
@@ -415,7 +420,7 @@ function GroupChip({ label, active, onClick }: { label: string; active: boolean;
       className={cn(
         'shrink-0 px-2.5 py-1 rounded-full text-xs whitespace-nowrap transition-colors border',
         active
-          ? 'bg-accent text-white border-accent'
+          ? 'bg-accent text-on-accent border-accent'
           : 'bg-chip text-muted border-line hover:text-content hover:bg-hover'
       )}
       onClick={onClick}
@@ -452,7 +457,7 @@ const ChannelRow = memo(function ChannelRow({
   // 状态点语义：绿=分片级验证且吞吐达标；琥珀=限速/弱验证（直链/清单级）或超时；红=不可达
   const weakLevel = probe?.ok && probe.level !== 'segment';
   const amber = Boolean(probe && (weakLevel || (!probe.ok && probe.timedOut) || slow));
-  const dotClass = amber ? 'bg-amber-400' : probe?.ok ? 'bg-green-500' : 'bg-red-400';
+  const dotClass = amber ? 'bg-warning' : probe?.ok ? 'bg-success' : 'bg-danger';
   const levelText =
     probe?.level === 'segment'
       ? '分片可用'
@@ -475,9 +480,9 @@ const ChannelRow = memo(function ChannelRow({
 
   return (
     <div data-url={channel.url}>
+      {/* 不用 role="button"：行内含收藏/删除等真实按钮，嵌套 button 角色语义非法；
+          键盘操作由外层列表容器的 ↑↓ 导航提供 */}
       <div
-        role="button"
-        tabIndex={-1}
         className={cn(
           'group flex items-center gap-2.5 px-2 py-2 rounded-md cursor-pointer transition-colors relative',
           active ? 'bg-accent/10' : 'hover:bg-hover',
@@ -522,7 +527,7 @@ const ChannelRow = memo(function ChannelRow({
             </span>
             {isHevc && (
               <span
-                className="shrink-0 rounded bg-amber-500/15 px-1 text-[9px] font-medium text-amber-500"
+                className="shrink-0 rounded-full bg-warning/15 px-1.5 text-[10px] font-medium text-warning"
                 title="H.265 编码：测活通过但 Chromium 内核通常无法解码，建议用 Edge/Safari"
               >
                 H.265
@@ -538,7 +543,7 @@ const ChannelRow = memo(function ChannelRow({
           <button
             className={cn(
               'shrink-0 p-1 rounded transition-colors',
-              'text-faint/60 opacity-60 lg:opacity-0 lg:group-hover:opacity-100 hover:text-red-400'
+              'text-faint/60 opacity-60 lg:opacity-0 lg:group-hover:opacity-100 hover:text-danger'
             )}
             aria-label="删除该观看记录"
             title="删除该观看记录"
@@ -557,8 +562,8 @@ const ChannelRow = memo(function ChannelRow({
           className={cn(
             'shrink-0 p-1 rounded transition-transform active:scale-125',
             isFav
-              ? 'text-amber-400'
-              : 'text-faint/60 opacity-60 lg:opacity-0 lg:group-hover:opacity-100 hover:text-amber-400'
+              ? 'text-warning'
+              : 'text-faint/60 opacity-60 lg:opacity-0 lg:group-hover:opacity-100 hover:text-warning'
           )}
           aria-label={isFav ? '取消收藏' : '收藏'}
           title={isFav ? '取消收藏' : '收藏'}

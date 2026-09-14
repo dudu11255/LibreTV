@@ -102,7 +102,8 @@ export async function removeHistory(sourceKey: string, vodId: string): Promise<v
 }
 
 export async function clearAllHistory(): Promise<void> {
-  await db.history.clear();
+  // 一并清进度表：否则从历史重新打开时可能取到已清空的旧进度
+  await Promise.all([db.history.clear(), db.progress.clear()]);
 }
 
 export function progressKeyOf(sourceKey: string, vodId: string, episodeIndex: number): string {
@@ -140,6 +141,12 @@ export async function removeSearchHistory(text: string): Promise<void> {
 
 export async function clearSearchHistory(): Promise<void> {
   await db.searchHistory.clear();
+}
+
+/** 撤销「清空搜索记录」：按原时间戳回填，保持原有顺序 */
+export async function restoreSearchHistory(entries: SearchHistoryEntry[]): Promise<void> {
+  if (entries.length === 0) return;
+  await db.searchHistory.bulkPut(entries);
 }
 
 // —— 直播测活缓存（TTL 过滤由调用方负责，本层只管存取） ——

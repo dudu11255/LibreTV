@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useState, type ReactNode } from 'react';
-import { cn } from '@/lib/utils';
-import { useAppStore } from '@/lib/store';
+import { cn, formatDisableTtl } from '@/lib/utils';
+import { isInDisabledSubscription, useAppStore } from '@/lib/store';
 import { useToast } from './toast';
-import { Icon, type IconName } from './icon';
+import { Icon } from './icon';
+import { Spinner } from './states';
 
 /**
  * 设置面板共享件：把此前点播源 / 直播源各自「抄一遍」的标题、开关、
@@ -74,25 +75,43 @@ export function ToggleRow({
         <div className="text-sm text-content">{label}</div>
         <div className="text-xs text-faint">{description}</div>
       </div>
-      <button
-        role="switch"
-        aria-checked={checked}
-        aria-label={label}
-        className={cn(
-          'relative h-[22px] w-10 shrink-0 rounded-full transition-colors duration-200',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
-          checked ? 'bg-accent' : 'bg-chip ring-1 ring-inset ring-line'
-        )}
-        onClick={() => onChange(!checked)}
-      >
-        <span
-          className={cn(
-            'absolute left-[2px] top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-transform duration-200 ease-out',
-            checked ? 'translate-x-[18px]' : 'translate-x-0'
-          )}
-        />
-      </button>
+      <Switch checked={checked} onChange={onChange} label={label} />
     </div>
+  );
+}
+
+/** 开关本体：设置项与列表行（如订阅启停）共用，保证尺寸与动效一致 */
+export function Switch({
+  checked,
+  onChange,
+  label,
+  title,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  title?: string;
+}) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      title={title ?? label}
+      className={cn(
+        'relative h-[22px] w-10 shrink-0 rounded-full transition-colors duration-200',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
+        checked ? 'bg-accent' : 'bg-chip ring-1 ring-inset ring-line'
+      )}
+      onClick={() => onChange(!checked)}
+    >
+      <span
+        className={cn(
+          'absolute left-[2px] top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-transform duration-200 ease-out',
+          checked ? 'translate-x-[18px]' : 'translate-x-0'
+        )}
+      />
+    </button>
   );
 }
 
@@ -132,27 +151,6 @@ export function SelectRow({
   );
 }
 
-export function EmptyState({
-  icon = 'link',
-  title,
-  description,
-  action,
-}: {
-  icon?: IconName;
-  title: string;
-  description?: string;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="border border-dashed border-line rounded-lg p-6 text-center">
-      <Icon name={icon} className="w-6 h-6 mx-auto text-faint mb-2" />
-      <p className="text-sm text-muted">{title}</p>
-      {description && <p className="text-xs text-faint mt-1 leading-relaxed">{description}</p>}
-      {action && <div className="mt-3 flex items-center justify-center gap-2">{action}</div>}
-    </div>
-  );
-}
-
 export function SearchInput({
   value,
   onChange,
@@ -170,6 +168,7 @@ export function SearchInput({
       />
       <input
         className="input w-full !pl-8 !py-1.5 text-xs"
+        aria-label={placeholder ?? '搜索'}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
@@ -196,7 +195,7 @@ export function TestBadge({
         <span
           className={cn(
             'text-[10px] px-1.5 py-0.5 rounded',
-            state.ok ? 'bg-green-500/15 text-green-600 dark:text-green-400' : 'bg-red-500/15 text-red-500'
+            state.ok ? 'bg-success/15 text-success' : 'bg-danger/15 text-danger'
           )}
           title={state.ok ? `${state.ms}ms` : state.error}
         >
@@ -206,20 +205,14 @@ export function TestBadge({
       <button
         className={cn(
           'rounded-md p-2 transition-colors disabled:opacity-40',
-          state?.status === 'done' && !state.ok
-            ? 'text-red-400'
-            : 'text-muted hover:text-accent hover:bg-hover'
+          state?.status === 'done' && !state.ok ? 'text-danger' : 'text-muted hover:text-accent hover:bg-hover'
         )}
         disabled={state?.status === 'loading'}
         onClick={onTest}
         aria-label={title}
         title={title}
       >
-        {state?.status === 'loading' ? (
-          <span className="block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <Icon name="bolt" className="w-4 h-4" />
-        )}
+        {state?.status === 'loading' ? <Spinner size="sm" /> : <Icon name="bolt" className="w-4 h-4" />}
       </button>
     </span>
   );
@@ -228,20 +221,43 @@ export function TestBadge({
 /** 点播源搜索健康度徽章（随搜索/批量测活滚动更新）；被自动停用的源提供手动恢复入口 */
 export function HealthBadge({ sourceKey }: { sourceKey: string }) {
   const entry = useAppStore((s) => s.sourceHealth[sourceKey]);
+  const inDisabledSub = useAppStore((s) => isInDisabledSubscription(s, sourceKey));
   const { toast } = useToast();
+
+  // 订阅被整体关闭时优先说明原因：否则源看起来「勾选正常却搜不到」，用户会以为是源坏了
+  if (inDisabledSub) {
+    return (
+      <span
+        className="text-[10px] px-1.5 py-0.5 rounded bg-warning/15 text-warning shrink-0"
+        title="所属订阅已被停用，该源暂不参与搜索；到「数据源订阅」重新启用即可"
+      >
+        订阅已停用
+      </span>
+    );
+  }
+
   if (!entry) return null;
 
-  const disabled = !!entry.disabledUntil && entry.disabledUntil > Date.now();
+  const permanent = entry.permanent === true;
+  const disabled = permanent || (!!entry.disabledUntil && entry.disabledUntil > Date.now());
   if (disabled) {
-    const remainMin = Math.max(1, Math.ceil(((entry.disabledUntil ?? 0) - Date.now()) / 60000));
+    // 长期停用（阶梯用尽）没有到期时间，展示为红色并提示需手动恢复
+    const remainText = formatDisableTtl((entry.disabledUntil ?? 0) - Date.now());
     return (
       <span className="flex items-center gap-1 shrink-0">
         <span
-          className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500"
-          title={`连续 ${entry.failStreak} 次超时/失败，${remainMin} 分钟后自动恢复`}
+          className={cn(
+            'inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded',
+            permanent ? 'bg-danger/15 text-danger' : 'bg-warning/15 text-warning'
+          )}
+          title={
+            permanent
+              ? `已第 ${entry.disableCount} 次被自动停用，暂停参与搜索；点「恢复」重新启用`
+              : `连续 ${entry.failStreak} 次超时/失败，${remainText}后自动恢复`
+          }
         >
           <Icon name="clock" className="w-3 h-3" />
-          {remainMin} 分
+          {permanent ? '已停用' : remainText}
         </span>
         <button
           className="text-[10px] px-1.5 py-0.5 rounded text-muted hover:text-accent hover:bg-hover transition-colors"
@@ -260,7 +276,7 @@ export function HealthBadge({ sourceKey }: { sourceKey: string }) {
 
   if (entry.ok) {
     return (
-      <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/15 text-green-600 dark:text-green-400 shrink-0" title={`上次搜索 ${entry.ms}ms`}>
+      <span className="text-[10px] px-1.5 py-0.5 rounded bg-success/15 text-success shrink-0" title={`上次搜索 ${entry.ms}ms`}>
         ✓ {entry.ms}ms
       </span>
     );
@@ -269,7 +285,7 @@ export function HealthBadge({ sourceKey }: { sourceKey: string }) {
     <span
       className={cn(
         'text-[10px] px-1.5 py-0.5 rounded shrink-0',
-        entry.timedOut ? 'bg-amber-500/15 text-amber-500' : 'bg-red-500/15 text-red-500'
+        entry.timedOut ? 'bg-warning/15 text-warning' : 'bg-danger/15 text-danger'
       )}
       title={entry.error}
     >

@@ -5,6 +5,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import Link from 'next/link';
 import { Drawer } from './drawer';
 import { ConfirmDialog } from './confirm-dialog';
+import { EmptyState, LoadingState } from './states';
 import { db, clearAllHistory, removeHistory, upsertHistory, type HistoryEntry } from '@/lib/db';
 import { buildWatchUrl, buildImageUrl, cn, formatRelativeTime, formatTime } from '@/lib/utils';
 import { useToast } from './toast';
@@ -24,14 +25,14 @@ export function HistoryPanel({ open, onClose }: { open: boolean; onClose: () => 
   return (
     <Drawer open={open} onClose={onClose} title="观看历史" width="max-w-lg">
       {!history ? (
-        <p className="text-center text-faint py-8 text-sm">加载中...</p>
+        <LoadingState />
       ) : history.length === 0 ? (
-        <p className="text-center text-faint py-8 text-sm">暂无观看记录</p>
+        <EmptyState variant="plain" title="暂无观看记录" />
       ) : (
         <>
           <div className="flex justify-end mb-2">
             <button
-              className="text-xs text-faint hover:text-red-400 transition-colors"
+              className="text-xs text-faint hover:text-danger transition-colors"
               onClick={() => setConfirmClear(true)}
             >
               清空历史
@@ -63,10 +64,15 @@ export function HistoryPanel({ open, onClose }: { open: boolean; onClose: () => 
 }
 
 function HistoryItem({ item }: { item: HistoryEntry }) {
-  const store = useAppStore();
+  // 精确订阅：整份 useAppStore() 会让每条历史在任意 store 变化（搜索健康度、测活写回等）时重渲染
+  const imageProxyMode = useAppStore((s) => s.imageProxyMode);
+  const customImageProxy = useAppStore((s) => s.customImageProxy);
+  const customAPIs = useAppStore((s) => s.customAPIs);
+  const envSources = useAppStore((s) => s.envSources);
   const { toast } = useToast();
   const [imgFailed, setImgFailed] = useState(false);
-  const pic = buildImageUrl(item.pic, store.imageProxyMode, store.customImageProxy);
+  const source = resolveSource({ customAPIs, envSources }, item.sourceKey);
+  const pic = buildImageUrl(item.pic, imageProxyMode, customImageProxy);
 
   const hasPercent =
     item.playbackPosition > 10 && item.duration > 0 && item.playbackPosition < item.duration * 0.95;
@@ -77,8 +83,8 @@ function HistoryItem({ item }: { item: HistoryEntry }) {
     vodId: item.vodId,
     index: item.episodeIndex,
     title: item.title,
-    sourceUrl: resolveSource(store, item.sourceKey)?.url,
-    detail: resolveSource(store, item.sourceKey)?.detail,
+    sourceUrl: source?.url,
+    detail: source?.detail,
   });
 
   const remove = () => {
@@ -150,7 +156,7 @@ function HistoryItem({ item }: { item: HistoryEntry }) {
       </Link>
       <button
         className={cn(
-          'absolute right-2 top-2 p-1.5 rounded-full text-faint hover:text-red-400',
+          'absolute right-2 top-2 p-2 rounded-full text-faint hover:text-danger',
           'opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity'
         )}
         aria-label="删除记录"

@@ -231,7 +231,8 @@ export function PlayerShell({
     // —— 键盘快捷键（旧版 hotkey:false + 自定义逻辑的移植） ——
     const shortcuts = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+      // 输入框或按钮获得焦点时不劫持按键：否则空格会吞掉按钮的默认激活
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.closest('button')) return;
       const current = artRef.current;
       if (!current) return;
       if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); return; } // 由父层处理集数切换
@@ -342,7 +343,7 @@ export function PlayerShell({
       )}
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80">
-          <p className="text-red-400 text-sm">{error}</p>
+          <p className="text-danger text-sm">{error}</p>
           <button className="btn-ghost text-xs" onClick={() => location.reload()}>
             重新加载
           </button>

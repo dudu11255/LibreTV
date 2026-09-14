@@ -79,7 +79,7 @@ export function ConfirmDialog({
             ref={confirmRef}
             className={cn(
               'btn text-sm text-white',
-              danger ? 'bg-red-500 hover:bg-red-600' : 'bg-accent hover:bg-accent-hover'
+              danger ? 'bg-danger hover:bg-danger-hover' : 'bg-accent hover:bg-accent-hover'
             )}
             onClick={onConfirm}
           >

@@ -6,6 +6,7 @@ import { ToastProvider } from './toast';
 import { AuthProvider } from './auth';
 import { ThemeProvider } from './theme';
 import { useAppStore, hydrateLiveProbeResults } from '@/lib/store';
+import { api, STATUS_QUERY_KEY } from '@/lib/client-api';
 import { syncEnvSubscriptions } from '@/lib/subscription-sync';
 
 export function Providers({ children }: { children: ReactNode }) {
@@ -29,9 +30,9 @@ export function Providers({ children }: { children: ReactNode }) {
         // 与下方 /api/status 拉取互不依赖，失败静默
         void hydrateLiveProbeResults();
         // 拉取部署者通过 DEFAULT_SOURCES / DEFAULT_LIVE_SOURCES 预置的源（失败时静默忽略）
-        return fetch('/api/status');
+        // 与 AuthProvider 共用同一 query key，/api/status 全站只发一次
+        return queryClient.fetchQuery({ queryKey: STATUS_QUERY_KEY, queryFn: () => api.status() });
       })
-      .then((r) => (r && r.ok ? r.json() : null))
       .then((d) => {
         if (d && Array.isArray(d.defaultSources)) {
           useAppStore.getState().setEnvSources(d.defaultSources);
@@ -45,7 +46,7 @@ export function Providers({ children }: { children: ReactNode }) {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [queryClient]);
 
   return (
     <QueryClientProvider client={queryClient}>

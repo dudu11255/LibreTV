@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Artplayer from 'artplayer';
 import Hls, { type HlsConfig } from 'hls.js';
+import { Spinner } from './states';
 
 /**
  * 直播播放器：与点播 player-shell 完全独立。
@@ -397,12 +398,12 @@ export function LivePlayer({ url, title, onPrevChannel, onNextChannel }: LivePla
       )}
       {loading && !error && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none">
-          <div className="h-9 w-9 rounded-full border-4 border-white/20 border-t-white animate-spin" />
+          <Spinner size="lg" tone="onDark" />
         </div>
       )}
       {error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80">
-          <p className="text-red-400 text-sm px-4 text-center">{error}</p>
+          <p className="text-danger text-sm px-4 text-center">{error}</p>
           <button
             className="btn-ghost text-xs !bg-white/10 !text-white !border-white/20"
             onClick={() => {

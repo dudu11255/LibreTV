@@ -35,6 +35,9 @@ export interface LiveProbeResult {
   kbps?: number;
 }
 
+/** /api/status 的 React Query key：Providers 与 AuthProvider 共用，避免同一页面重复请求 */
+export const STATUS_QUERY_KEY = ['app-status'] as const;
+
 export function onUnauthorized(handler: (event: CustomEvent) => void): () => void {
   const wrapped = (e: Event) => handler(e as CustomEvent);
   window.addEventListener(UNAUTHORIZED_EVENT, wrapped);
@@ -123,11 +126,11 @@ export const api = {
     return request<DoubanResponse>(`/api/hot-list?${sp.toString()}`, { signal });
   },
 
-  /** 换源：按标题跨源搜索并取详情，附带接口耗时（测速） */
-  detailSpeed: async (id: string, source: SourceConfig) => {
+  /** 换源：按标题跨源搜索并取详情，附带接口耗时（测速）；支持 signal 以便关闭弹窗时中止在途请求 */
+  detailSpeed: async (id: string, source: SourceConfig, signal?: AbortSignal) => {
     const start = performance.now();
     try {
-      const detail = await api.detail(id, source);
+      const detail = await api.detail(id, source, signal);
       return { ok: true, ms: Math.round(performance.now() - start), detail };
     } catch (err) {
       return { ok: false, ms: Math.round(performance.now() - start), detail: undefined as VideoDetail | undefined, error: err instanceof Error ? err.message : '失败' };
@@ -147,6 +150,18 @@ export const api = {
     const sp = new URLSearchParams({ url });
     return request<SourceListPayload>(`/api/source-list?${sp.toString()}`);
   },
+
+  /** 把源列表发布到公开粘贴板换回订阅链接（走服务端代理：绕开 CORS，且目标域名固定不可控） */
+  publishSourceList: (payload: {
+    name?: string;
+    sources: { name: string; url: string }[];
+    liveSources: { name: string; url: string; epg?: string }[];
+  }) =>
+    request<{ url: string; provider: string; sources: number; liveSources: number }>('/api/publish', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
 
   /** —— 直播 / IPTV —— */
 

@@ -8,6 +8,7 @@ import { Header } from '@/components/header';
 import { LivePlayer } from '@/components/live-player';
 import { LiveChannelList, type LiveChannelItem } from '@/components/live-channel-list';
 import { LiveEpgPanel } from '@/components/live-epg-panel';
+import { Spinner } from '@/components/states';
 import { useAuth } from '@/components/auth';
 import { allLiveSources, useAppStore } from '@/lib/store';
 import { buildImageUrl, cn } from '@/lib/utils';
@@ -329,10 +330,10 @@ function LiveContent() {
                   <button
                     className={cn(
                       'rounded-md p-2 transition-colors',
-                      isFavorite ? 'text-amber-400' : 'text-muted hover:text-amber-400 hover:bg-hover'
+                      isFavorite ? 'text-warning' : 'text-muted hover:text-warning hover:bg-hover'
                     )}
-                    aria-label="收藏"
-                    title="收藏"
+                    aria-label={isFavorite ? '取消收藏' : '收藏'}
+                    title={isFavorite ? '取消收藏' : '收藏'}
                     onClick={() => useAppStore.getState().toggleLiveFavorite(currentChannel.url)}
                   >
                     <svg
@@ -362,7 +363,7 @@ function LiveContent() {
                     }}
                   >
                     {copied ? (
-                      <span className="text-[10px] text-green-500">已复制</span>
+                      <span className="text-[10px] text-success">已复制</span>
                     ) : (
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path
@@ -402,7 +403,7 @@ function LiveContent() {
               'bg-surface-raised border border-line flex-col overflow-hidden',
               'fixed inset-x-0 bottom-0 z-40 h-[75vh] rounded-t-2xl shadow-2xl',
               listOpen ? 'flex' : 'hidden',
-              'lg:sticky lg:top-20 lg:flex lg:h-[calc(100vh-6.5rem)] lg:rounded-lg lg:shadow-none'
+              'lg:sticky lg:top-20 lg:flex lg:h-[calc(100vh-6.5rem)] lg:rounded-xl lg:shadow-none'
             )}
           >
             {/* 抽屉把手栏（仅移动端） */}
@@ -421,7 +422,7 @@ function LiveContent() {
             <div className="flex-1 min-h-0 flex flex-col">
               {playlistsQuery.isLoading && channels.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center">
-                  <div className="h-9 w-9 rounded-full border-4 border-line border-t-accent animate-spin" />
+                  <Spinner size="lg" />
                 </div>
               ) : (
                 <LiveChannelList
@@ -448,7 +449,7 @@ function LiveContent() {
         {/* 移动端呼出频道列表的悬浮按钮 */}
         {!listOpen && channels.length > 0 && (
           <button
-            className="fixed bottom-4 right-4 z-30 flex items-center gap-1.5 rounded-full bg-accent px-4 py-2.5 text-sm text-white shadow-lg lg:hidden"
+            className="fixed bottom-4 right-4 z-30 flex items-center gap-1.5 rounded-full bg-accent px-4 py-2.5 text-sm text-on-accent shadow-lg lg:hidden"
             onClick={() => setListOpen(true)}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
