@@ -24,8 +24,8 @@ export interface AppSettings {
 }
 
 /**
- * 数据源订阅：远程源列表（LibreTV-SourceList JSON），可一键同步更新。
- * 一份订阅同时下发点播源与直播源；老订阅只有点播源。
+ * 数据源订阅：远程源列表（LibreTV-SourceList JSON 或 TVBOX 配置 JSON，由服务端自动识别），可一键同步更新。
+ * 一份订阅同时下发点播源与直播源；老订阅只有点播源。订阅内容一律归一化为本站源结构，故存储层与格式无关。
  */
 export interface SourceSubscription {
   url: string;
@@ -44,10 +44,12 @@ export interface LiveSubscription {
   /** 上次同步成功时间 */
   lastSync?: number;
   /**
-   * 该直播源来自哪个订阅 URL；手动添加时为空。
-   * 删除订阅时按此归属精确清理，避免误删用户手动添加的源。
+   * 引用该直播源的订阅 URL 列表（多归属：同一 M3U 可被多个订阅共享引用）。
+   * 空数组表示用户手动添加的源；删除某个订阅时只移除自己的归属，
+   * 只要列表非空该源就保留。名称/EPG 以首次导入为准，缺失时由后续同步补齐，
+   * 避免多个订阅互相覆盖。
    */
-  fromSubscription?: string;
+  fromSubscriptions: string[];
 }
 
 /** 直播最近观看条目（上限 20 条，按 url 去重） */
@@ -83,11 +85,21 @@ export interface LiveProbeEntry {
   timestamp: number;
 }
 
-/** 订阅导入的源 key 前缀：sub_<hash8(url)>_<i>，同步时按前缀整体替换 */
+/** 订阅导入的源 key 前缀：sub_<hash36(url)>，实际 key 为 `${prefix}_${i}`，同步时按前缀整体替换 */
 export function subKeyPrefix(url: string): string {
   let h = 5381;
   for (let i = 0; i < url.length; i++) h = ((h << 5) + h + url.charCodeAt(i)) >>> 0;
   return `sub_${h.toString(36)}`;
+}
+
+/**
+ * 判断源 key 是否属于指定订阅。
+ * 不能直接 startsWith(prefix)：两个不同订阅的 hash36 可能恰好互为前缀
+ * （如 sub_1a 与 sub_1a2b），此时会误删/误替换另一个订阅的源。
+ * key 的完整形态是 `${prefix}_${i}`，因此要求前缀后紧跟分隔符。
+ */
+export function keyBelongsToSubscription(key: string, prefix: string): boolean {
+  return key === prefix || key.startsWith(`${prefix}_`);
 }
 
 /** 点播源自动停用阈值：连续失败/超时达到该次数即临时摘除 */
@@ -274,18 +286,25 @@ export const useAppStore = create<AppState>()(
 
       removeSubscription: (url) => {
         const prefix = subKeyPrefix(url);
-        // 该订阅名下的直播源（M3U 地址集合），用于清理启用状态与最近观看
-        const ownedLive = new Set(
-          get().liveSubscriptions.filter((s) => s.fromSubscription === url).map((s) => s.url)
-        );
+        // 多归属：删除订阅只移除自己的引用；仍被其他订阅共享的直播源保留，
+        // 仅当没有任何订阅再引用时才移除条目（连同启用状态与最近观看，收藏始终保留）
+        const removedLive = get().liveSubscriptions
+          .filter((s) => s.fromSubscriptions.includes(url))
+          .map((s) => {
+            const rest = s.fromSubscriptions.filter((u) => u !== url);
+            return { entry: s, orphan: rest.length === 0, rest };
+          });
+        const orphanUrls = new Set(removedLive.filter((r) => r.orphan).map((r) => r.entry.url));
         set({
           subscriptions: get().subscriptions.filter((s) => s.url !== url),
-          customAPIs: get().customAPIs.filter((a) => !a.key.startsWith(prefix)),
-          selectedKeys: get().selectedKeys.filter((k) => !k.startsWith(prefix)),
-          liveSubscriptions: get().liveSubscriptions.filter((s) => s.fromSubscription !== url),
-          liveSelectedUrls: get().liveSelectedUrls.filter((u) => !ownedLive.has(u)),
+          customAPIs: get().customAPIs.filter((a) => !keyBelongsToSubscription(a.key, prefix)),
+          selectedKeys: get().selectedKeys.filter((k) => !keyBelongsToSubscription(k, prefix)),
+          liveSubscriptions: removedLive
+            .filter((r) => !r.orphan)
+            .map((r) => ({ ...r.entry, fromSubscriptions: r.rest })),
+          liveSelectedUrls: get().liveSelectedUrls.filter((u) => !orphanUrls.has(u)),
           // 收藏的频道是用户主动留下的，删除订阅时保留；其余残留状态一并清理
-          liveRecent: get().liveRecent.filter((r) => !r.sourceUrl || !ownedLive.has(r.sourceUrl)),
+          liveRecent: get().liveRecent.filter((r) => !r.sourceUrl || !orphanUrls.has(r.sourceUrl)),
         });
       },
 
@@ -302,9 +321,9 @@ export const useAppStore = create<AppState>()(
         // 与订阅源 URL 相同的手动添加源视为重复，避免同步后出现双份
         const subUrls = new Set(list.map((s) => s.url.replace(/\/+$/, '')));
         const keptCustom = get().customAPIs.filter(
-          (a) => !a.key.startsWith(prefix) && !subUrls.has(a.url.replace(/\/+$/, ''))
+          (a) => !keyBelongsToSubscription(a.key, prefix) && !subUrls.has(a.url.replace(/\/+$/, ''))
         );
-        const prevOwned = get().customAPIs.filter((a) => a.key.startsWith(prefix));
+        const prevOwned = get().customAPIs.filter((a) => keyBelongsToSubscription(a.key, prefix));
         // key 按序号重生成，勾选状态需按 url 对齐保留；用户停用的源不会被同步反复勾回
         const prevSelectedUrls = new Set(
           prevOwned
@@ -325,39 +344,55 @@ export const useAppStore = create<AppState>()(
           .map((s) => s.key);
         set({
           customAPIs: [...keptCustom, ...incoming],
-          selectedKeys: [...get().selectedKeys.filter((k) => !k.startsWith(prefix)), ...toSelect],
+          selectedKeys: [...get().selectedKeys.filter((k) => !keyBelongsToSubscription(k, prefix)), ...toSelect],
         });
         return incoming.length;
       },
 
       applySubscriptionLive: (subUrl, list) => {
         const existing = get().liveSubscriptions;
-        const owned = existing.filter((s) => s.fromSubscription === subUrl);
-        const ownedUrls = new Set(owned.map((s) => s.url));
-        // 手动添加或其他订阅已占用的 M3U 不再重复导入（手动添加优先）
-        const kept = existing.filter((s) => s.fromSubscription !== subUrl);
-        const keptUrls = new Set(kept.map((s) => s.url));
-        const incoming: LiveSubscription[] = list
-          .filter((s) => !keptUrls.has(s.url))
-          .map((s) => ({ url: s.url, name: s.name, epg: s.epg, fromSubscription: subUrl }));
-        // 本次订阅里已消失的旧源：其最近观看记录一并清掉，收藏保留
-        const stillPresent = new Set(list.map((s) => s.url));
-        const droppedUrls = new Set([...ownedUrls].filter((u) => !stillPresent.has(u)));
-        // 仅新导入的源自动启用；已有源维持用户的勾选状态（停用不会被同步反复勾回），
-        // 因此只从勾选中移除本次已消失的源
-        const freshUrls = incoming.filter((s) => !ownedUrls.has(s.url)).map((s) => s.url);
+        const byUrl = new Map(existing.map((s) => [s.url, s]));
+        const nextByUrl = new Map<string, LiveSubscription>();
+        const orphanUrls = new Set<string>();
+
+        // 多归属：同一 M3U 可被多个订阅共享引用，仅追加归属而不重复导入条目；
+        // 手动添加的源（无订阅归属）由用户完全掌控，订阅不接管。
+        // 名称/EPG 以首次导入为准，缺失字段由后续同步补齐，避免多个订阅互相覆盖。
+        for (const s of list) {
+          const current = byUrl.get(s.url);
+          if (!current) {
+            nextByUrl.set(s.url, { url: s.url, name: s.name, epg: s.epg, fromSubscriptions: [subUrl] });
+          } else if (current.fromSubscriptions.length === 0 || current.fromSubscriptions.includes(subUrl)) {
+            nextByUrl.set(s.url, current);
+          } else {
+            nextByUrl.set(s.url, { ...current, fromSubscriptions: [...current.fromSubscriptions, subUrl] });
+          }
+        }
+        // 不在本次列表中的条目原样保留；仅当被本订阅唯一持有且本次消失时才移除
+        for (const s of existing) {
+          if (nextByUrl.has(s.url)) continue;
+          if (s.fromSubscriptions.includes(subUrl) && s.fromSubscriptions.length === 1) {
+            orphanUrls.add(s.url);
+          } else {
+            nextByUrl.set(s.url, s);
+          }
+        }
+
+        // 仅首次出现的源自动启用；已存在的维持用户勾选（停用不会被同步反复勾回）
+        const freshUrls = [...nextByUrl.values()].filter((s) => !byUrl.has(s.url)).map((s) => s.url);
 
         set({
-          liveSubscriptions: [...kept, ...incoming],
+          liveSubscriptions: [...nextByUrl.values()],
           liveSelectedUrls: [
             ...new Set([
-              ...get().liveSelectedUrls.filter((u) => !droppedUrls.has(u)),
+              ...get().liveSelectedUrls.filter((u) => !orphanUrls.has(u)),
               ...freshUrls,
             ]),
           ],
-          liveRecent: get().liveRecent.filter((r) => !r.sourceUrl || !droppedUrls.has(r.sourceUrl)),
+          liveRecent: get().liveRecent.filter((r) => !r.sourceUrl || !orphanUrls.has(r.sourceUrl)),
         });
-        return incoming.length;
+        // 返回本订阅实际持有的引用数（与订阅条目的「直播 N」计数口径一致）
+        return [...nextByUrl.values()].filter((s) => s.fromSubscriptions.includes(subUrl)).length;
       },
 
       setLiveEnvSources: (list) => {
@@ -375,7 +410,11 @@ export const useAppStore = create<AppState>()(
         const trimmed = url.trim();
         if (!trimmed || get().liveSubscriptions.some((s) => s.url === trimmed)) return;
         set({
-          liveSubscriptions: [...get().liveSubscriptions, { url: trimmed, name, epg }],
+          // 手动添加的源无订阅归属（fromSubscriptions 为空），订阅同步不会接管
+          liveSubscriptions: [
+            ...get().liveSubscriptions,
+            { url: trimmed, name, epg, fromSubscriptions: [] },
+          ],
           // 新添加的订阅默认启用
           liveSelectedUrls: [...new Set([...get().liveSelectedUrls, trimmed])],
         });
@@ -401,7 +440,8 @@ export const useAppStore = create<AppState>()(
         set({
           liveSubscriptions: get().liveSubscriptions.map((s) =>
             s.url === url
-              ? { ...s, lastSync: Date.now(), name: name ?? s.name, epg: epg ?? s.epg }
+              ? // 共享源可能被多个订阅先后同步：名称/EPG 以首次导入为准，仅缺失时补齐
+                { ...s, lastSync: Date.now(), name: s.name ?? name, epg: s.epg ?? epg }
               : s
           ),
         });
@@ -511,17 +551,31 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'libretv-settings',
-      // v1：直播源新增 fromSubscription 归属字段、最近观看新增 sourceUrl。
-      // 此前未声明 version，存量数据会被视为 v0 并走 migrate 补齐（缺失字段按「手动添加」处理）。
-      version: 1,
+      // v1：直播源新增归属字段、最近观看新增 sourceUrl。
+      // v2：直播源归属改为多引用（fromSubscription 单值 → fromSubscriptions 数组）。
+      // 此前未声明 version 的存量数据会被视为 v0 并走 migrate 补齐。
+      version: 2,
       migrate: (persisted, version) => {
-        const state = (persisted ?? {}) as Partial<AppState>;
-        if (version < 1) {
-          return {
-            ...state,
-            liveSubscriptions: Array.isArray(state.liveSubscriptions) ? state.liveSubscriptions : [],
-            liveRecent: Array.isArray(state.liveRecent) ? state.liveRecent : [],
-          } as AppState;
+        const state = { ...((persisted ?? {}) as Partial<AppState>) };
+        if (!Array.isArray(state.liveRecent)) state.liveRecent = [];
+        if (!Array.isArray(state.liveSubscriptions)) state.liveSubscriptions = [];
+        if (version < 2) {
+          state.liveSubscriptions = state.liveSubscriptions.map((s) => {
+            const legacy = s as LiveSubscription & { fromSubscription?: unknown };
+            const fromSubscriptions = Array.isArray(legacy.fromSubscriptions)
+              ? legacy.fromSubscriptions
+              : typeof legacy.fromSubscription === 'string' && legacy.fromSubscription
+                ? [legacy.fromSubscription]
+                : [];
+            // 显式构造以剔除旧的单值字段，避免新旧字段并存
+            return {
+              url: legacy.url,
+              name: legacy.name,
+              epg: legacy.epg,
+              lastSync: legacy.lastSync,
+              fromSubscriptions,
+            };
+          });
         }
         return state as AppState;
       },

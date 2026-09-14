@@ -97,15 +97,15 @@ export function LiveSourceManager() {
     epgUrl,
     preset = false,
     lastSync,
-    fromSubscription,
+    fromSubscriptions,
   }: {
     url: string;
     label: string;
     epgUrl?: string;
     preset?: boolean;
     lastSync?: number;
-    /** 该直播源来自哪个订阅 URL；有值时由订阅统一管理，不可单独删除 */
-    fromSubscription?: string;
+    /** 引用该直播源的订阅 URL 列表（多归属）；非空时由订阅统一管理，不可单独删除 */
+    fromSubscriptions?: string[];
   }) => (
     <li key={url} className="bg-card rounded-lg p-3 transition-colors hover:bg-hover/50">
       <div className="flex items-center gap-2">
@@ -125,10 +125,10 @@ export function LiveSourceManager() {
                 部署者预置
               </span>
             )}
-            {fromSubscription && (
+            {(fromSubscriptions?.length ?? 0) > 0 && (
               <span
                 className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent align-middle"
-                title="来自数据源订阅，重新同步时此源的名称/地址会以订阅内容为准"
+                title={`来自 ${fromSubscriptions?.length ?? 0} 个数据源订阅；删除单个订阅不影响此源，仅当不再被任何订阅引用时才会移除`}
               >
                 订阅
               </span>
@@ -149,7 +149,7 @@ export function LiveSourceManager() {
         >
           ⇩
         </button>
-        {fromSubscription ? (
+        {(fromSubscriptions?.length ?? 0) > 0 ? (
           <button
             className="rounded-md p-1.5 text-muted/40"
             onClick={() => toast('该直播源来自数据源订阅；请到「订阅与配置 → 数据源订阅」中删除整个订阅', 'info')}
@@ -225,7 +225,7 @@ export function LiveSourceManager() {
               label: s.name || hostnameOf(s.url),
               epgUrl: s.epg,
               lastSync: s.lastSync,
-              fromSubscription: s.fromSubscription,
+              fromSubscriptions: s.fromSubscriptions,
             })
           )}
         </ul>

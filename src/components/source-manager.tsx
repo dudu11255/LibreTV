@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { Drawer } from './header';
-import { isSourceDisabled, subKeyPrefix, useAppStore } from '@/lib/store';
+import { isSourceDisabled, keyBelongsToSubscription, subKeyPrefix, useAppStore } from '@/lib/store';
 import { useToast } from './toast';
 import { formatRelativeTime, validateSourceUrl, cn } from '@/lib/utils';
 import { exportConfig, importConfig } from '@/lib/db';
 import { useAuth } from './auth';
 import { api } from '@/lib/client-api';
 import { syncSourceSubscription } from '@/lib/subscription-sync';
+import { describeParseStats } from '@/lib/tvbox-parser';
 import { LiveSourceManager } from './live-source-manager';
 
 /**
@@ -407,7 +408,8 @@ export function SourceManagerDrawer({ open, onClose }: { open: boolean; onClose:
 
 /**
  * 数据源订阅 / 分享：
- * - 订阅：填入远程 LibreTV-SourceList JSON 地址，一次拉取点播源与直播源，可随时重新同步；
+ * - 订阅：填入远程订阅地址（LibreTV-SourceList JSON 或 TVBOX 配置 JSON，由服务端自动识别），
+ *   一次拉取点播源与直播源，可随时重新同步；
  * - 分享：把当前点播源 + 直播源导出为同格式 JSON 文件，托管到任意位置即可被他人订阅。
  */
 function SourceSubscriptions() {
@@ -419,8 +421,11 @@ function SourceSubscriptions() {
   const sync = async (url: string) => {
     setSyncing(url);
     try {
-      const { vodCount, liveCount } = await syncSourceSubscription(url);
-      toast(`已同步 ${vodCount} 个点播源、${liveCount} 个直播源`, 'success');
+      const { vodCount, liveCount, stats } = await syncSourceSubscription(url);
+      // 如实说明跳过/截断情况，避免用户疑惑「配置里站点很多，为何只导入了个位数」
+      const detail = describeParseStats(stats, { includeSamples: false });
+      const formatLabel = stats?.format === 'tvbox' ? '（TVBOX 配置）' : '';
+      toast(`已同步 ${vodCount} 个点播源、${liveCount} 个直播源${formatLabel}${detail ? `；${detail}` : ''}`, 'success');
       setSubUrl('');
     } catch (err) {
       toast(err instanceof Error ? err.message : '订阅同步失败', 'error');
@@ -491,7 +496,7 @@ function SourceSubscriptions() {
       <div className="flex gap-2 mb-2">
         <input
           className="input w-full"
-          placeholder="订阅地址（LibreTV-SourceList JSON 的 URL）"
+          placeholder="订阅地址（LibreTV 源列表或 TVBOX 配置的 JSON URL）"
           value={subUrl}
           onChange={(e) => setSubUrl(e.target.value)}
           onKeyDown={(e) => {
@@ -499,18 +504,19 @@ function SourceSubscriptions() {
           }}
         />
         <button className="btn-primary !py-1.5 text-xs shrink-0" disabled={!subUrl.trim() || syncing !== null} onClick={addAndSync}>
-          订阅
+          {syncing !== null ? '同步中…' : '订阅'}
         </button>
       </div>
       {store.subscriptions.length === 0 ? (
         <p className="text-xs text-faint">
-          一份订阅可同时下发点播源与直播源；「导出数据源」生成的 JSON 托管到任意 URL 即可分享给他人订阅。
+          一份订阅可同时下发点播源与直播源，支持 LibreTV 源列表与 TVBOX 配置（仅导入可直接使用的接口，Spider 类站点自动跳过）；
+          「导出数据源」生成的 JSON 托管到任意 URL 即可分享给他人订阅。
         </p>
       ) : (
         <ul className="space-y-2 max-h-[30vh] overflow-y-auto scrollbar-thin pr-1">
           {store.subscriptions.map((sub) => {
-            const vodCount = store.customAPIs.filter((a) => a.key.startsWith(subKeyPrefix(sub.url))).length;
-            const liveCount = store.liveSubscriptions.filter((s) => s.fromSubscription === sub.url).length;
+            const vodCount = store.customAPIs.filter((a) => keyBelongsToSubscription(a.key, subKeyPrefix(sub.url))).length;
+            const liveCount = store.liveSubscriptions.filter((s) => s.fromSubscriptions.includes(sub.url)).length;
             return (
             <li key={sub.url} className="bg-card rounded-lg p-3 transition-colors hover:bg-hover/50">
               <div className="flex items-center gap-2">
@@ -527,7 +533,8 @@ function SourceSubscriptions() {
                 </div>
                 <button
                   className="rounded-md p-1.5 shrink-0 text-muted transition-colors hover:bg-hover hover:text-accent disabled:opacity-40"
-                  disabled={syncing === sub.url}
+                  // 同一时刻只允许一个同步在跑：syncing 是单值状态，并发会让先完成的提前解锁按钮
+                  disabled={syncing !== null}
                   onClick={() => sync(sub.url)}
                   aria-label="重新同步"
                   title="重新同步（以远端列表为准，整体替换该订阅名下的点播源与直播源）"

@@ -1,13 +1,17 @@
 'use client';
 
 import { api } from './client-api';
+import { normalizeSubscriptionUrl } from './source-list';
 import { useAppStore } from './store';
+import { describeParseStats } from './tvbox-parser';
+import type { SubscriptionParseStats } from './types';
 
 /**
- * SourceList 订阅同步核心逻辑，供两处复用：
+ * 数据源订阅同步核心逻辑，供两处复用：
  * - source-manager：用户在设置抽屉中手动添加/重新同步（UI 层加 toast 反馈）；
  * - providers：部署者通过 DEFAULT_SUBSCRIPTIONS 预置的订阅，启动时自动导入与静默重同步。
  *
+ * 订阅内容由服务端自动识别格式（LibreTV-SourceList JSON 或 TVBOX 配置 JSON），
  * applySubscriptionSources / applySubscriptionLive 均按订阅前缀整体替换且保留
  * 用户勾选状态，同步失败时不调用即无副作用——旧数据自动保留。
  */
@@ -15,21 +19,26 @@ export interface SubscriptionSyncResult {
   name?: string;
   vodCount: number;
   liveCount: number;
+  /** 解析统计（识别格式、跳过与截断条目），用于导入结果提示 */
+  stats?: SubscriptionParseStats;
 }
 
-export async function syncSourceSubscription(url: string): Promise<SubscriptionSyncResult> {
-  const { name, sources, liveSources } = await api.fetchSourceList(url);
+export async function syncSourceSubscription(rawUrl: string): Promise<SubscriptionSyncResult> {
+  // 统一归一化（trim + 去尾斜杠）：与 DEFAULT_SUBSCRIPTIONS 预置地址保持同一形态，
+  // 避免同一订阅地址因尾斜杠差异被存成两条订阅
+  const url = normalizeSubscriptionUrl(rawUrl);
+  const { name, sources, liveSources, stats } = await api.fetchSourceList(url);
   if (sources.length === 0 && liveSources.length === 0) {
     throw new Error('订阅内容为空');
   }
   const store = useAppStore.getState();
   const vodCount = store.applySubscriptionSources(url, sources);
   const liveCount = store.applySubscriptionLive(url, liveSources);
-  // 仅对本订阅实际导入的直播源记录同步时间：
-  // 被其他订阅/手动源占用而未导入的 M3U，其 name/epg/lastSync 不得被本订阅覆盖
+  // 仅对本订阅引用的直播源记录同步时间（多归属：共享源也会被标记为新鲜，
+  // 但名称/EPG 由 store 的「首次导入为准、缺失补齐」语义保护，不会被本订阅覆盖）
   const importedLiveUrls = new Set(
     useAppStore.getState().liveSubscriptions
-      .filter((s) => s.fromSubscription === url)
+      .filter((s) => s.fromSubscriptions.includes(url))
       .map((s) => s.url)
   );
   for (const s of liveSources) {
@@ -37,7 +46,7 @@ export async function syncSourceSubscription(url: string): Promise<SubscriptionS
   }
   store.addSubscription(url, name);
   store.markSubscriptionSynced(url, name);
-  return { name, vodCount, liveCount };
+  return { name, vodCount, liveCount, stats };
 }
 
 /** 预置订阅超过该间隔未同步时，启动阶段静默刷新一次 */
@@ -56,16 +65,21 @@ export async function syncEnvSubscriptions(subs: { url: string; name?: string }[
     const store = useAppStore.getState();
     try {
       const existing = store.subscriptions.find((s) => s.url === sub.url);
+      let result: SubscriptionSyncResult | undefined;
       if (existing) {
         if (existing.lastSync && Date.now() - existing.lastSync < ENV_SUB_RESYNC_MS) {
           store.markEnvSubsSeen([sub.url]);
           continue;
         }
-        await syncSourceSubscription(sub.url);
+        result = await syncSourceSubscription(sub.url);
       } else {
         // 已成功过且被用户删除的预置订阅：尊重用户选择，不再加回
         if (store.envSubsSeen.includes(sub.url)) continue;
-        await syncSourceSubscription(sub.url);
+        result = await syncSourceSubscription(sub.url);
+      }
+      // 预置订阅对用户是静默的，跳过/截断情况写入控制台供部署者排查（只记计数，不打印配置内容）
+      if (result?.stats && result.stats.skipped > 0) {
+        console.info('[LibreTV] 预置订阅部分条目未导入：', sub.url, describeParseStats(result.stats));
       }
       useAppStore.getState().markEnvSubsSeen([sub.url]);
     } catch (err) {

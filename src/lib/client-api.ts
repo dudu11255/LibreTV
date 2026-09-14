@@ -142,7 +142,7 @@ export const api = {
       body: JSON.stringify({ url }),
     }),
 
-  /** 拉取远程数据源订阅（LibreTV-SourceList JSON：点播源 sources + 直播源 liveSources） */
+  /** 拉取远程数据源订阅（自动识别 LibreTV-SourceList JSON 与 TVBOX 配置 JSON） */
   fetchSourceList: (url: string) => {
     const sp = new URLSearchParams({ url });
     return request<SourceListPayload>(`/api/source-list?${sp.toString()}`);
