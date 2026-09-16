@@ -4,7 +4,7 @@ import { api } from './client-api';
 import { normalizeSubscriptionUrl } from './source-list';
 import { useAppStore } from './store';
 import { describeParseStats } from './tvbox-parser';
-import type { SubscriptionParseStats } from './types';
+import type { AuthStatusResponse, SubscriptionParseStats } from './types';
 
 /**
  * 数据源订阅同步核心逻辑，供两处复用：
@@ -92,5 +92,28 @@ export async function syncEnvSubscriptions(subs: { url: string; name?: string }[
     } catch (err) {
       console.warn('[LibreTV] 预置订阅同步失败（下次启动将重试）：', sub.url, err instanceof Error ? err.message : err);
     }
+  }
+}
+
+/**
+ * 应用 /api/status 下发的部署者预置数据（预置点播源 / 预置直播源 / 预置订阅）。
+ *
+ * 调用点有两处，缺一不可：
+ * - Providers 首屏拿到 /api/status 后调用（此时可能尚未登录）；
+ * - AuthProvider 登录成功后补调一次——预置订阅要经鉴权接口 /api/source-list 拉取，
+ *   首屏那次在登录前会 401 静默失败，不补调则本次会话内不会出现预置订阅。
+ *
+ * 重复调用是安全的：setEnvSources / setLiveEnvSources 幂等，syncEnvSubscriptions
+ * 对已同步（24h 内）的订阅会跳过，对已成功过的订阅也不会重复导入。
+ */
+export async function applyEnvPresets(status: AuthStatusResponse): Promise<void> {
+  if (Array.isArray(status.defaultSources)) {
+    useAppStore.getState().setEnvSources(status.defaultSources);
+  }
+  if (Array.isArray(status.defaultLiveSources)) {
+    useAppStore.getState().setLiveEnvSources(status.defaultLiveSources);
+  }
+  if (Array.isArray(status.defaultSubscriptions) && status.defaultSubscriptions.length > 0) {
+    await syncEnvSubscriptions(status.defaultSubscriptions);
   }
 }

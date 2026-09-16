@@ -7,7 +7,7 @@ import { AuthProvider } from './auth';
 import { ThemeProvider } from './theme';
 import { useAppStore, hydrateLiveProbeResults } from '@/lib/store';
 import { api, STATUS_QUERY_KEY } from '@/lib/client-api';
-import { syncEnvSubscriptions } from '@/lib/subscription-sync';
+import { applyEnvPresets } from '@/lib/subscription-sync';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
@@ -34,16 +34,10 @@ export function Providers({ children }: { children: ReactNode }) {
         return queryClient.fetchQuery({ queryKey: STATUS_QUERY_KEY, queryFn: () => api.status() });
       })
       .then((d) => {
-        if (d && Array.isArray(d.defaultSources)) {
-          useAppStore.getState().setEnvSources(d.defaultSources);
-        }
-        if (d && Array.isArray(d.defaultLiveSources)) {
-          useAppStore.getState().setLiveEnvSources(d.defaultLiveSources);
-        }
-        // 预置订阅（DEFAULT_SUBSCRIPTIONS）：首次自动导入，超 24h 静默刷新，失败下次重试
-        if (d && Array.isArray(d.defaultSubscriptions) && d.defaultSubscriptions.length > 0) {
-          void syncEnvSubscriptions(d.defaultSubscriptions);
-        }
+        // 预置数据（DEFAULT_SOURCES / DEFAULT_LIVE_SOURCES / DEFAULT_SUBSCRIPTIONS）
+        // 预置订阅要经鉴权接口拉取，首屏这次可能发生在登录之前而 401 静默失败；
+        // 登录成功后由 AuthProvider 再调一次 applyEnvPresets 补齐（函数幂等）
+        if (d) return applyEnvPresets(d);
       })
       .catch(() => {});
   }, [queryClient]);
