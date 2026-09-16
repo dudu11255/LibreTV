@@ -2,6 +2,8 @@
 
 LibreTV Next.js 迁移版：免费在线视频聚合搜索与观看平台。基于 Next.js 15（App Router）+ TypeScript + Tailwind CSS，播放内核为 ArtPlayer + hls.js，支持亮暗双主题。
 
+> 🌐 **演示站**：[tv.bagiinlink.eu.org](https://tv.bagiinlink.eu.org)（访问密码：`libretv`）
+>
 > 📖 **完整文档**：[GitHub Wiki](https://github.com/bestZwei/LibreTV-Next/wiki) · [架构](https://github.com/bestZwei/LibreTV-Next/wiki/Architecture) · [部署](https://github.com/bestZwei/LibreTV-Next/wiki/Deployment) · [配置](https://github.com/bestZwei/LibreTV-Next/wiki/Configuration) · [数据源](https://github.com/bestZwei/LibreTV-Next/wiki/Data-Sources) · [首页推荐](https://github.com/bestZwei/LibreTV-Next/wiki/Recommendations) · [播放器](https://github.com/bestZwei/LibreTV-Next/wiki/Player) · [代理与安全](https://github.com/bestZwei/LibreTV-Next/wiki/Proxy-Security) · [FAQ](https://github.com/bestZwei/LibreTV-Next/wiki/FAQ)
 >
 
