@@ -376,7 +376,7 @@ function HomeContent() {
             LibreTV
           </a>
           {version ? ` v${version} · ` : ' '}
-          数据来源为第三方公开接口，本站不存储任何视频文件
+          AGPL-3.0 License
         </p>
       </footer>
 
