@@ -1,0 +1,73 @@
+name: docker-sync-hub
+
+# 把 GHCR 上已构建的多架构镜像复制到 Docker Hub（不重新构建，镜像 digest 一致）。
+# 用途：
+# - 双发布上线前的存量版本补推（如 v2.12.3 的镜像当时只推了 GHCR）；
+# - 主流程中 Docker Hub 侧失败时的手动补救。
+# 在 Actions 页面手动触发，输入版本号（如 2.12.3，兼容 v 前缀），
+# 会一并同步同版本的「主.次」与 latest 标签。
+# 源镜像 ghcr.io/librespark/libretv 是公开镜像，跨仓库读取无需特殊凭据。
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要同步的版本号（如 2.12.3），将连同 主.次 与 latest 一起推送到 Docker Hub'
+        required: true
+        default: ''
+
+permissions:
+  packages: read
+
+env:
+  GHCR_IMAGE: ghcr.io/librespark/libretv
+  DOCKERHUB_IMAGE: docker.io/bestzwei/libretv
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-buildx-action@v3
+
+      # 源为公开镜像，此登录只为私有化部署场景兜底；失败不阻塞
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: 复制多架构镜像与标签到 Docker Hub
+        run: |
+          version="${{ inputs.tag }}"
+          version="${version#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::版本号格式应为 主.次.修订（如 2.12.3），收到：${version}"
+            exit 1
+          fi
+          minor="${version%.*}"
+          echo "同步 ${GHCR_IMAGE}:${version} → ${DOCKERHUB_IMAGE}（标签：${version} ${minor} latest）"
+          docker buildx imagetools create \
+            -t "${DOCKERHUB_IMAGE}:${version}" \
+            -t "${DOCKERHUB_IMAGE}:${minor}" \
+            -t "${DOCKERHUB_IMAGE}:latest" \
+            "${GHCR_IMAGE}:${version}"
+
+      - name: 校验 Docker Hub 侧 digest 与 GHCR 一致
+        run: |
+          version="${{ inputs.tag }}"
+          version="${version#v}"
+          src=$(docker buildx imagetools inspect "${GHCR_IMAGE}:${version}" --format '{{json .Manifest.Digest}}')
+          dst=$(docker buildx imagetools inspect "${DOCKERHUB_IMAGE}:${version}" --format '{{json .Manifest.Digest}}')
+          echo "GHCR  digest: ${src}"
+          echo "Docker Hub digest: ${dst}"
+          if [ "$src" != "$dst" ]; then
+            echo "::error::两侧 digest 不一致，同步未生效"
+            exit 1
+          fi
+          echo "digest 一致，同步完成"

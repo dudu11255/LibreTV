@@ -114,6 +114,10 @@ jobs:
   merge:
     needs: build
     runs-on: ubuntu-latest
+    env:
+      # secrets 上下文不能直接用于 step 的 if（Unrecognized named-value），
+      # 在 job 级 env 先行求值为 true/false，各步骤再用 env 上下文判断
+      HAS_DOCKERHUB_CREDS: ${{ secrets.DOCKER_PASSWORD != '' }}
     steps:
       - name: 下载各架构 digest
         uses: actions/download-artifact@v4
@@ -136,7 +140,7 @@ jobs:
 
       # Docker Hub 双发布：凭据未配置时整段跳过（仅发布 GHCR），不影响既有流程
       - name: 登录 Docker Hub
-        if: ${{ secrets.DOCKER_PASSWORD != '' }}
+        if: env.HAS_DOCKERHUB_CREDS == 'true'
         uses: docker/login-action@v3
         with:
           registry: docker.io
@@ -154,7 +158,7 @@ jobs:
 
       # 与 GHCR 同一组标签规则；标签在各自的 imagetools create 里使用
       - id: meta-hub
-        if: ${{ secrets.DOCKER_PASSWORD != '' }}
+        if: env.HAS_DOCKERHUB_CREDS == 'true'
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.DOCKERHUB_IMAGE }}
@@ -179,7 +183,7 @@ jobs:
       # 跨 registry 复制：从 GHCR 的架构 digest 拉取后推到 Docker Hub，
       # 镜像内容（含 manifest digest）与 GHCR 完全一致，无需重新构建
       - name: 复制多架构 manifest 到 Docker Hub
-        if: ${{ secrets.DOCKER_PASSWORD != '' }}
+        if: env.HAS_DOCKERHUB_CREDS == 'true'
         working-directory: ${{ runner.temp }}/digests
         run: |
           docker buildx imagetools create \
