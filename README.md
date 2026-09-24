@@ -7,6 +7,12 @@ LibreTV Next.js 迁移版：免费在线视频聚合搜索与观看平台。基�
 > 📖 **完整文档**：[GitHub Wiki](https://github.com/bestZwei/LibreTV-Next/wiki) · [架构](https://github.com/bestZwei/LibreTV-Next/wiki/Architecture) · [部署](https://github.com/bestZwei/LibreTV-Next/wiki/Deployment) · [配置](https://github.com/bestZwei/LibreTV-Next/wiki/Configuration) · [数据源](https://github.com/bestZwei/LibreTV-Next/wiki/Data-Sources) · [首页推荐](https://github.com/bestZwei/LibreTV-Next/wiki/Recommendations) · [播放器](https://github.com/bestZwei/LibreTV-Next/wiki/Player) · [代理与安全](https://github.com/bestZwei/LibreTV-Next/wiki/Proxy-Security) · [FAQ](https://github.com/bestZwei/LibreTV-Next/wiki/FAQ)
 >
 
+<p align="center">
+ <a href="https://www.star-history.com/librespark/libretv">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/badge?repo=LibreSpark/LibreTV&type=rank&theme=dark" /><source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/badge?repo=LibreSpark/LibreTV&type=rank" /><img alt="Star History Rank" src="https://api.star-history.com/badge?repo=LibreSpark/LibreTV&type=rank" /></picture> <picture><source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/badge?repo=LibreSpark/LibreTV&type=trending&theme=dark" /><source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/badge?repo=LibreSpark/LibreTV&type=trending" /><img alt="GitHub Trending Repository of the Day" src="https://api.star-history.com/badge?repo=LibreSpark/LibreTV&type=trending" /></picture>
+ </a>
+</p>
+
 ## 核心特性
 
 - **聚合搜索**：多采集站服务端并行搜索
