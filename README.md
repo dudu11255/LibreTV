@@ -8,7 +8,7 @@ LibreTV Next.js 迁移版：免费在线视频聚合搜索与观看平台。基�
 >
 
 <p align="center">
- <a href="https://trendshift.io/repositories/26551" target="_blank"><img src="https://trendshift.io/api/badge/trendshift/repositories/26551/daily?language=JavaScript" alt="#1 JavaScript Repository Of The Day" width="250" height="55" /></a> <a href="https://trendshift.io/repositories/26551" target="_blank"><img src="https://trendshift.io/api/badge/trendshift/repositories/26551/weekly?language=JavaScript" alt="#1 JavaScript Repository Of The Week" width="250" height="55" /></a>
+ <a href="https://trendshift.io/repositories/26551?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-26551" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/26551" alt="LibreSpark%2FLibreTV | Trendshift" width="250" height="55"/></a> <a href="https://trendshift.io/repositories/26551?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-26551" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/26551/weekly?language=JavaScript" alt="LibreSpark%2FLibreTV | Trendshift" width="250" height="55"/></a>
 </p>
 
 ## 核心特性
@@ -177,7 +177,7 @@ npm version patch       # 或 minor / major；会更新 package.json 并打 git 
 git push && git push --tags
 ```
 
-CI 校验通过后自动构建并推送 `ghcr.io/librespark/libretv:<版本>` 与 `docker.io/bestzwei/libretv:<版本>`（详见[部署文档](https://github.com/bestZwei/LibreTV-Next/wiki/Deployment)）。
+CI 校验通过后自动构建并推送 `ghcr.io/librespark/libretv:<版本>`（详见[部署文档](https://github.com/bestZwei/LibreTV-Next/wiki/Deployment)）。
 
 ## 安全说明
 
