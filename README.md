@@ -8,7 +8,7 @@ LibreTV Next.js 迁移版：免费在线视频聚合搜索与观看平台。基�
 >
 
 <p align="center">
- <a href="https://www.star-history.com/librespark/libretv"><picture><source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/badge?repo=LibreSpark/LibreTV&type=rank&theme=dark" /><source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/badge?repo=LibreSpark/LibreTV&type=rank" /><img alt="Star History Rank" src="https://api.star-history.com/badge?repo=LibreSpark/LibreTV&type=rank" /></picture></a> <a href="https://trendshift.io/repositories/26551" target="_blank"><img src="https://trendshift.io/api/badge/trendshift/repositories/26551/weekly?language=JavaScript" alt="#1 JavaScript Repository Of The Week" width="250" height="55" /></a>
+ <a href="https://trendshift.io/repositories/26551" target="_blank"><img src="https://trendshift.io/api/badge/trendshift/repositories/26551/daily?language=JavaScript" alt="#1 JavaScript Repository Of The Day" width="250" height="55" /></a> <a href="https://trendshift.io/repositories/26551" target="_blank"><img src="https://trendshift.io/api/badge/trendshift/repositories/26551/weekly?language=JavaScript" alt="#1 JavaScript Repository Of The Week" width="250" height="55" /></a>
 </p>
 
 ## 核心特性
