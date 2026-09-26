@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/client-api';
+import { copyToClipboard } from '@/lib/clipboard';
 import { Header } from '@/components/header';
 import { LivePlayer } from '@/components/live-player';
 import { LiveChannelList, type LiveChannelItem } from '@/components/live-channel-list';
@@ -25,28 +26,6 @@ export default function LivePage() {
       <LiveContent />
     </Suspense>
   );
-}
-
-/** 复制文本到剪贴板：优先 Clipboard API，http 环境降级 execCommand */
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      const ok = document.execCommand('copy');
-      ta.remove();
-      return ok;
-    } catch {
-      return false;
-    }
-  }
 }
 
 function LiveContent() {
@@ -355,7 +334,7 @@ function LiveContent() {
                     aria-label="复制播放地址"
                     title="复制播放地址"
                     onClick={async () => {
-                      const ok = await copyText(currentChannel.url);
+                      const ok = await copyToClipboard(currentChannel.url);
                       if (ok) {
                         setCopied(true);
                         setTimeout(() => setCopied(false), 1500);

@@ -9,6 +9,7 @@ import { useAppStore, resolveSource } from '@/lib/store';
 import { useToast } from './toast';
 import { cn } from '@/lib/utils';
 import { addSearchHistory } from '@/lib/db';
+import { copyToClipboard } from '@/lib/clipboard';
 import { EmptyState, ErrorState, LoadingState } from './states';
 import { useFocusTrap } from './use-focus-trap';
 import { Icon } from './icon';
@@ -107,12 +108,9 @@ export function DetailModal({ item, onClose }: { item: SearchResultItem | null; 
 
   const copyLinks = async () => {
     if (!detail) return;
-    try {
-      await navigator.clipboard.writeText(detail.episodes.join('\n'));
-      toast('播放链接已复制', 'success');
-    } catch {
-      toast('复制失败，请检查浏览器权限', 'error');
-    }
+    const ok = await copyToClipboard(detail.episodes.join('\n'));
+    if (ok) toast('播放链接已复制', 'success');
+    else toast('复制失败，请检查浏览器权限', 'error');
   };
 
   const metaRows = [

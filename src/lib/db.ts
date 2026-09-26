@@ -227,17 +227,4 @@ export async function importConfig(content: string): Promise<void> {
   }
 }
 
-export function saveSettingsToLocalStorage(settings: unknown): void {
-  localStorage.setItem('libretv-settings', JSON.stringify(settings));
-}
-
-export function loadSettingsFromLocalStorage<T>(): T | undefined {
-  try {
-    const raw = localStorage.getItem('libretv-settings');
-    return raw ? (JSON.parse(raw) as T) : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 export type { SourceConfig };
