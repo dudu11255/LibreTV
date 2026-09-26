@@ -120,7 +120,8 @@ function WatchContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [verified, sourceKey, vodId, currentIndex, videoTitle, currentUrl]);
 
-  const handleTimeUpdate = useCallback(
+  // 播放中与暂停时的进度落盘逻辑一致，共用同一回调
+  const handleProgress = useCallback(
     (position: number, duration: number) => {
       if (vodId) {
         saveProgress(sourceKey, vodId, currentIndex, position, duration).catch(() => {});
@@ -130,20 +131,16 @@ function WatchContent() {
     [sourceKey, vodId, currentIndex, currentUrl]
   );
 
-  const handlePause = useCallback(
-    (position: number, duration: number) => {
-      if (vodId) {
-        saveProgress(sourceKey, vodId, currentIndex, position, duration).catch(() => {});
-        updateHistoryProgress(sourceKey, vodId || currentUrl, position, duration).catch(() => {});
-      }
-    },
-    [sourceKey, vodId, currentIndex, currentUrl]
-  );
+  // 自动连播的 800ms 延迟切集要在卸载时取消，避免离开页面后跳转
+  const autoNextTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (autoNextTimer.current) clearTimeout(autoNextTimer.current);
+  }, []);
 
   const handleEnded = useCallback(() => {
     if (vodId) clearProgress(sourceKey, vodId, currentIndex).catch(() => {});
     if (store.autoplayNext && currentIndex < episodes.length - 1) {
-      setTimeout(() => goEpisode(currentIndex + 1), 800);
+      autoNextTimer.current = setTimeout(() => goEpisode(currentIndex + 1), 800);
     }
   }, [store.autoplayNext, currentIndex, episodes.length, goEpisode, sourceKey, vodId]);
 
@@ -218,8 +215,8 @@ function WatchContent() {
                   adFilter={store.adFilter}
                   autoplayNext={store.autoplayNext}
                   getRestorePosition={getRestorePosition}
-                  onTimeUpdate={handleTimeUpdate}
-                  onPause={handlePause}
+                  onTimeUpdate={handleProgress}
+                  onPause={handleProgress}
                   onEnded={handleEnded}
                 />
               ) : (
