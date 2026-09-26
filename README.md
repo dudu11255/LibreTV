@@ -197,6 +197,8 @@ npm test                            # 核心库单元测试（cms-parser / m3u8 
 npm run typecheck
 ```
 
+测试范围、发布流程与文档结构见 [Wiki · 开发](https://github.com/bestZwei/LibreTV-Next/wiki/Development)。
+
 ## 发布新版本
 
 版本号以 `package.json` 为单一来源，发布镜像由 GitHub Actions 自动完成：
