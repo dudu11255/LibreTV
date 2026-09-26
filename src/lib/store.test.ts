@@ -164,6 +164,32 @@ describe('订阅同步的 store 语义', () => {
     expect(store().liveSubscriptions[0].fromSubscriptions).toEqual([]);
   });
 
+  it('同步缺席即摘除归属：共享源降级为其他订阅的引用，双方都缺席才移除', () => {
+    const shared = 'https://live.example.com/shared.m3u';
+    store().applySubscriptionLive('https://a.example.com/list.json', [{ name: '共享', url: shared }]);
+    store().applySubscriptionLive('https://b.example.com/list.json', [{ name: '共享', url: shared }]);
+    useAppStore.setState({ liveSelectedUrls: [shared] });
+
+    // A 的远端列表删掉了共享源：摘除 A 的引用，源保留给 B，A 的计数归 0
+    expect(store().applySubscriptionLive('https://a.example.com/list.json', [])).toBe(0);
+    expect(store().liveSubscriptions).toHaveLength(1);
+    expect(store().liveSubscriptions[0].fromSubscriptions).toEqual(['https://b.example.com/list.json']);
+    expect(store().liveSelectedUrls).toContain(shared);
+
+    // B 也删掉后无人引用，源随同步移除并清理启用状态
+    expect(store().applySubscriptionLive('https://b.example.com/list.json', [])).toBe(0);
+    expect(store().liveSubscriptions).toHaveLength(0);
+    expect(store().liveSelectedUrls).not.toContain(shared);
+  });
+
+  it('手动添加的直播源缺席同步时不被移除', () => {
+    const m1 = 'https://live.example.com/1.m3u';
+    store().addLiveSubscription(m1, '手动');
+    store().applySubscriptionLive('https://a.example.com/list.json', []);
+    expect(store().liveSubscriptions).toHaveLength(1);
+    expect(store().liveSubscriptions[0].url).toBe(m1);
+  });
+
   it('删除订阅：共享的直播源保留给其他订阅，独占的才移除', () => {
     const shared = 'https://live.example.com/shared.m3u';
     const exclusive = 'https://live.example.com/exclusive.m3u';

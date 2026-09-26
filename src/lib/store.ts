@@ -477,13 +477,20 @@ export const useAppStore = create<AppState>()(
             nextByUrl.set(s.url, { ...current, fromSubscriptions: [...current.fromSubscriptions, subUrl] });
           }
         }
-        // 不在本次列表中的条目原样保留；仅当被本订阅唯一持有且本次消失时才移除
+        // 不在本次列表中的条目：摘除本订阅的归属引用（远端已删即不再持有）——
+        // 摘除后仍被其他订阅引用的降级为其引用；不再被任何订阅引用的订阅源随本次同步移除；
+        // 手动添加的源（无订阅归属）由用户完全掌控，不受同步影响
         for (const s of existing) {
           if (nextByUrl.has(s.url)) continue;
-          if (s.fromSubscriptions.includes(subUrl) && s.fromSubscriptions.length === 1) {
-            orphanUrls.add(s.url);
-          } else {
+          if (!s.fromSubscriptions.includes(subUrl)) {
             nextByUrl.set(s.url, s);
+            continue;
+          }
+          const rest = s.fromSubscriptions.filter((u) => u !== subUrl);
+          if (rest.length > 0) {
+            nextByUrl.set(s.url, { ...s, fromSubscriptions: rest });
+          } else {
+            orphanUrls.add(s.url);
           }
         }
 
