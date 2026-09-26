@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { guardRequest } from '@/lib/api-guard';
-import { checkUpstreamAllowed, isBlockedByDNS, isValidProxyUrl } from '@/lib/ssrf';
+import { isBlockedByDNS, isValidProxyUrl } from '@/lib/ssrf';
+import { fetchWithSafeRedirects } from '@/lib/fetch-utils';
 import { rewriteM3u8 } from '@/lib/m3u8';
 
 export const runtime = 'nodejs';
@@ -10,38 +11,6 @@ const MAX_RETRIES = parseInt(process.env.MAX_RETRIES || '1', 10);
 const UA =
   process.env.USER_AGENT ||
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
-
-const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
-const MAX_REDIRECT_HOPS = 5;
-
-/**
- * 代理专用上游抓取：手动逐跳跟随跳转，每一跳重新执行 SSRF 校验。
- * 不能用 redirect:'follow'——预检之后 fetch 自动跟随的 3xx 可把请求
- * 带进内网/元数据地址，绕过下方对首跳的校验。
- * 返回最终 URL：m3u8 内相对分片地址必须以重定向后的 URL 为 base 解析。
- */
-async function proxyFetch(
-  targetUrl: string,
-  init: { headers: Record<string, string> }
-): Promise<{ res: Response; finalUrl: string }> {
-  let current = targetUrl;
-  for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
-    const verdict = await checkUpstreamAllowed(current);
-    if (!verdict.ok) {
-      throw new Error(`跳转目标被拒绝: ${verdict.reason}`);
-    }
-    const res = await fetch(current, {
-      headers: init.headers,
-      redirect: 'manual',
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (!REDIRECT_STATUSES.has(res.status)) return { res, finalUrl: current };
-    const location = res.headers.get('location');
-    if (!location) return { res, finalUrl: current };
-    current = new URL(location, current).href;
-  }
-  throw new Error('重定向次数过多');
-}
 
 /**
  * 精确域名匹配：仅 `douban.com` 本身及其子域放行。
@@ -115,7 +84,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ url: string }> 
   let lastError: unknown = null;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const result = await proxyFetch(targetUrl, { headers });
+      const result = await fetchWithSafeRedirects(targetUrl, {
+        headers,
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
       response = result.res;
       finalUrl = result.finalUrl;
       lastError = null;

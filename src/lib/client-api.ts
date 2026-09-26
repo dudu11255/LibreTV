@@ -44,14 +44,8 @@ export function onUnauthorized(handler: (event: CustomEvent) => void): () => voi
   return () => window.removeEventListener(UNAUTHORIZED_EVENT, wrapped);
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(url, init);
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') throw err;
-    throw new ApiError('网络请求失败，请检查网络连接', 0);
-  }
+/** 401/503 统一处理：分发全局事件打开登录框并抛 ApiError（普通与流式请求共用） */
+function throwForAuthStatus(res: Response): void {
   if (res.status === 401) {
     window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
     throw new ApiError('需要登录', 401);
@@ -60,6 +54,46 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT, { detail: 'setup' }));
     throw new ApiError('服务器未配置密码', 503);
   }
+}
+
+/** NDJSON 流读取：按行解析 JSON 并回调，坏行跳过不影响其余结果 */
+async function consumeNdjson<T>(res: Response, onEvent: (event: T) => void): Promise<void> {
+  if (!res.body) throw new ApiError(`请求失败 (${res.status})`, res.status);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  const consume = (line: string) => {
+    const text = line.trim();
+    if (!text) return;
+    try {
+      onEvent(JSON.parse(text) as T);
+    } catch {
+      // 坏行跳过，不影响其余结果
+    }
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buffer.indexOf('\n')) >= 0) {
+      consume(buffer.slice(0, idx));
+      buffer = buffer.slice(idx + 1);
+    }
+  }
+  buffer += decoder.decode();
+  consume(buffer);
+}
+
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(url, init);
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw err;
+    throw new ApiError('网络请求失败，请检查网络连接', 0);
+  }
+  throwForAuthStatus(res);
   if (!res.ok) {
     let msg = `请求失败 (${res.status})`;
     try {
@@ -223,40 +257,10 @@ export const api = {
       body: JSON.stringify({ urls }),
       signal,
     });
-    if (res.status === 401) {
-      window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
-      throw new ApiError('需要登录', 401);
-    }
-    if (res.status === 503) {
-      window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT, { detail: 'setup' }));
-      throw new ApiError('服务器未配置密码', 503);
-    }
+    throwForAuthStatus(res);
     if (!res.ok || !res.body) throw new ApiError(`请求失败 (${res.status})`, res.status);
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    const consume = (line: string) => {
-      const text = line.trim();
-      if (!text) return;
-      try {
-        onResult(JSON.parse(text) as LiveProbeResult);
-      } catch {
-        // 坏行跳过，不影响其余结果
-      }
-    };
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let idx: number;
-      while ((idx = buffer.indexOf('\n')) >= 0) {
-        consume(buffer.slice(0, idx));
-        buffer = buffer.slice(idx + 1);
-      }
-    }
-    buffer += decoder.decode();
-    consume(buffer);
+    await consumeNdjson<LiveProbeResult>(res, onResult);
   },
 };
 
@@ -280,50 +284,19 @@ async function searchStream(
     body: JSON.stringify({ wd, sources, filterAdult }),
     signal,
   });
-  if (res.status === 401) {
-    window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
-    throw new ApiError('需要登录', 401);
-  }
-  if (res.status === 503) {
-    window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT, { detail: 'setup' }));
-    throw new ApiError('服务器未配置密码', 503);
-  }
-  if (!res.ok || !res.body) throw new ApiError(`请求失败 (${res.status})`, res.status);
+    throwForAuthStatus(res);
+    if (!res.ok || !res.body) throw new ApiError(`请求失败 (${res.status})`, res.status);
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let final: SearchResponse | undefined;
-  const consume = (line: string) => {
-    const text = line.trim();
-    if (!text) return;
-    let event: SearchStreamEvent;
-    try {
-      event = JSON.parse(text) as SearchStreamEvent;
-    } catch {
-      return; // 坏行跳过，不影响其余结果
-    }
-    if (event.type === 'source') {
-      onSource(event);
-    } else if (event.type === 'done') {
-      final = { list: event.list, failures: event.failures };
-    }
-  };
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let idx: number;
-    while ((idx = buffer.indexOf('\n')) >= 0) {
-      consume(buffer.slice(0, idx));
-      buffer = buffer.slice(idx + 1);
-    }
+    // done 事件缺失（流被截断）时退化为空结果，不让整次搜索报错
+    let final: SearchResponse = { list: [], failures: [] };
+    await consumeNdjson<SearchStreamEvent>(res, (event) => {
+      if (event.type === 'source') {
+        onSource(event);
+      } else if (event.type === 'done') {
+        final = { list: event.list, failures: event.failures };
+      }
+    });
+    return final;
   }
-  buffer += decoder.decode();
-  consume(buffer);
-
-  // done 事件缺失（流被截断）时退化为空结果，不让整次搜索报错
-  return final ?? { list: [], failures: [] };
-}
 
 export type { SearchResponse, SearchResultItem };

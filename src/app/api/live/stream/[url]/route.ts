@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { guardRequest, jsonError } from '@/lib/api-guard';
 import { checkLiveUrlAllowed } from '@/lib/ssrf';
+import { fetchWithSafeRedirects } from '@/lib/fetch-utils';
 import { rewriteM3u8 } from '@/lib/m3u8';
 
 export const runtime = 'nodejs';
@@ -11,7 +12,8 @@ export const dynamic = 'force-dynamic';
  *
  * /api/proxy 的 AbortSignal.timeout(TIMEOUT_MS) 作用于整个响应流，
  * 8 秒后即切断长连接——对 HTTP-FLV（单一无限长连接）是致命的。
- * 本路由改为「仅对响应头等待设超时」：fetch 拿到响应头后立即清除计时器，
+ * 本路由改为「仅对响应头等待设超时」（fetchWithSafeRedirects 的
+ * headerTimeoutMs）：fetch 拿到响应头后立即清除计时器，
  * 之后 body 无限时长流式透传，直到客户端断开。
  *
  * - 不重试（重试对直播无意义）；
@@ -22,48 +24,9 @@ export const dynamic = 'force-dynamic';
 
 const HEADER_TIMEOUT_MS = 15_000;
 const LIVE_PREFIX = '/api/live/stream/';
-const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
-const MAX_REDIRECT_HOPS = 5;
 const UA =
   process.env.USER_AGENT ||
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
-
-/**
- * 带响应头超时的上游抓取：仅首字节（响应头）限时，超时 abort；
- * 响应头到达后清除计时器，body 流不再受限。手动逐跳跟随重定向，
- * 每一跳重新执行 SSRF 校验（302 跳内网是经典绕过手法）。
- * 返回最终 URL：gslb 调度源 302 后路径会变，manifest 内相对分片地址
- * 必须以最终 URL 为 base 解析，否则分片请求会 404。
- */
-async function fetchLiveUpstream(
-  targetUrl: string,
-  headers: Record<string, string>,
-  controller: AbortController
-): Promise<{ res: Response; finalUrl: string }> {
-  let current = targetUrl;
-  for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
-    const verdict = await checkLiveUrlAllowed(current);
-    if (!verdict.ok) throw new Error(`跳转目标被拒绝: ${verdict.reason}`);
-
-    const timer = setTimeout(() => controller.abort(), HEADER_TIMEOUT_MS);
-    let res: Response;
-    try {
-      res = await fetch(current, {
-        headers,
-        redirect: 'manual',
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timer);
-    }
-
-    if (!REDIRECT_STATUSES.has(res.status)) return { res, finalUrl: current };
-    const location = res.headers.get('location');
-    if (!location) return { res, finalUrl: current };
-    current = new URL(location, current).href;
-  }
-  throw new Error('重定向次数过多');
-}
 
 export async function GET(req: Request, ctx: { params: Promise<{ url: string }> }) {
   const { url: encodedUrl } = await ctx.params;
@@ -87,7 +50,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ url: string }> 
   let response: Response;
   let finalUrl: string;
   try {
-    const result = await fetchLiveUpstream(targetUrl, headers, controller);
+    // 客户端断开（切台/关页）时经 controller.signal 终止上游连接，防止连接泄漏
+    const result = await fetchWithSafeRedirects(
+      targetUrl,
+      { headers, signal: controller.signal },
+      { allowPrivate: true, headerTimeoutMs: HEADER_TIMEOUT_MS }
+    );
     response = result.res;
     finalUrl = result.finalUrl;
   } catch (err) {
