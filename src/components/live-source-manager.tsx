@@ -81,12 +81,11 @@ export function LiveSourceManager() {
 
   const allEnabled = rows.length > 0 && rows.every((r) => store.liveSelectedUrls.includes(r.url));
   const toggleAll = () => {
-    // 单次事件内的多次 set 会被 React 批处理合并；用 getState 保证基于最新状态切换
-    if (allEnabled) {
-      rows.filter((r) => store.liveSelectedUrls.includes(r.url)).forEach((r) => useAppStore.getState().toggleLiveSelected(r.url));
-      return;
-    }
-    rows.filter((r) => !store.liveSelectedUrls.includes(r.url)).forEach((r) => useAppStore.getState().toggleLiveSelected(r.url));
+    // 只翻转状态与目标不一致的源，一次批量 set 完成（逐条 toggle 会触发 O(n) 次持久化）
+    const targets = rows
+      .filter((r) => store.liveSelectedUrls.includes(r.url) === allEnabled)
+      .map((r) => r.url);
+    if (targets.length > 0) useAppStore.getState().toggleLiveSelectedMany(targets);
   };
 
   const removeWithUndo = (row: LiveRow) => {

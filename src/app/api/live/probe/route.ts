@@ -509,7 +509,7 @@ function ndjsonResponse(urls: string[], reqSignal: AbortSignal): Response {
   return new NextResponse(stream, { headers: NDJSON_HEADERS });
 }
 
-/** 结果短 TTL 缓存：成功 10min、失败 2min，避免多用户重复测活打爆上游 */
+/** 结果短 TTL 缓存：成功 30min、失败 2min（TTL 见上方 CACHE_TTL_*_MS），避免多用户重复测活打爆上游 */
 const probeCache = new Map<string, { outcome: ProbeOutcome; expiresAt: number }>();
 
 function cacheGet(url: string): ProbeOutcome | undefined {

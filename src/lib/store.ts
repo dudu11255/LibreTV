@@ -225,6 +225,8 @@ interface AppState extends AppSettings {
   updateLiveSubscription: (url: string, patch: { name?: string; epg?: string }) => void;
   markLiveSynced: (url: string, name?: string, epg?: string) => void;
   toggleLiveSelected: (url: string) => void;
+  /** 批量启停直播源：一次 set 完成，避免逐条 toggle 的 O(n) 次持久化 */
+  toggleLiveSelectedMany: (urls: string[]) => void;
   toggleLiveFavorite: (channelUrl: string) => void;
   addLiveRecent: (entry: Omit<LiveRecentEntry, 'timestamp'>) => void;
   /** 删除单条最近观看（按流 URL） */
@@ -561,6 +563,16 @@ export const useAppStore = create<AppState>()(
             ? cur.filter((u) => u !== url)
             : [...cur, url],
         });
+      },
+
+      // 批量启停：一次 set 替代 N 次逐条 toggle（每条都会触发一次完整 persist 序列化）
+      toggleLiveSelectedMany: (urls) => {
+        const cur = get().liveSelectedUrls;
+        let next = cur;
+        for (const url of urls) {
+          next = next.includes(url) ? next.filter((u) => u !== url) : [...next, url];
+        }
+        set({ liveSelectedUrls: next });
       },
 
       markLiveSynced: (url, name, epg) => {
