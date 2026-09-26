@@ -6,7 +6,16 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/client-api';
 import { copyToClipboard } from '@/lib/clipboard';
 import { Header } from '@/components/header';
-import { LivePlayer } from '@/components/live-player';
+// 播放器（artplayer + hls.js）按需加载：拆出独立 chunk，不占首屏 First Load JS
+import dynamic from 'next/dynamic';
+const LivePlayer = dynamic(() => import('@/components/live-player').then((m) => m.LivePlayer), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center bg-black">
+      <Spinner size="lg" />
+    </div>
+  ),
+});
 import { LiveChannelList, type LiveChannelItem } from '@/components/live-channel-list';
 import { LiveEpgPanel } from '@/components/live-epg-panel';
 import { Spinner } from '@/components/states';

@@ -1,11 +1,20 @@
 'use client';
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/client-api';
-import { PlayerShell } from '@/components/player-shell';
+// 播放器（artplayer + hls.js）按需加载：拆出独立 chunk，不占首屏 First Load JS
+const PlayerShell = dynamic(() => import('@/components/player-shell').then((m) => m.PlayerShell), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center">
+      <Spinner size="lg" />
+    </div>
+  ),
+});
 import { EmptyState, LoadingState, Spinner } from '@/components/states';
 import { SwitchSourceModal } from '@/components/switch-source';
 import { Icon } from '@/components/icon';
