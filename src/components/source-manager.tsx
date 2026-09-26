@@ -23,6 +23,7 @@ import type { SourceConfig } from '@/lib/types';
 import { useToast } from './toast';
 import { formatRelativeTime, hostnameOf, validateSourceUrl, cn } from '@/lib/utils';
 import { exportConfig, importConfig } from '@/lib/db';
+import { PERSIST_KEY } from '@/lib/persist-storage';
 import { useAuth } from './auth';
 import { api } from '@/lib/client-api';
 import { syncSourceSubscription } from '@/lib/subscription-sync';
@@ -1098,7 +1099,7 @@ function summarizeConfig(text: string): string {
   if (cfg.name !== 'LibreTV-Settings') throw new Error('不是 LibreTV 的配置文件');
 
   const parts: string[] = [];
-  const settingsRaw = cfg.data?.['libretv-settings'];
+  const settingsRaw = cfg.data?.[PERSIST_KEY];
   if (typeof settingsRaw === 'string') {
     try {
       const state = (JSON.parse(settingsRaw) as { state?: Record<string, unknown> }).state ?? {};
