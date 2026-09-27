@@ -3,6 +3,7 @@ import { isPasswordConfigured, sessionFromCookieHeader } from '@/lib/auth';
 import { getEnvSources } from '@/lib/env-sources';
 import { getEnvLiveSources } from '@/lib/env-live-sources';
 import { getEnvSubscriptions } from '@/lib/env-subscriptions';
+import { getEnvRecommendSource } from '@/lib/env-recommend-source';
 
 export const runtime = 'nodejs';
 
@@ -21,5 +22,7 @@ export async function GET(req: Request) {
     defaultLiveSources: getEnvLiveSources(),
     // 部署者通过 DEFAULT_SUBSCRIPTIONS 预置的 SourceList 订阅链接
     defaultSubscriptions: getEnvSubscriptions(),
+    // 部署者通过 DEFAULT_RECOMMEND_SOURCE 指定的首页推荐数据源默认值（未配置时为 null）
+    defaultRecommendSource: getEnvRecommendSource() ?? null,
   });
 }
