@@ -48,16 +48,51 @@ function looksLikeImageUrl(target: string): boolean {
 }
 
 /**
+ * 从动态段还原目标 URL。
+ *
+ * 客户端统一生成 `/api/proxy/<encodeURIComponent(target)>`，但不同网关的
+ * 转发行为不同：
+ * - 标准网关（Vercel / 自托管 Node）：`%2F` 原样保留，catch-all 只捕获
+ *   一段仍带编码的完整 URL；
+ * - EdgeOne 等边缘网关：转发前把路径中的 `%2F`（可能还有 `%3A`/`%3F`）解码，
+ *   路径变成多段（`/api/proxy/https:/host/a/b`），单段动态路由会 404。
+ *
+ * 因此先按段拼接、修补被解码破坏的 scheme 双斜杠，再做一次宽容解码
+ * （对已是明文的字符串 decodeURIComponent 无副作用）。
+ */
+function resolveTargetUrl(url: string[] | string): string {
+  const parts = Array.isArray(url) ? url : [url];
+  let joined = parts.join('/');
+  // 网关解码 %3A 后 scheme 可能被折叠成 "https:/host"，补回双斜杠；
+  // 仍是编码形态（"https%3A//..."）时该正则不命中，交给下方 decode。
+  joined = joined.replace(/^(https?):\/(?!\/)/i, '$1://');
+  let target = joined;
+  try {
+    target = decodeURIComponent(joined);
+  } catch {
+    // 含孤立 % 等非法序列时按原样使用
+  }
+  return target;
+}
+
+/**
  * 通用流式代理：
  * - 已登录会话（httpOnly cookie）→ m3u8 重写后的分片同源请求自动携带，不再有旧版丢鉴权参数的问题；
  * - 未登录仅放行图片目标（豆瓣封面等），且同样受 SSRF 防护约束；
  * - m3u8 文本重写为代理路径，分片/key/map 全部经本站转发，规避上游 CORS。
  */
-export async function GET(req: Request, ctx: { params: Promise<{ url: string }> }) {
-  const { url: encodedUrl } = await ctx.params;
-  const targetUrl = (() => {
-    try { return decodeURIComponent(encodedUrl); } catch { return encodedUrl; }
-  })();
+export async function GET(req: Request, ctx: { params: Promise<{ url: string[] }> }) {
+  let targetUrl = resolveTargetUrl((await ctx.params).url);
+
+  // 网关若把目标 URL 里的 %3F 解码成「?」，其查询串会脱离路径落进本次请求的
+  // query；目标本身不含「?」时把它们补回（客户端自加的 cache-bust 等参数
+  // 混入对上游无副作用）。目标已含「?」说明网关未解码 %3F，不动。
+  if (!targetUrl.includes('?')) {
+    try {
+      const search = new URL(req.url).search;
+      if (search) targetUrl += search;
+    } catch { /* 忽略非法 req.url */ }
+  }
 
   const guarded = guardRequest(req);
   if (guarded && !looksLikeImageUrl(targetUrl)) return guarded;
