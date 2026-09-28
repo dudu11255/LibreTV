@@ -638,7 +638,7 @@ function ImagePanel() {
   const mode = store.imageProxyMode;
   const description: Record<'direct' | 'proxy' | 'custom', string> = {
     direct: '原站直连；豆瓣封面自动换公共镜像，仍失败回退内置代理。最省服务器流量',
-    proxy: '所有封面经本站服务器转发并伪装来源，最稳定，消耗服务器流量',
+    proxy: '封面优先经本站服务器转发并伪装来源，失败自动回退公共镜像/直连。最稳定，消耗服务器流量',
     custom: '使用你填写的模板转发封面图',
   };
   return (

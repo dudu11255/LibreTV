@@ -51,12 +51,13 @@ export function buildImageUrl(
 }
 
 /**
- * 封面图降级候选链，direct 模式下由 SmartImage 按序尝试（onError 逐级回退）：
- * - 豆瓣图（img*.doubanio.com）：原站直连 → cmliussss 公共镜像（腾讯 / 阿里）→ 内置代理。
+ * 封面图降级候选链，各模式首选地址失败后由 SmartImage 按序回退（onError 逐级尝试）：
+ * - direct 模式：原站直连 → cmliussss 公共镜像（腾讯 / 阿里，仅豆瓣图）→ 内置代理。
  *   doubanio 反爬对外域与空 Referer 分别返回 403 / 418，纯前端无法绕过；
  *   公共镜像实测直连可用，置于自家代理之前以节省服务器流量。
- * - 其他图床：原站直连 → 内置代理。
- * proxy / custom 模式为单一地址，无降级链。
+ * - proxy 模式：内置代理 → 公共镜像（仅豆瓣图）→ 原站直连。
+ *   代理是全站封面的公共依赖，不能单点——代理故障时自动落到直连/镜像。
+ * - custom 模式为单一地址：模板错误应显式暴露，不被静默回退掩盖。
  */
 export function buildImageCandidates(
   url: string | undefined,
@@ -64,15 +65,18 @@ export function buildImageCandidates(
   customTemplate: string
 ): string[] {
   const built = buildImageUrl(url, mode, customTemplate);
-  if (!built) return [];
-  if (mode !== 'direct' || !url) return [built];
-  const candidates = [built];
-  if (url.includes('doubanio.com')) {
-    candidates.push(url.replace(/img\d+\.doubanio\.com/g, 'img.doubanio.cmliussss.net'));
-    candidates.push(url.replace(/img\d+\.doubanio\.com/g, 'img.doubanio.cmliussss.com'));
+  if (!built || !url) return [];
+  const mirrors = url.includes('doubanio.com')
+    ? [
+        url.replace(/img\d+\.doubanio\.com/g, 'img.doubanio.cmliussss.net'),
+        url.replace(/img\d+\.doubanio\.com/g, 'img.doubanio.cmliussss.com'),
+      ]
+    : [];
+  if (mode === 'proxy') {
+    return [...new Set([built, ...mirrors, url])];
   }
-  candidates.push(`/api/proxy?url=${encodeURIComponent(url)}`);
-  return [...new Set(candidates)];
+  if (mode !== 'direct') return [built];
+  return [...new Set([built, ...mirrors, `/api/proxy?url=${encodeURIComponent(url)}`])];
 }
 
 export function validateSourceUrl(url: string): boolean {

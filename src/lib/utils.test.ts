@@ -42,8 +42,23 @@ describe('buildImageCandidates', () => {
     expect(cands[0]).toBe('https://doubanio.com/a.jpg');
   });
 
-  it('proxy / custom 模式为单一候选', () => {
-    expect(buildImageCandidates(DOUBAN, 'proxy', '')).toHaveLength(1);
+  it('proxy 模式豆瓣图：内置代理 → 双镜像 → 直连（代理故障可回退）', () => {
+    expect(buildImageCandidates(DOUBAN, 'proxy', '')).toEqual([
+      '/api/proxy?url=' + encodeURIComponent(DOUBAN),
+      'https://img.doubanio.cmliussss.net/view/photo/m/poster.jpg',
+      'https://img.doubanio.cmliussss.com/view/photo/m/poster.jpg',
+      DOUBAN,
+    ]);
+  });
+
+  it('proxy 模式非豆瓣图：内置代理 → 直连', () => {
+    expect(buildImageCandidates('https://bdstatic.com/x.jpg', 'proxy', '')).toEqual([
+      '/api/proxy?url=' + encodeURIComponent('https://bdstatic.com/x.jpg'),
+      'https://bdstatic.com/x.jpg',
+    ]);
+  });
+
+  it('custom 模式为单一候选（模板错误显式暴露，不静默回退）', () => {
     expect(buildImageCandidates(DOUBAN, 'custom', 'https://p.example.com/?u=')).toHaveLength(1);
     expect(buildImageCandidates(undefined, 'direct', '')).toEqual([]);
   });
