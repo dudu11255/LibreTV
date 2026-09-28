@@ -134,11 +134,9 @@ export function DownloadManager({ isOpen, onClose }: { isOpen: boolean; onClose:
   }, [startTask]);
 
   // —— 事件：新增任务（用户手势内触发，可安全弹文件选择器） ——
+  // 监听器必须常驻：播放页「下载本集」在抽屉关闭时也会派发事件，
+  // 若仅 isOpen 时注册，事件会凭空丢失——toast 提示了入队，实际什么都没发生
   useEffect(() => {
-    if (!isOpen) return;
-    setCapability(detectSavingCapability());
-    refresh();
-
     const onAdd = (e: Event) => {
       const detail = (e as CustomEvent<AddDownloadPayload>).detail;
       if (!detail?.url || !detail?.title) return;
@@ -180,12 +178,15 @@ export function DownloadManager({ isOpen, onClose }: { isOpen: boolean; onClose:
     return () => {
       window.removeEventListener(ADD_TASK_EVENT, onAdd);
     };
-  }, [isOpen, refresh, scheduleNext, toast]);
+  }, [refresh, scheduleNext, toast]);
 
-  // 打开时启动排队中的任务
+  // 抽屉打开时：刷新保存能力与任务列表，并启动排队中的任务
   useEffect(() => {
-    if (isOpen) scheduleNext();
-  }, [isOpen, scheduleNext]);
+    if (!isOpen) return;
+    setCapability(detectSavingCapability());
+    refresh();
+    scheduleNext();
+  }, [isOpen, refresh, scheduleNext]);
 
   const onPauseResume = async (entry: DownloadTaskEntry) => {
     const handle = running.current.get(entry.id);
