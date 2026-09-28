@@ -225,7 +225,9 @@ export async function runDownloadJob(opts: DownloadJobOptions): Promise<void> {
   // —— 顺序写出（转封装 / 拼接） ——
   report(total, total, 'processing');
   if (format === 'MP4') {
-    const transmuxer = new StreamingTransmuxer(target);
+    // 传入整集时长：mux.js 恒把 moov 时长写成 0xFFFFFFFF（timescale 90000
+    // → 播放器显示 13:15:21），必须在写出 initSegment 前回填真实值
+    const transmuxer = new StreamingTransmuxer(target, { durationSeconds: parsed.totalDuration });
     for (let i = 1; i <= total; i++) {
       if (signal.aborted) return;
       await pause.waitIfPaused();
