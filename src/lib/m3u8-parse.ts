@@ -1,4 +1,4 @@
-import { makeAbsolute } from './m3u8';
+import { makeAbsolute, stripLeadAdGroup } from './m3u8';
 
 /**
  * m3u8 播放列表解析（预取器与离线下载共用）。
@@ -95,16 +95,23 @@ function parseAesConf(line: string): AesConf | undefined {
   return { method, uri, iv };
 }
 
+export interface ParseOptions {
+  /** 剔除片头插入的广告段（dytt 等采集站把固定广告混为首个 DISCONTINUITY 段）；缺省 true */
+  stripLeadAd?: boolean;
+}
+
 /** 解析播放列表：master 递归选档，media 输出分片清单。fetch 失败 / 超限直接抛错由调用方降级 */
 export async function parseM3u8Playlist(
   url: string,
   depth = 0,
-  preferredHeight?: number
+  preferredHeight?: number,
+  opts?: ParseOptions
 ): Promise<ParsedPlaylist> {
   if (depth > MAX_DEPTH) throw new Error(`m3u8 嵌套超过 ${MAX_DEPTH} 层`);
   const res = await fetch(url, { headers: { Accept: '*/*' } });
   if (!res.ok) throw new Error(`m3u8 拉取失败：HTTP ${res.status}`);
-  const text = await res.text();
+  // 剔除片头广告段要在统计时长/分片之前做，下载产物才不会带上广告
+  const text = opts?.stripLeadAd === false ? await res.text() : stripLeadAdGroup(await res.text());
 
   // —— master：收集变体，选档后递归 ——
   if (text.includes('#EXT-X-STREAM-INF')) {
@@ -134,7 +141,7 @@ export async function parseM3u8Playlist(
     }
     if (!variants.length) throw new Error('master m3u8 未解析到可用档位');
     const chosen = pickVariant(variants, preferredHeight);
-    const inner = await parseM3u8Playlist(chosen.url, depth + 1, preferredHeight);
+    const inner = await parseM3u8Playlist(chosen.url, depth + 1, preferredHeight, opts);
     return { ...inner, variants };
   }
 
@@ -147,7 +154,7 @@ export async function parseM3u8Playlist(
   for (const raw of text.split('\n')) {
     const line = raw.trim();
     if (line.startsWith('#EXT-X-KEY')) {
-      // 取最后一次出现的 KEY（逐段换 key 的源不在支持范围，与 MoonTV 一致）
+      // 取最后一次出现的 KEY（逐段换 key 的源不在支持范围）
       const conf = parseAesConf(line);
       if (conf) aesConf = { ...conf, uri: makeAbsolute(conf.uri, url) };
       continue;

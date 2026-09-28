@@ -1,5 +1,5 @@
 /**
- * HLS 播放错误恢复策略（借鉴 MoonTV playback-recovery）。
+ * HLS 播放错误恢复策略。
  *
  * 解决的问题：player-shell 原实现遇致命错误就无条件 `hls.startLoad()`，
  * errorCount 只增不减：源站挂掉时会形成无限重试风暴，而且永远不会换源；

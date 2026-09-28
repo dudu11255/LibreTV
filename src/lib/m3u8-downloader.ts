@@ -2,7 +2,7 @@ import { parseM3u8Playlist, type ParsedPlaylist } from './m3u8-parse';
 import { StreamingTransmuxer } from './mp4-transmuxer';
 
 /**
- * 整集离线下载（借鉴 MoonTV m3u8-downloader，按 LibreTV-Next 约束裁剪）：
+ * 整集离线下载：
  * - 分片并发下载（默认 8），单分片 3 次重试，已下载分片写入 Cache Storage
  *   （`libretv-dl-v1` 桶）实现网络层断点——中断后续传不再耗流量；
  * - AES-128 解密用 WebCrypto AES-CBC（HLS 标准），不引入 CryptoJS；
@@ -150,7 +150,7 @@ export async function runDownloadJob(opts: DownloadJobOptions): Promise<void> {
   let lastErr: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      parsed = await parseM3u8Playlist(url);
+      parsed = await parseM3u8Playlist(url, 0, undefined, { stripLeadAd: true });
       lastErr = undefined;
       break;
     } catch (err) {

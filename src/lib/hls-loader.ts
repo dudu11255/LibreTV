@@ -1,12 +1,12 @@
 import type HlsType from 'hls.js';
-import { filterAdsFromM3u8 } from './m3u8';
+import { stripLeadAdGroup } from './m3u8';
 import { buildSegmentCacheKey, readCachedSegment, touchMeta } from './video-cache';
 
 /**
  * hls.js loader 工厂：在同一个 loader 里组合「广告过滤」与「片段缓存命中」。
  *
- * - manifest / level：走基类网络加载；blockAd 开启时在 onSuccess 里清洗
- *   DISCONTINUITY 广告片段（与旧 CustomHlsJsLoader 行为一致）；
+ * - manifest / level：走基类网络加载；blockAd 开启时在 onSuccess 里剔除
+ *   片头插入的广告段（整段移除，保留 DISCONTINUITY 时间轴标记）；
  * - fragment：cache-first——本地缓存命中直接合成响应（不回源），未命中走基类。
  *   BYTERANGE 分片（原文件切片）不缓存、直接回源。
  *
@@ -52,7 +52,7 @@ export function createHlsLoader(
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             callbacks.onSuccess = function (response: any, stats: any, ctx: any, networkDetails: any) {
               if (response.data && typeof response.data === 'string') {
-                response.data = filterAdsFromM3u8(response.data);
+                response.data = stripLeadAdGroup(response.data);
               }
               onSuccess(response, stats, ctx, networkDetails);
             };

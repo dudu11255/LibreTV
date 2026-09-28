@@ -9,7 +9,7 @@ import {
 } from './video-cache';
 
 /**
- * 前向片段预取器（借鉴 MoonTV video-prefetcher）。
+ * 前向片段预取器。
  *
  * 设计要点（这是「视频暂停也继续缓存」的全部秘密）：
  *   预取循环体内**不读取任何播放状态**——不判断 paused、不判断 document.hidden、

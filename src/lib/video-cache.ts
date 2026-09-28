@@ -1,7 +1,7 @@
 import { db } from './db';
 
 /**
- * 视频片段本地缓存层（借鉴 MoonTV video-cache）。
+ * 视频片段本地缓存层。
  *
  * 职责边界：Cache Storage 读写 + IndexedDB（Dexie segmentMeta 表）元数据 + 两轮 LRU 淘汰。
  * 不做任何与播放器状态相关的判断，因此预取循环可以在视频暂停、页面切到后台时继续工作。

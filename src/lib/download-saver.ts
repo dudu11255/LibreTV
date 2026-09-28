@@ -1,5 +1,5 @@
 /**
- * 下载文件的保存目标（借鉴 MoonTV download-saver，按项目约束裁剪）：
+ * 下载文件的保存目标：
  * - Chromium（Edge/Chrome）：showSaveFilePicker 边下边写盘（FS Access API），
  *   必须在**用户手势内**调用（点击处理器的同步栈中）；
  * - 其余环境：内存聚合为 Blob 后触发浏览器下载（>500MB 时让用户确认）。

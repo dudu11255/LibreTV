@@ -14,7 +14,7 @@ import {
 import { detectSavingCapability, pickSaveTarget } from '@/lib/download-saver';
 
 /**
- * 全局下载管理器（借鉴 MoonTV DownloadManager，UI 采用本站 Drawer 模式）：
+ * 全局下载管理器（UI 采用本站 Drawer 模式）：
  * - 入口：header 下载图标 + 播放页「下载本集」（均派发 window 事件）；
  * - 并发：全局最多同时进行 3 个任务，其余排队（waiting）；
  * - 断点：已下载分片写入 Cache Storage（网络层断点）；

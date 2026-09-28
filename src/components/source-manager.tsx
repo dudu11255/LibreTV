@@ -563,8 +563,8 @@ function PlaybackPanel() {
       <SectionTitle title="播放与过滤" />
       <div className="space-y-3">
         <ToggleRow
-          label="广告过滤"
-          description="过滤 m3u8 中的广告分片"
+          label="片头广告剔除"
+          description="剔除播放列表片头插入的广告段（不影响 DISCONTINUITY 时间轴）"
           checked={store.adFilter}
           onChange={(v) => store.updateSettings({ adFilter: v })}
         />

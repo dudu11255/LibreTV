@@ -3,7 +3,7 @@
 import muxjs from 'mux.js';
 
 /**
- * MP4 转封装（基于 mux.js，借鉴 MoonTV mp4-transmuxer）。
+ * MP4 转封装（基于 mux.js）。
  *
  * HLS 的 TS 分片对浏览器不可直接播放，下载产物要做 TS→fMP4 转封装：
  * mux.js 的 Transmuxer 每次 flush 产出一段 fMP4（首次含 initSegment），

@@ -49,14 +49,64 @@ export function rewriteM3u8(
 }
 
 /**
- * 过滤 m3u8 中的广告分片：移除 #EXT-X-DISCONTINUITY 之后紧邻的插入片段。
- * 采集站广告的典型特征是 DISCONTINUITY 包裹的短时片段组，这里保留与旧版一致
- * 的保守策略：直接剔除 DISCONTINUITY 标记本身，避免误伤正常多码流内容。
+ * 片头广告段判定上限。dytt 等采集站把固定一支广告（约 15-60s，10 片左右）
+ * 作为首个 DISCONTINUITY 段混入所有视频；正片分段（每段 20-40s）与其结构相同，
+ * 只能靠「位于片头 + 短小 + 之后仍有分段」这三个特征保守区分，超限即不动。
  */
-export function filterAdsFromM3u8(m3u8Content: string): string {
+const LEAD_AD_MAX_SECONDS = 90;
+const LEAD_AD_MAX_SEGMENTS = 20;
+
+/**
+ * 剔除 m3u8 片头插入的广告段（整段移除分片，而不是像旧实现那样删除
+ * #EXT-X-DISCONTINUITY 标记——实测 dytt 源每段 PTS 基准独立跳变，删标记会让
+ * hls.js 把整条流当连续时间轴，视频丢帧、音频错位，出现「只闻广告声不见其画面」）。
+ *
+ * 保守判定（全部满足才剔除）：
+ * 1. 首个分片之前存在 DISCONTINUITY（存在「片头插入段」结构）；
+ * 2. 该段以下一个 DISCONTINUITY 结束，且其后仍有分段（否则无法与正片区分）；
+ * 3. 段时长 ≤ 90s 且分片数 ≤ 20。
+ *
+ * 段内的 EXT-X-KEY / EXT-X-MAP 保留：若正片复用该解密/初始化配置，误删会导致
+ * 无法解密；多声明一个 KEY 无副作用。剔除后新开头的 DISCONTINUITY（首分片之前
+ * 没有「前文」）一并清掉。
+ */
+export function stripLeadAdGroup(m3u8Content: string): string {
   if (!m3u8Content) return '';
-  return m3u8Content
-    .split('\n')
-    .filter((line) => !line.includes('#EXT-X-DISCONTINUITY'))
-    .join('\n');
+  const lines = m3u8Content.split('\n');
+  const isDisc = (l: string) => l.trim() === '#EXT-X-DISCONTINUITY';
+  const isSegment = (l: string) => {
+    const t = l.trim();
+    return t !== '' && !t.startsWith('#');
+  };
+
+  const firstDisc = lines.findIndex(isDisc);
+  if (firstDisc === -1) return m3u8Content;
+  if (lines.slice(0, firstDisc).some(isSegment)) return m3u8Content;
+
+  const nextDisc = lines.findIndex((l, i) => i > firstDisc && isDisc(l));
+  if (nextDisc === -1) return m3u8Content;
+
+  let seconds = 0;
+  let count = 0;
+  for (let i = firstDisc + 1; i < nextDisc; i++) {
+    const m = lines[i].trim().match(/^#EXTINF:([\d.]+)/);
+    if (m) seconds += parseFloat(m[1]) || 0;
+    else if (isSegment(lines[i])) count += 1;
+  }
+  if (count === 0 || count > LEAD_AD_MAX_SEGMENTS) return m3u8Content;
+  if (seconds <= 0 || seconds > LEAD_AD_MAX_SECONDS) return m3u8Content;
+
+  const kept = lines.filter((l, i) => {
+    if (i < firstDisc || i >= nextDisc) return true;
+    const t = l.trim();
+    return t.startsWith('#EXT-X-KEY') || t.startsWith('#EXT-X-MAP');
+  });
+  const out: string[] = [];
+  let seenSegment = false;
+  for (const l of kept) {
+    if (!seenSegment && isDisc(l)) continue;
+    if (isSegment(l)) seenSegment = true;
+    out.push(l);
+  }
+  return out.join('\n');
 }
