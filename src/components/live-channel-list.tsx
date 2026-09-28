@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/lib/utils';
 import { SmartImage } from './smart-image';
+import { Dropdown } from './dropdown';
 import { useAppStore } from '@/lib/store';
 import {
   isSlowSource,
@@ -254,18 +255,19 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
             }
           }}
         />
-        <select
-          className="input !py-1.5 !px-1.5 text-xs w-auto shrink-0 cursor-pointer"
+        <Dropdown
+          className="shrink-0 [&>button]:!py-1.5 [&>button]:!px-2 [&>button]:text-xs"
           value={sortMode}
-          aria-label="排序方式"
-          onChange={(e) => setSortMode(e.target.value as LiveSortMode)}
-        >
-          <option value="default">默认</option>
-          <option value="name">名称</option>
-          <option value="group">分组</option>
-          <option value="probe">可用优先</option>
-          <option value="recent">最近看</option>
-        </select>
+          ariaLabel="排序方式"
+          onChange={(v) => setSortMode(v as LiveSortMode)}
+          options={[
+            { value: 'default', label: '默认' },
+            { value: 'name', label: '名称' },
+            { value: 'group', label: '分组' },
+            { value: 'probe', label: '可用优先' },
+            { value: 'recent', label: '最近看' },
+          ]}
+        />
       </div>
 
       {/* 测活 + 可用性筛选工具条 */}

@@ -648,15 +648,15 @@ function ImagePanel() {
         <SelectRow
           label="加载方式"
           value={mode}
+          description={description[mode]}
           onChange={(v) => store.updateSettings({ imageProxyMode: v as 'direct' | 'proxy' | 'custom' })}
           options={[
-            { value: 'direct', label: '直连优先（推荐）' },
-            { value: 'proxy', label: '内置代理' },
-            { value: 'custom', label: '自定义代理' },
+            { value: 'direct', label: '直连优先', hint: '最省服务器流量' },
+            { value: 'proxy', label: '内置代理', hint: '最稳定' },
+            { value: 'custom', label: '自定义', hint: '自建转发模板' },
           ]}
         />
         {mode === 'custom' && <CustomProxyInput />}
-        <p className="text-xs text-faint">{description[mode]}。</p>
       </div>
     </section>
   );
@@ -714,9 +714,9 @@ function HomePanel() {
           value={store.recommendSource}
           onChange={(v) => store.updateSettings({ recommendSource: v as 'douban' | 'bangumi' | 'hot-list' })}
           options={[
-            { value: 'douban', label: '豆瓣（电影/剧集）' },
-            { value: 'bangumi', label: 'Bangumi 新番放送' },
-            { value: 'hot-list', label: '影视榜单（豆瓣周榜/百度热播）' },
+            { value: 'douban', label: '豆瓣', hint: '热门电影与剧集' },
+            { value: 'bangumi', label: 'Bangumi', hint: '每日新番放送（免 key）' },
+            { value: 'hot-list', label: '影视榜单', hint: '豆瓣周榜 / 百度热播' },
           ]}
         />
       </div>
