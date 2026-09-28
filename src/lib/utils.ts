@@ -32,6 +32,8 @@ export function formatDisableTtl(ms: number): string {
 /**
  * 封面图加载地址：direct 直连 / proxy 内置代理 / custom 自定义模板（{url} 占位符或直接拼接）。
  * 默认 proxy（内置代理），规避豆瓣防盗链与部分采集站图床直连失败。
+ * 代理走查询串形式（/api/proxy?url=…）：路径里的 %2F 会被 EdgeOne 等网关
+ * 在路由匹配前解码成 /，查询串不受影响，全平台行为一致。
  */
 export function buildImageUrl(
   url: string | undefined,
@@ -39,7 +41,7 @@ export function buildImageUrl(
   customTemplate: string
 ): string | undefined {
   if (!url) return undefined;
-  if (mode === 'proxy') return `/api/proxy/${encodeURIComponent(url)}`;
+  if (mode === 'proxy') return `/api/proxy?url=${encodeURIComponent(url)}`;
   if (mode === 'custom' && customTemplate) {
     return customTemplate.includes('{url}')
       ? customTemplate.replace('{url}', encodeURIComponent(url))

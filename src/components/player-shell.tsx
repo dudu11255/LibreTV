@@ -133,11 +133,11 @@ export function PlayerShell({
             case Hls.ErrorTypes.NETWORK_ERROR:
               if (
                 allowProxyFallback &&
-                !mediaUrl.startsWith('/api/proxy/') &&
+                !mediaUrl.startsWith('/api/proxy') &&
                 (errorCount >= 2 || data.details === 'manifestLoadError')
               ) {
                 showHint('直连失败，改用代理重试...');
-                setupHls(video, `/api/proxy/${encodeURIComponent(mediaUrl)}`, false);
+                setupHls(video, `/api/proxy?url=${encodeURIComponent(mediaUrl)}`, false);
                 return;
               }
               hls.startLoad();
