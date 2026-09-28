@@ -580,22 +580,28 @@ function PlaybackPanel() {
 
 function ImagePanel() {
   const store = useAppStore();
+  const mode = store.imageProxyMode;
+  const description: Record<'direct' | 'proxy' | 'custom', string> = {
+    direct: '原站直连；豆瓣封面自动换公共镜像，仍失败回退内置代理。最省服务器流量',
+    proxy: '所有封面经本站服务器转发并伪装来源，最稳定，消耗服务器流量',
+    custom: '使用你填写的模板转发封面图',
+  };
   return (
     <section>
       <SectionTitle title="封面图加载" />
       <div className="space-y-2">
         <SelectRow
           label="加载方式"
-          value={store.imageProxyMode}
+          value={mode}
           onChange={(v) => store.updateSettings({ imageProxyMode: v as 'direct' | 'proxy' | 'custom' })}
           options={[
-            { value: 'direct', label: '直连' },
-            { value: 'proxy', label: '内置代理（默认）' },
+            { value: 'direct', label: '直连优先（推荐）' },
+            { value: 'proxy', label: '内置代理' },
             { value: 'custom', label: '自定义代理' },
           ]}
         />
-        {store.imageProxyMode === 'custom' && <CustomProxyInput />}
-        <p className="text-xs text-faint">豆瓣封面在某些网络下直连会被拒绝，可切换为内置代理。</p>
+        {mode === 'custom' && <CustomProxyInput />}
+        <p className="text-xs text-faint">{description[mode]}。</p>
       </div>
     </section>
   );

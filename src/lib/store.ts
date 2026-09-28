@@ -293,7 +293,9 @@ export const useAppStore = create<AppState>()(
       recommendSource: 'hot-list',
       recommendSourceTouched: false,
       autoplayNext: true,
-      imageProxyMode: 'proxy',
+      // 直连优先：豆瓣封面有公共镜像 + 内置代理两级兜底（见 buildImageCandidates），
+      // 默认省服务器流量；老用户保持已持久化的选择不受影响
+      imageProxyMode: 'direct',
       customImageProxy: '',
 
       addCustomApi: (api) => {

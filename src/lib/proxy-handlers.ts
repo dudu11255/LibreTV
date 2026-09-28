@@ -138,7 +138,11 @@ export async function handleProxyRequest(req: Request, targetUrl: string): Promi
     if (v) outHeaders.set(name, v);
   }
   // fetch 会自动解压，转发时必须去掉长度相关头避免浏览器二次解压
-  outHeaders.set('Cache-Control', 'public, max-age=3600');
+  // 图片基本不变：长缓存交给浏览器与边缘 CDN（分片 / key 仍保守 1 小时）
+  outHeaders.set(
+    'Cache-Control',
+    contentType.startsWith('image/') ? 'public, max-age=2592000' : 'public, max-age=3600'
+  );
   outHeaders.set('Access-Control-Allow-Origin', '*');
 
   return new NextResponse(response.body, {

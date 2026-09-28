@@ -2,7 +2,8 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { buildImageUrl, cn } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+import { SmartImage } from './smart-image';
 import { useAppStore } from '@/lib/store';
 import {
   isSlowSource,
@@ -397,11 +398,9 @@ export function LiveChannelList({ channels, groups, currentUrl, onSelect, onFilt
                   cursor={cursor === vi.index}
                   isFav={favSet.has(filtered[vi.index].url)}
                   probe={probeResults.get(filtered[vi.index].url)}
-                  logoUrl={buildImageUrl(
-                    filtered[vi.index].logo,
-                    imageProxyMode,
-                    customImageProxy
-                  )}
+                  logo={filtered[vi.index].logo}
+                  imageProxyMode={imageProxyMode}
+                  customProxy={customImageProxy}
                   onSelect={onSelect}
                   onRemoveRecent={view === 'recent' ? removeRecent : undefined}
                 />
@@ -436,7 +435,9 @@ const ChannelRow = memo(function ChannelRow({
   cursor,
   isFav,
   probe,
-  logoUrl,
+  logo,
+  imageProxyMode,
+  customProxy,
   onSelect,
   onRemoveRecent,
 }: {
@@ -445,11 +446,16 @@ const ChannelRow = memo(function ChannelRow({
   cursor: boolean;
   isFav: boolean;
   probe?: ProbeResult;
-  logoUrl?: string;
+  logo?: string;
+  imageProxyMode: 'direct' | 'proxy' | 'custom';
+  customProxy: string;
   onSelect: (channel: LiveChannelItem) => void;
   /** 仅最近视图传入：删除该条观看记录 */
   onRemoveRecent?: (url: string) => void;
 }) {
+  const [logoFailed, setLogoFailed] = useState(false);
+  // 虚拟列表会复用行实例：换台（logo 变化）时重置失败态，避免下一个频道误显首字母
+  useEffect(() => setLogoFailed(false), [logo]);
   // H.265/HEVC：国内 IPTV 常见，测活通过但 Chromium 内核通常无法软解
   const isHevc = Boolean(probe?.codec && /hvc1|hev1|hevc/i.test(probe.codec));
   // 源限速：分片可达但吞吐不足，绿点却播不了的主因
@@ -499,16 +505,14 @@ const ChannelRow = memo(function ChannelRow({
         />
         {/* 台标 */}
         <div className="w-7 h-7 shrink-0 rounded bg-chip flex items-center justify-center overflow-hidden">
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={logoUrl}
+          {logo && !logoFailed ? (
+            <SmartImage
+              url={logo}
+              mode={imageProxyMode}
+              customProxy={customProxy}
               alt=""
               className="w-full h-full object-contain"
-              loading="lazy"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.visibility = 'hidden';
-              }}
+              onExhausted={() => setLogoFailed(true)}
             />
           ) : (
             <span className="text-[10px] text-faint">{channel.name.slice(0, 1)}</span>

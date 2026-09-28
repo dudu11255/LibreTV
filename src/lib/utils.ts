@@ -50,6 +50,31 @@ export function buildImageUrl(
   return url;
 }
 
+/**
+ * 封面图降级候选链，direct 模式下由 SmartImage 按序尝试（onError 逐级回退）：
+ * - 豆瓣图（img*.doubanio.com）：原站直连 → cmliussss 公共镜像（腾讯 / 阿里）→ 内置代理。
+ *   doubanio 反爬对外域与空 Referer 分别返回 403 / 418，纯前端无法绕过；
+ *   公共镜像实测直连可用，置于自家代理之前以节省服务器流量。
+ * - 其他图床：原站直连 → 内置代理。
+ * proxy / custom 模式为单一地址，无降级链。
+ */
+export function buildImageCandidates(
+  url: string | undefined,
+  mode: 'direct' | 'proxy' | 'custom',
+  customTemplate: string
+): string[] {
+  const built = buildImageUrl(url, mode, customTemplate);
+  if (!built) return [];
+  if (mode !== 'direct' || !url) return [built];
+  const candidates = [built];
+  if (url.includes('doubanio.com')) {
+    candidates.push(url.replace(/img\d+\.doubanio\.com/g, 'img.doubanio.cmliussss.net'));
+    candidates.push(url.replace(/img\d+\.doubanio\.com/g, 'img.doubanio.cmliussss.com'));
+  }
+  candidates.push(`/api/proxy?url=${encodeURIComponent(url)}`);
+  return [...new Set(candidates)];
+}
+
 export function validateSourceUrl(url: string): boolean {
   return /^https?:\/\/.+/.test(url);
 }
