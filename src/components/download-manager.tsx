@@ -285,7 +285,7 @@ export function DownloadManager({ isOpen, onClose }: { isOpen: boolean; onClose:
               <div className="h-1.5 rounded-full bg-chip overflow-hidden">
                 <div
                   className="h-full bg-accent transition-all"
-                  style={{ width: `${t.total > 0 ? Math.round((t.finished / t.total) * 100) : 0}%` }}
+                  style={{ width: `${t.total > 0 ? Math.min(100, Math.round((t.finished / t.total) * 100)) : 0}%` }}
                 />
               </div>
             )}

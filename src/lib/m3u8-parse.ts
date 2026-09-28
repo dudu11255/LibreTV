@@ -37,6 +37,8 @@ export interface ParsedPlaylist {
   /** 出现 EXT-X-BYTERANGE：分片为原文件切片，无法独立缓存，该集禁用缓存 */
   byterange: boolean;
   totalDuration: number;
+  /** EXT-X-MEDIA-SEQUENCE（缺省 0）：KEY 无 IV 属性时，分片 IV = 该值 + 分片序号 */
+  mediaSequence: number;
 }
 
 /** 解析深度上限（master → variant → media，正常不超过 2 层，防御异常源） */
@@ -141,6 +143,7 @@ export async function parseM3u8Playlist(
   let aesConf: AesConf | undefined;
   let byterange = false;
   let pendingDuration = 0;
+  const mediaSequence = parseInt(text.match(/^#EXT-X-MEDIA-SEQUENCE:(\d+)/m)?.[1] || '0', 10) || 0;
   for (const raw of text.split('\n')) {
     const line = raw.trim();
     if (line.startsWith('#EXT-X-KEY')) {
@@ -167,5 +170,6 @@ export async function parseM3u8Playlist(
     aesConf,
     byterange,
     totalDuration: segments.reduce((sum, s) => sum + s.duration, 0),
+    mediaSequence,
   };
 }

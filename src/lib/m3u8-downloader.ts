@@ -76,12 +76,35 @@ async function fetchSegment(url: string, signal: AbortSignal): Promise<ArrayBuff
   return res.arrayBuffer();
 }
 
-async function decryptAes128Cbc(data: ArrayBuffer, key: ArrayBuffer, ivHex?: string): Promise<ArrayBuffer> {
-  const iv = ivHex
-    ? Uint8Array.from(ivHex.padStart(32, '0').slice(0, 32).match(/.{2}/g)!.map((h) => parseInt(h, 16)))
-    : new Uint8Array(16);
+/**
+ * HLS AES-128 分片解密（AES-CBC / PKCS7）。
+ * IV 规则（RFC 8216 §4.3.2.4）：KEY 带IV 属性时全部分片共用；**无 IV 属性时
+ * IV = 分片的媒体序列号（16 字节大端）**，逐分片递增——恒用零向量会导致
+ * 首片恰好正确、后续全部解密失败。
+ */
+function ivForSegment(mediaSequence: number, segmentIndexZeroBased: number): Uint8Array {
+  const seq = BigInt(mediaSequence + segmentIndexZeroBased);
+  const iv = new Uint8Array(16);
+  for (let i = 0; i < 16; i++) {
+    iv[15 - i] = Number((seq >> BigInt(8 * i)) & 0xffn);
+  }
+  return iv;
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  return Uint8Array.from(hex.padStart(32, '0').slice(0, 32).match(/.{2}/g)!.map((h) => parseInt(h, 16)));
+}
+
+export async function decryptSegment(
+  data: ArrayBuffer,
+  key: BufferSource,
+  ivHex: string | undefined,
+  mediaSequence: number,
+  segmentIndexZeroBased: number
+): Promise<ArrayBuffer> {
+  const iv = ivHex ? hexToBytes(ivHex) : ivForSegment(mediaSequence, segmentIndexZeroBased);
   const cryptoKey = await crypto.subtle.importKey('raw', key, 'AES-CBC', false, ['decrypt']);
-  return crypto.subtle.decrypt({ name: 'AES-CBC', iv }, cryptoKey, data);
+  return crypto.subtle.decrypt({ name: 'AES-CBC', iv: iv as BufferSource }, cryptoKey, data);
 }
 
 export interface DownloadJobOptions {
@@ -164,8 +187,7 @@ export async function runDownloadJob(opts: DownloadJobOptions): Promise<void> {
       await pause.waitIfPaused();
       const cached = await cache.match(new Request(chunkKey(index)));
       if (cached) {
-        current += 1;
-        report(current, total, 'downloading');
+        // 已在恢复预统计里计入，不再累加——否则续传时进度重复计数超过 100%
         continue;
       }
       const seg = parsed.segments[index - 1];
@@ -205,7 +227,7 @@ export async function runDownloadJob(opts: DownloadJobOptions): Promise<void> {
       if (!resp) throw new Error(`分片 ${i} 缓存丢失，请重试`);
       let data = await resp.arrayBuffer();
       if (aesKey && parsed.aesConf) {
-        data = await decryptAes128Cbc(data, aesKey, parsed.aesConf.iv);
+        data = await decryptSegment(data, aesKey, parsed.aesConf.iv, parsed.mediaSequence, i - 1);
       }
       await transmuxer.pushAndTransmux(new Uint8Array(data));
     }
@@ -218,7 +240,7 @@ export async function runDownloadJob(opts: DownloadJobOptions): Promise<void> {
       if (!resp) throw new Error(`分片 ${i} 缓存丢失，请重试`);
       let data = await resp.arrayBuffer();
       if (aesKey && parsed.aesConf) {
-        data = await decryptAes128Cbc(data, aesKey, parsed.aesConf.iv);
+        data = await decryptSegment(data, aesKey, parsed.aesConf.iv, parsed.mediaSequence, i - 1);
       }
       await target.write(new Uint8Array(data));
     }
