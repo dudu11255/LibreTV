@@ -54,8 +54,16 @@ export interface DownloadProgress {
   message?: string;
 }
 
+/**
+ * 分片缓存 key。Cache Storage 的 put/match 只接受 http(s) scheme——
+ * 自定义字符串（如 `libretv-dl-v1:dl:...`）会被 URL 解析成同名自定义协议，
+ * put 直接抛 "Request scheme ... is unsupported"。因此用一段不会被真实
+ * 请求的保留域名构造合法 URL，仅作缓存 key 使用；taskId 经编码避免歧义。
+ */
+const DL_CHUNK_ORIGIN = 'https://dl.libretv.local';
+
 function dlChunkKey(taskId: string, index: number): string {
-  return `${DL_CACHE_NAME}:dl:${taskId}:${index}`;
+  return `${DL_CHUNK_ORIGIN}/${encodeURIComponent(taskId)}/${index}`;
 }
 
 export async function clearDownloadChunks(taskId: string): Promise<void> {
@@ -63,10 +71,8 @@ export async function clearDownloadChunks(taskId: string): Promise<void> {
     if (typeof caches === 'undefined') return;
     const cache = await caches.open(DL_CACHE_NAME);
     const keys = await cache.keys();
-    // Request 会把相对 key 解析成带 origin 的绝对 URL，按任务标记子串匹配
-    await Promise.all(
-      keys.filter((r) => r.url.includes(`:dl:${taskId}:`)).map((r) => cache.delete(r))
-    );
+    const prefix = `${DL_CHUNK_ORIGIN}/${encodeURIComponent(taskId)}/`;
+    await Promise.all(keys.filter((r) => r.url.startsWith(prefix)).map((r) => cache.delete(r)));
   } catch { /* 忽略 */ }
 }
 
