@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { ThemeToggle } from './theme';
 import { SourceManagerDrawer } from './source-manager';
 import { HistoryPanel } from './history-panel';
-import { GlobalDownloadManager, requestShowDownloadManager } from './download-manager';
+import { requestShowDownloadManager } from './download-manager';
 import { Icon } from './icon';
 import { SearchHistoryDropdown, useSearchHistory } from './search-history';
 import { cn } from '@/lib/utils';
@@ -119,7 +119,6 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
 
       <SourceManagerDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <HistoryPanel open={historyOpen} onClose={() => setHistoryOpen(false)} />
-      <GlobalDownloadManager />
     </>
   );
 }
