@@ -213,7 +213,8 @@ function WatchContent() {
                 if (!currentUrl) return;
                 enqueueDownload({
                   url: currentUrl,
-                  title: `${videoTitle}${episodes.length > 0 ? ` 第${currentIndex + 1}集` : ''}`,
+                  // 多集才带集数后缀；单集影片（含电影）文件名就是纯标题
+                  title: `${videoTitle}${episodes.length > 1 ? ` 第${currentIndex + 1}集` : ''}`,
                   format: 'MP4',
                 });
                 // 「已加入下载队列」由 DownloadManager 在真正入队后提示：
