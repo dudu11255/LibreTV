@@ -126,6 +126,37 @@ describe('stripLeadAdGroup', () => {
     expect(out).toBe(input);
     expect(out).toContain('g0_s0.ts');
   });
+
+  it('dytt 多分组封装（间隙不均但片头组与其余组同构）：不误杀片头', () => {
+    // 按 dytt 第1249集实测结构：64 组，多为 5 片，偶有 10/15/20 片长组
+    const sizes = [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 10, 5, 4, 3, 2, 5, 5, 5, 5, 10, 5, 5, 5, 5, 5,
+      15, 5, 15, 5, 5, 5, 5, 5, 10, 5, 5, 5, 5, 5, 5, 5, 5, 5, 20, 5, 15, 5, 5, 5, 5, 5, 5, 5, 5,
+      5, 5, 10, 5, 5, 5, 10, 2, 2];
+    const lines = ['#EXTM3U', '#EXT-X-TARGETDURATION:8'];
+    sizes.forEach((n, g) => {
+      lines.push('#EXT-X-DISCONTINUITY');
+      for (let s = 0; s < n; s++) lines.push('#EXTINF:4.3,', `g${g}_s${s}.ts`);
+    });
+    lines.push('#EXT-X-ENDLIST');
+    const input = lines.join('\n');
+    const out = stripLeadAdGroup(input);
+    expect(out).toBe(input);
+    expect(out).toContain('g0_s0.ts');
+  });
+
+  it('多分组但片头组明显异于其余组（疑似真插入段）：照常剔除', () => {
+    // 12 组其余均为 5 片，片头组 12 片（54s）——大小显著偏离，视为片头插入段
+    const lines = ['#EXTM3U', '#EXT-X-TARGETDURATION:8', '#EXT-X-DISCONTINUITY'];
+    for (let s = 0; s < 12; s++) lines.push('#EXTINF:4.5,', `ad${s}.ts`);
+    for (let g = 0; g < 12; g++) {
+      lines.push('#EXT-X-DISCONTINUITY');
+      for (let s = 0; s < 5; s++) lines.push('#EXTINF:4.5,', `g${g}_s${s}.ts`);
+    }
+    lines.push('#EXT-X-ENDLIST');
+    const out = stripLeadAdGroup(lines.join('\n'));
+    expect(out).not.toContain('ad0.ts');
+    expect(out).toContain('g0_s0.ts');
+  });
 });
 
 describe('stripAdGroups', () => {

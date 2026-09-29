@@ -62,7 +62,7 @@ const LEAD_AD_MAX_SEGMENTS = 20;
  * hls.js 把整条流当连续时间轴，视频丢帧、音频错位，出现「只闻广告声不见其画面」）。
  *
  * 保守判定（全部满足才剔除）：
- * 0. 整片不是「周期性 DISCONTINUITY 封装」（否则片头与正片分组结构一致，跳过以免误杀）；
+ * 0. 多分组封装下片头组与其余组同构时跳过（分组多且片头组大小≈其余组中位数 ⇒ 封装边界，以免误杀）；
  * 1. 首个分片之前存在 DISCONTINUITY（存在「片头插入段」结构）；
  * 2. 该段以下一个 DISCONTINUITY 结束，且其后仍有分段（否则无法与正片区分）；
  * 3. 段时长 ≤ 90s 且分片数 ≤ 20。
@@ -80,23 +80,29 @@ export function stripLeadAdGroup(m3u8Content: string): string {
     return t !== '' && !t.startsWith('#');
   };
 
-  // 周期性 DISCONTINUITY（部分采集站把每 ~N 个分片衔接处都打标记）不是广告：
-  // 这种封装下每个分组都被 DISCONTINUITY 框住，片头分组与正片分组结构一致、无法区分，
-  // 强行剔除会把正常片头当广告误杀。故先判断整片是否为「周期性封装」——
-  // 间隙（相邻 DISCONTINUITY 间的分片数）均匀且数量较多时，整段跳过片头剔除。
+  // 多分组封装（采集站把流按固定块切分、每个衔接处都打 DISCONTINUITY）不是广告。
+  // 实测两类源均在片头误删过正片：rycjapi 每组 5 片（间隙完全均匀），
+  // dytt 每组多为 5 片但偶有 10/15/20 片长组（间隙不均匀，均匀性判据失灵）。
+  // 两者的共性是：片头组与其余分组同构（大小一致），任何启发式都无法区分——
+  // 这种情况下跳过片头剔除。仅当片头组大小明显异于其余组的中位数（疑似真插入段）才继续。
   const discIdx: number[] = [];
   for (let i = 0; i < lines.length; i++) if (isDisc(lines[i])) discIdx.push(i);
   if (discIdx.length >= 4) {
-    const gaps: number[] = [];
-    for (let g = 0; g < discIdx.length - 1; g++) {
+    const groupSize = (from: number, to: number) => {
       let seg = 0;
-      for (let k = discIdx[g] + 1; k < discIdx[g + 1]; k++) if (isSegment(lines[k])) seg += 1;
-      gaps.push(seg);
+      for (let k = from; k < to; k++) if (isSegment(lines[k])) seg += 1;
+      return seg;
+    };
+    const leadSize = groupSize(discIdx[0] + 1, discIdx[1]);
+    const others: number[] = [];
+    for (let g = 1; g < discIdx.length; g++) {
+      others.push(groupSize(discIdx[g] + 1, g + 1 < discIdx.length ? discIdx[g + 1] : lines.length));
     }
-    const mean = gaps.reduce((a, b) => a + b, 0) / gaps.length;
-    const variance = gaps.reduce((a, b) => a + (b - mean) ** 2, 0) / gaps.length;
-    const cv = mean > 0 ? Math.sqrt(variance) / mean : 0;
-    if (cv < 0.5) return m3u8Content; // 间隙均匀 ⇒ 周期性封装，跳过片头剔除
+    const sorted = [...others].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    // 与中位数偏差在阈值内视为同构（阈值下限 3 片，避免小分组时过度敏感）
+    const typical = Math.abs(leadSize - median) <= Math.max(3, median * 0.5);
+    if (typical) return m3u8Content; // 片头组与其余组无异 ⇒ 封装边界，跳过片头剔除
   }
 
   const firstDisc = discIdx[0];
