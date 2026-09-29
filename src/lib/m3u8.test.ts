@@ -110,6 +110,22 @@ describe('stripLeadAdGroup', () => {
   it('空内容返回空串', () => {
     expect(stripLeadAdGroup('')).toBe('');
   });
+
+  it('周期性 DISCONTINUITY 封装（每 N 片一个标记）：不误杀片头正常分组', () => {
+    // 模拟 rycjapi 类源：多分组、每组 5 片、相邻 DISCONTINUITY 间隙均匀（非广告）
+    const lines = ['#EXTM3U', '#EXT-X-PLAYLIST-TYPE:VOD', '#EXT-X-VERSION:3'];
+    const groups = 12;
+    for (let g = 0; g < groups; g++) {
+      lines.push('#EXT-X-DISCONTINUITY');
+      for (let s = 0; s < 5; s++) lines.push('#EXTINF:6,', `g${g}_s${s}.ts`);
+    }
+    lines.push('#EXT-X-ENDLIST');
+    const input = lines.join('\n');
+    const out = stripLeadAdGroup(input);
+    // 片头第一组（g0_s0.ts）必须保留，整体原样返回
+    expect(out).toBe(input);
+    expect(out).toContain('g0_s0.ts');
+  });
 });
 
 describe('stripAdGroups', () => {
