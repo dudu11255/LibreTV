@@ -81,6 +81,13 @@ export function PlayerShell({
     let lastPrefetchEnsure = 0;
     let playbackStarted = false;
     let ended = false;
+    // 媒体健康度：音频轨可播不代表视频轨正常（「黑屏但有声」的假死态）。
+    // 仅当有分片真正进入 MSE buffer 后才视为恢复，错误遮罩才能被清除。
+    let mediaHealthy = true;
+    // 起播阶段的 video 元素级错误允许自愈重试一次（重建 hls/MSE）
+    let videoErrorRetryUsed = false;
+    // setupHls 可能改走代理形式，video:error 重试要用最近一次的地址
+    let currentMediaUrl = url;
     // 本集的恢复策略实例：跨直连/代理两级重建共享计数，换集随 effect 重建
     const recovery = new PlaybackRecovery();
 
@@ -140,6 +147,7 @@ export function PlayerShell({
 
     const setupHls = (video: HTMLVideoElement, mediaUrl: string, allowProxyFallback: boolean) => {
       hlsRef.current?.destroy();
+      currentMediaUrl = mediaUrl;
       const hls = new Hls(hlsConfig);
       hlsRef.current = hls;
 
@@ -152,6 +160,10 @@ export function PlayerShell({
       });
       // 播放链路恢复（FRAG_LOADED / MANIFEST_PARSED）：静默窗外清零连续失败计数
       hls.on(Hls.Events.FRAG_LOADED, () => recovery.markHealthy());
+      // 分片真正进入 MSE buffer 才算媒体恢复：此时视频轨可渲染，错误态可解除
+      hls.on(Hls.Events.FRAG_BUFFERED, () => {
+        mediaHealthy = true;
+      });
 
       hls.on(Hls.Events.ERROR, (_evt, data) => {
         if (!data.fatal) return;
@@ -251,9 +263,20 @@ export function PlayerShell({
     art.on('video:playing', () => {
       playbackStarted = true;
       setShowPoster(false);
-      setError('');
+      // 仅在媒体真正恢复（有分片进入 buffer）后清错误遮罩：
+      // 否则「视频轨挂了、音频轨先播出来」时会清掉遮罩，留下黑屏假死态
+      if (mediaHealthy) setError('');
     });
     art.on('video:error', () => {
+      mediaHealthy = false;
+      // 起播阶段的 video 元素级错误（MSE/解码偶发失败）：重建一次播放链路自愈，
+      // 而不是直接钉死错误遮罩——重建后视频轨重新 append，黑屏有声即可解除
+      if (!playbackStarted && !videoErrorRetryUsed) {
+        videoErrorRetryUsed = true;
+        showHint('播放异常，正在重试...');
+        setupHls(art.video, currentMediaUrl, true);
+        return;
+      }
       setError('视频播放失败，请尝试其他视频源');
     });
     art.on('video:timeupdate', () => {
