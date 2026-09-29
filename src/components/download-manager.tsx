@@ -171,6 +171,7 @@ export function DownloadManager({ isOpen, onClose }: { isOpen: boolean; onClose:
         await db.downloads.put(entry);
         refresh();
         scheduleNext();
+        toast(`《${detail.title}》已加入下载队列`, 'success');
       })();
     };
 
@@ -280,7 +281,7 @@ export function DownloadManager({ isOpen, onClose }: { isOpen: boolean; onClose:
                 )}
                 <button
                   type="button"
-                  aria-label="取消并删除任务"
+                  aria-label="删除下载任务"
                   className="p-1.5 rounded bg-chip hover:bg-hover text-content transition-colors"
                   onClick={() => void onCancel(t)}
                 >

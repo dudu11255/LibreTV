@@ -17,7 +17,6 @@ const PlayerShell = dynamic(() => import('@/components/player-shell').then((m) =
 });
 import { EmptyState, LoadingState, Spinner } from '@/components/states';
 import { SwitchSourceModal } from '@/components/switch-source';
-import { useToast } from '@/components/toast';
 import { enqueueDownload } from '@/components/download-manager';
 import { Icon } from '@/components/icon';
 import { useAuth } from '@/components/auth';
@@ -75,7 +74,6 @@ function WatchContent() {
 
   const episodes = useMemo(() => detailQuery.data?.episodes ?? [], [detailQuery.data]);
   const videoTitle = titleParam || detailQuery.data?.videoInfo?.title || '未知视频';
-  const { toast } = useToast();
 
   // 当前播放地址：优先取剧集列表中的当前集，其次直连 URL 参数
   const currentUrl = useMemo(() => {
@@ -218,7 +216,8 @@ function WatchContent() {
                   title: `${videoTitle}${episodes.length > 0 ? ` 第${currentIndex + 1}集` : ''}`,
                   format: 'MP4',
                 });
-                toast('已加入下载队列', 'success');
+                // 「已加入下载队列」由 DownloadManager 在真正入队后提示：
+                // 这里先提示的话，用户随后取消保存位置会出现「已加入→已取消」的矛盾
               }}
             >
               下载本集
