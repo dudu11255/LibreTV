@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { parseM3u8Playlist } from './m3u8-parse';
-import { isProxiedUri, rewriteM3u8, stripLeadAdGroup } from './m3u8';
+import { isProxiedUri, rewriteM3u8, stripAdGroups, stripLeadAdGroup } from './m3u8';
 
 const BASE = 'https://cdn.example.com/live/index.m3u8';
 
@@ -59,15 +59,16 @@ describe('isProxiedUri', () => {
   });
 });
 
+/** 按 dytt 实测结构造播放列表：片头广告段（首个 DISCONTINUITY 段）+ 若干正片段 */
+function dyttLike(adCount: number, adDur = 4): string {
+  const lines = ['#EXTM3U', '#EXT-X-TARGETDURATION:8', '#EXT-X-DISCONTINUITY'];
+  for (let i = 0; i < adCount; i++) lines.push(`#EXTINF:${adDur},`, `ad${i}.ts`);
+  lines.push('#EXT-X-DISCONTINUITY', '#EXTINF:4,', 'movie0.ts');
+  lines.push('#EXT-X-DISCONTINUITY', '#EXTINF:4,', 'movie1.ts', '#EXT-X-ENDLIST');
+  return lines.join('\n');
+}
+
 describe('stripLeadAdGroup', () => {
-  /** 按 dytt 实测结构造播放列表：片头广告段（首个 DISCONTINUITY 段）+ 若干正片段 */
-  function dyttLike(adCount: number, adDur = 4): string {
-    const lines = ['#EXTM3U', '#EXT-X-TARGETDURATION:8', '#EXT-X-DISCONTINUITY'];
-    for (let i = 0; i < adCount; i++) lines.push(`#EXTINF:${adDur},`, `ad${i}.ts`);
-    lines.push('#EXT-X-DISCONTINUITY', '#EXTINF:4,', 'movie0.ts');
-    lines.push('#EXT-X-DISCONTINUITY', '#EXTINF:4,', 'movie1.ts', '#EXT-X-ENDLIST');
-    return lines.join('\n');
-  }
 
   it('dytt 结构：整段剔除片头广告分片，正片与后续 DISCONTINUITY 保留', () => {
     const out = stripLeadAdGroup(dyttLike(3));
@@ -108,6 +109,50 @@ describe('stripLeadAdGroup', () => {
 
   it('空内容返回空串', () => {
     expect(stripLeadAdGroup('')).toBe('');
+  });
+});
+
+describe('stripAdGroups', () => {
+  /** 按暴风源实测结构造播放列表：正片(顺序 1s 分片) + adjump 中插广告段 + 正片 */
+  function konanLike(): string {
+    const lines = ['#EXTM3U', '#EXT-X-TARGETDURATION:3'];
+    for (let i = 0; i < 312; i++) lines.push('#EXTINF:1,', `${String(i).padStart(7, '0')}.ts`);
+    lines.push('#EXT-X-DISCONTINUITY');
+    for (let i = 0; i < 3; i++) lines.push('#EXTINF:3,', `/video/adjump/time/1787320001790000000${i}.ts`);
+    lines.push('#EXT-X-DISCONTINUITY', '#EXTINF:1,', '0000312.ts', '#EXT-X-ENDLIST');
+    return lines.join('\n');
+  }
+
+  it('柯南实测结构：剔除 adjump 中插段，正片完整且只保留一个分段边界', () => {
+    const out = stripAdGroups(konanLike());
+    expect(out).not.toContain('adjump');
+    expect(out).toContain('0000311.ts');
+    expect(out).toContain('0000312.ts');
+    // 段前的 DISCONTINUITY 随段删除、段后的保留为正片分段边界 → 不出现双标记
+    expect(out.match(/#EXT-X-DISCONTINUITY/g)).toHaveLength(1);
+  });
+
+  it('段内混入正片分片时整段放过（全部分片命中特征才剔除）', () => {
+    const lines = [
+      '#EXTM3U',
+      '#EXTINF:1,',
+      'a.ts',
+      '#EXT-X-DISCONTINUITY',
+      '#EXTINF:3,',
+      '/video/adjump/time/x0.ts',
+      '#EXTINF:1,',
+      'real.ts',
+      '#EXT-X-DISCONTINUITY',
+      '#EXTINF:1,',
+      'b.ts',
+    ].join('\n');
+    expect(stripAdGroups(lines)).toBe(lines);
+  });
+
+  it('组合：URL 无特征的片头插入段仍由片头启发式兜底剔除', () => {
+    const out = stripAdGroups(dyttLike(3));
+    expect(out).not.toContain('ad0.ts');
+    expect(out).toContain('movie0.ts');
   });
 });
 

@@ -110,3 +110,70 @@ export function stripLeadAdGroup(m3u8Content: string): string {
   }
   return out.join('\n');
 }
+
+/**
+ * 广告分片 URL 特征。暴风等采集云把中插广告放在明显的路径里
+ * （实测：`/video/adjump/time/….ts`，"adjump" = ad jump），与正片分片
+ * 的命名完全不同——这是比时长/位置可靠得多的识别信号。
+ */
+const AD_URL_PATTERN = /adjump|advert|\/ads?\//i;
+
+function looksLikeAdUrl(line: string): boolean {
+  return AD_URL_PATTERN.test(line.trim());
+}
+
+/**
+ * 按 URL 特征剔除任意位置的 DISCONTINUITY 广告段（片头/中插均覆盖）。
+ * 保守判定：段内**全部分片**都命中广告 URL 特征才整段剔除——只要混入一个
+ * 正片分片就放过，避免按时长猜测带来的误伤（正常分段与中插广告时长重叠）。
+ * 剔除时保留段前那个 DISCONTINUITY 作正片分段边界，因此不会出现双标记；
+ * 段内 EXT-X-KEY / EXT-X-MAP 与片头逻辑同理保留。
+ */
+function stripMarkedAdGroups(m3u8Content: string): string {
+  if (!m3u8Content) return '';
+  const lines = m3u8Content.split('\n');
+  const isDisc = (l: string) => l.trim() === '#EXT-X-DISCONTINUITY';
+  const isSegment = (l: string) => {
+    const t = l.trim();
+    return t !== '' && !t.startsWith('#');
+  };
+
+  const drop = new Array<boolean>(lines.length).fill(false);
+  let i = 0;
+  while (i < lines.length) {
+    if (!isDisc(lines[i])) {
+      i += 1;
+      continue;
+    }
+    let j = i + 1;
+    let count = 0;
+    let allAd = true;
+    while (j < lines.length && !isDisc(lines[j])) {
+      if (isSegment(lines[j])) {
+        count += 1;
+        if (!looksLikeAdUrl(lines[j])) allAd = false;
+      }
+      j += 1;
+    }
+    if (count > 0 && allAd) {
+      drop[i] = true;
+      for (let k = i + 1; k < j; k++) {
+        const t = lines[k].trim();
+        if (t.startsWith('#EXT-X-KEY') || t.startsWith('#EXT-X-MAP')) continue;
+        drop[k] = true;
+      }
+    }
+    i = j;
+  }
+  if (!drop.some(Boolean)) return m3u8Content;
+  return lines.filter((_, idx) => !drop[idx]).join('\n');
+}
+
+/**
+ * 广告过滤总入口：先按 URL 特征剔除任意位置的广告段，再兜底处理
+ * 「URL 无特征但位于片头」的插入段（dytt 式）。播放 loader 与下载解析共用。
+ */
+export function stripAdGroups(m3u8Content: string): string {
+  if (!m3u8Content) return '';
+  return stripLeadAdGroup(stripMarkedAdGroups(m3u8Content));
+}
