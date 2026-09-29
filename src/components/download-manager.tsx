@@ -220,7 +220,13 @@ export function DownloadManager({ isOpen, onClose }: { isOpen: boolean; onClose:
     await clearDownloadChunks(entry.id);
     await db.downloads.delete(entry.id);
     refresh();
-    toast(`《${entry.title}》已取消下载`, 'info');
+    // 终态（已完成/失败）删的是记录而非终止任务；文件已保存在用户选择的位置，不受影响
+    toast(
+      entry.status === 'completed' || entry.status === 'error'
+        ? `《${entry.title}》已删除下载记录`
+        : `《${entry.title}》已取消下载`,
+      'info'
+    );
   };
 
   const statusLabel: Record<DownloadTaskEntry['status'], string> = {
