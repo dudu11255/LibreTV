@@ -152,6 +152,14 @@ export function AggregatedCard({
     const cached = readQualities(group.items.map((i) => ({ sourceKey: i.sourceKey, vodId: i.vodId })));
     setQualities((prev) => ({ ...cached, ...prev }));
 
+    const finish = (targets: string[]) => {
+      setProbing((prev) => {
+        const next = { ...prev };
+        for (const k of targets) delete next[k];
+        return next;
+      });
+    };
+
     const now = Date.now();
     const selectPending = () =>
       group.items.filter((i) => {
@@ -173,8 +181,14 @@ export function AggregatedCard({
 
     // 掐掉上一批：本轮要重发，留着只会互相打断。
     // 同时把它未拿到结果的键解锁——否则这些键既不在飞、又因 inflight 选不进本批，
-    // 徽章会一直空着，直到冷却结束才有机会重探
-    for (const k of batchRef.current) inflightRef.current.delete(k);
+    // 徽章会一直空着，直到冷却结束才有机会重探。
+    // probing 必须在同一段同步解锁：上一批的 finally 会因下方守卫跳过清理，
+    // 不在这里清的话，被本批重新调度的键会一直挂着「探测中」标记
+    const previous = batchRef.current;
+    if (previous.size > 0) {
+      for (const k of previous) inflightRef.current.delete(k);
+      finish([...previous]);
+    }
     batchRef.current.clear();
     abortRef.current?.abort();
 
@@ -206,14 +220,6 @@ export function AggregatedCard({
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const finish = (targets: string[]) => {
-      setProbing((prev) => {
-        const next = { ...prev };
-        for (const k of targets) delete next[k];
-        return next;
-      });
-    };
-
     api
       .qualityProbeStream(
         items.map((i) => i.item),
@@ -242,9 +248,13 @@ export function AggregatedCard({
         // 一次性写入全局缓存：同一部剧在别处（换源面板、再次搜索）也能复用。
         // 中断时也会走到这里，已拿到的结果不会丢
         if (Object.keys(collected).length > 0) useAppStore.getState().setQuality(collected);
+        // 被新一批接管时跳过清理：未完成的键已由新批的同步段解锁并重新调度，
+        // 此时新批可能已把同名键加回 inflight / probing，再动会误清新批的标记
+        // （finally 是 microtask，必然晚于新批的同步段执行）
+        if (batchRef.current !== batch) return;
         // 本批未拿到终态的键一律解锁，下次展开可以立刻重试
         for (const k of batch) inflightRef.current.delete(k);
-        if (batchRef.current === batch) batchRef.current.clear();
+        batchRef.current.clear();
         finish(keys);
       });
   };
