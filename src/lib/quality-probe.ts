@@ -282,7 +282,8 @@ async function fetchEpisodes(source: SourceConfig, id: string, signal: AbortSign
     }
   }
 
-  const detailRoot = (source.detail || '').replace(/\/+$/, '');
+  // detail 缺失时用接口地址的 origin 推导详情页根地址（与 /api/detail 的推导口径一致）
+  const detailRoot = (source.detail || originOf(source.url)).replace(/\/+$/, '');
   if (!/^https?:\/\//.test(detailRoot)) return [];
   const verdict = await checkUpstreamAllowed(detailRoot);
   if (!verdict.ok) return [];
