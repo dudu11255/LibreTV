@@ -120,6 +120,92 @@ export function mergeQualityEntries(
   return next;
 }
 
+// —— 反馈层：徽章状态与汇总 ——
+// 纯函数放这里（而非组件里）的原因：测试环境是 node（无 jsdom），
+// 把「该显示什么」和「怎么画」分开，四态与汇总口径才能被单测覆盖。
+
+export type QualityBadgeKind = 'loading' | 'value' | 'unknown' | 'failed';
+
+export interface QualityBadgeView {
+  kind: QualityBadgeKind;
+  /** 有档位时的展示文本（4K / 1080P / 720P…） */
+  label?: string;
+  /** tooltip：说明数据来源，或失败原因与下一步该做什么 */
+  title: string;
+  /** 只有「没够着」值得重试；源站本来就不给画质信息，重试多少次都一样 */
+  retryable: boolean;
+}
+
+/**
+ * 画质徽章四态。返回 undefined 表示「尚未探测过」——不渲染，
+ * 避免把「还没探」画成「未知」，两者对用户的含义完全不同。
+ */
+export function describeQualityBadge(
+  entry: QualityEntry | undefined,
+  loading = false
+): QualityBadgeView | undefined {
+  if (loading) return { kind: 'loading', title: '正在探测画质…', retryable: false };
+  if (!entry) return undefined;
+  const label = qualityLabel(entry.height);
+  if (label) {
+    return {
+      kind: 'value',
+      label,
+      title:
+        entry.from === 'play'
+          ? `播放实测的真实分辨率（${entry.height}P）`
+          : `解析播放列表得到的档位（${entry.height}P）`,
+      retryable: false,
+    };
+  }
+  if (entry.error) {
+    return {
+      kind: 'failed',
+      title: `画质探测失败：${entry.error}（可能是防盗链或源站超时），可点击重试`,
+      retryable: true,
+    };
+  }
+  return {
+    kind: 'unknown',
+    title: '单码率或直链，播放列表里没有画质信息；播放一次后会记录实测分辨率',
+    retryable: false,
+  };
+}
+
+export interface QualitySummary {
+  /** 最高档位标签；没有任何可用高度时为 undefined */
+  best?: string;
+  /** 拿到分辨率的条数（探测或实测） */
+  known: number;
+  /** 探测失败的条数 */
+  failed: number;
+  /** 参与统计的条目总数（含「未知」） */
+  total: number;
+}
+
+/**
+ * 一组来源的画质汇总：卡片收起时给一个「最高 1080P」的结论，
+ * 展开时用 known/total 表达「8 个源里探到 5 个」，比逐个徽章更容易决策。
+ * 传入 undefined 的条目（尚未探测）不计入 total，避免进度分母虚高。
+ */
+export function summarizeQuality(entries: Array<QualityEntry | undefined>): QualitySummary {
+  let bestHeight: number | undefined;
+  let known = 0;
+  let failed = 0;
+  let total = 0;
+  for (const entry of entries) {
+    if (!entry) continue;
+    total += 1;
+    if (entry.height !== undefined && entry.height > 0) {
+      known += 1;
+      if (bestHeight === undefined || entry.height > bestHeight) bestHeight = entry.height;
+    } else if (entry.error) {
+      failed += 1;
+    }
+  }
+  return { best: qualityLabel(bestHeight), known, failed, total };
+}
+
 /**
  * 码率 → 推断高度：部分源站的 master playlist 只给 BANDWIDTH 不给 RESOLUTION。
  * 分层取自常见转码参数，仅供档位标识使用（与 m3u8-parse 的推断表保持一致）。
