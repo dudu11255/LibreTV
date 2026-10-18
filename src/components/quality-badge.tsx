@@ -15,12 +15,15 @@ export function QualityBadge({
   entry,
   loading,
   onRetry,
+  showReason,
   className,
 }: {
   entry?: QualityEntry;
   loading?: boolean;
   /** 失败态可重试；不传则失败态退化为普通徽章 */
   onRetry?: () => void;
+  /** 就地显示失败原因（超时/防盗链/无资源）：触屏看不到 tooltip，需要可见文案 */
+  showReason?: boolean;
   className?: string;
 }) {
   const view = describeQualityBadge(entry, loading);
@@ -72,9 +75,10 @@ export function QualityBadge({
           className
         )}
         title={view.title}
-        aria-label="画质未探到，点击重试"
+        aria-label={`本次没测到画质${view.reason ? `（${view.reason}）` : ''}，点击重试`}
       >
-        未探到
+        {view.label ?? '未测到'}
+        {showReason && view.reason && <span className="ml-0.5 opacity-80">·{view.reason}</span>}
       </button>
     );
   }
@@ -84,7 +88,8 @@ export function QualityBadge({
       className={cn('tag shrink-0', view.kind === 'failed' ? 'bg-warning/15 text-warning' : 'bg-chip text-faint', className)}
       title={view.title}
     >
-      {view.kind === 'failed' ? '未探到' : '未知'}
+      {view.kind === 'failed' ? view.label ?? '未测到' : '未知'}
+      {showReason && view.reason && <span className="ml-0.5 opacity-80">·{view.reason}</span>}
     </span>
   );
 }

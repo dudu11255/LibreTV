@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '@/lib/client-api';
-import { QUALITY_FAIL_TTL_MS, qualityKey, summarizeQuality } from '@/lib/quality';
+import { QUALITY_FAIL_TTL_MS, isRetryableTimeout, qualityKey, summarizeQuality } from '@/lib/quality';
 import { createProbeQueue, type ProbeQueue } from '@/lib/quality-probe-queue';
 import { readQualities, useAppStore } from '@/lib/store';
 import type { QualityEntry, QualityProbeItem, QualityProbeResult, SourceConfig } from '@/lib/types';
@@ -92,6 +92,10 @@ export function useQualityProbe(sources?: SourceConfig[]) {
    */
   const qualitiesRef = useRef<Record<string, QualityEntry>>({});
   qualitiesRef.current = qualities;
+  /** 已经自动重试过的键：超时只补一次，避免「超时→重试→超时」循环打源站 */
+  const retriedRef = useRef<Set<string>>(new Set());
+  /** 让延迟重试能拿到最新的 probe（probe 依赖 resolveItem，闭包会过期） */
+  const probeRef = useRef<((items: QualityProbeTarget[], opts?: { force?: boolean }) => void) | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -131,6 +135,32 @@ export function useQualityProbe(sources?: SourceConfig[]) {
       return next;
     });
   }, []);
+
+  /**
+   * 超时自动补一次。
+   * 失败里只有超时是「这次没够着」——冷启动、CDN 抖动、源站响应慢；
+   * 同一条请求 300ms 后再打一次成功率明显更高，可避免把可用源标成「未测到」。
+   * 只补一次：retriedRef 记住已重试的键，仍失败就交给用户手动重试。
+   */
+  const scheduleTimeoutRetry = useCallback(
+    (collected: Record<string, QualityEntry>, targetByKey: Map<string, QualityProbeTarget>) => {
+      const retries: QualityProbeTarget[] = [];
+      for (const [key, entry] of Object.entries(collected)) {
+        if (!isRetryableTimeout(entry.error)) continue;
+        if (retriedRef.current.has(key)) continue;
+        const target = targetByKey.get(key);
+        if (!target) continue;
+        retriedRef.current.add(key);
+        retries.push(target);
+      }
+      if (retries.length === 0) return;
+      setTimeout(() => {
+        if (!mountedRef.current) return;
+        probeRef.current?.(retries, { force: true });
+      }, 300);
+    },
+    []
+  );
 
   /** 读取缓存并把目标登记为「进度分母」：卡片收起时也能显示最高画质 */
   const prime = useCallback((items: QualityProbeTarget[]) => {
@@ -184,6 +214,7 @@ export function useQualityProbe(sources?: SourceConfig[]) {
       if (mapped.length === 0) return;
 
       const keys = mapped.map((m) => m.key);
+      const targetByKey = new Map(list.map((t) => [qualityKey(t.sourceKey, t.vodId), t]));
       const batch = new Set(keys);
       // 结果先攒着，流结束一次性写全局：逐条写会让 persist 把整个 qualityMap（最多 400 条）序列化十几遍
       const collected: Record<string, QualityEntry> = {};
@@ -204,6 +235,8 @@ export function useQualityProbe(sources?: SourceConfig[]) {
             collected[key] = entry;
             inflightRef.current.delete(key);
             settledRef.current.set(key, Date.now());
+            // 探成功就忘掉「已重试过」：下次再超时仍然值得补一次
+            if (!entry.error) retriedRef.current.delete(key);
             mark([key], false);
           },
           controller.signal
@@ -213,6 +246,8 @@ export function useQualityProbe(sources?: SourceConfig[]) {
         })
         .finally(() => {
           if (Object.keys(collected).length > 0) useAppStore.getState().setQuality(collected);
+          // 超时补一次放在接管守卫之前：结果已经拿到，是否被接管都不影响这一批的补探测
+          scheduleTimeoutRetry(collected, targetByKey);
           // 被新一批接管时跳过清理：未完成的键已由新批同步段重新调度（finally 是 microtask，必然晚于它）
           if (batchRef.current !== batch) return;
           for (const key of batch) inflightRef.current.delete(key);
@@ -220,8 +255,10 @@ export function useQualityProbe(sources?: SourceConfig[]) {
           mark(keys, false);
         });
     },
-    [mark, resolveItem]
+    [mark, resolveItem, scheduleTimeoutRetry]
   );
+  // 延迟重试走的入口：scheduleTimeoutRetry 的定时器里不能直接用 probe（会捕获旧闭包）
+  probeRef.current = probe;
 
   /**
    * 经全局队列探测（单源卡片进入视口）。

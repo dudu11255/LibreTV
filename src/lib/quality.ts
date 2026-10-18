@@ -16,7 +16,25 @@ export const QUALITY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
  * 失败原因多为瞬时（超时/限流/防盗链偶发拒绝），不能像成功结果那样存 30 天，
  * 否则偶发失败会被当成永久结论，用户再也看不到画质。
  */
-export const QUALITY_FAIL_TTL_MS = 10 * 60 * 1000;
+export const QUALITY_FAIL_TTL_MS = 2 * 60 * 1000;
+
+/**
+ * 失败原因短标签：徽章上直接显示「未测到·超时」比只藏在 tooltip 里有用，
+ * 触屏没有 hover，用户更需要一眼看出「该重试」还是「该换源」。
+ */
+export function failureReasonLabel(error?: string): string | undefined {
+  if (!error) return undefined;
+  if (error.includes('超时')) return '超时';
+  if (/HTTP (401|403)/.test(error)) return '防盗链';
+  if (error.includes('未找到播放资源')) return '无资源';
+  if (error.includes('无效')) return '源无效';
+  return undefined;
+}
+
+/** 超时是唯一值得自动重试的失败：冷启动/CDN 抖动，同一条请求再打一次常能成 */
+export function isRetryableTimeout(error?: string): boolean {
+  return !!error && error.includes('超时');
+}
 
 /**
  * 条目是否仍在有效期内（唯一判定入口，写入与读取都走这里）。
@@ -128,8 +146,10 @@ export type QualityBadgeKind = 'loading' | 'value' | 'unknown' | 'failed';
 
 export interface QualityBadgeView {
   kind: QualityBadgeKind;
-  /** 有档位时的展示文本（4K / 1080P / 720P…） */
+  /** 有档位时的展示文本（4K / 1080P / 720P…）；失败时为「未测到」 */
   label?: string;
+  /** 失败原因短标签（超时 / 防盗链 / 无资源），供徽章就地展示 */
+  reason?: string;
   /** tooltip：说明数据来源，或失败原因与下一步该做什么 */
   title: string;
   /** 只有「没够着」值得重试；源站本来就不给画质信息，重试多少次都一样 */
@@ -159,9 +179,16 @@ export function describeQualityBadge(
     };
   }
   if (entry.error) {
+    const reason = failureReasonLabel(entry.error);
+    // 不用「失败/不可用」这类否定结论：探测失败只代表这次没测到，
+    // 同一个源换个时刻常常能测到（实测也证明了源是可用的）
     return {
       kind: 'failed',
-      title: `画质探测失败：${entry.error}（可能是防盗链或源站超时），可点击重试`,
+      label: '未测到',
+      reason,
+      title: `本次没测到画质：${entry.error}。${
+        reason === '超时' ? '多半是网络抖动或源站响应慢，点击重试' : '点击可重试，也可以直接播放，播放后会自动记录实测分辨率'
+      }`,
       retryable: true,
     };
   }
