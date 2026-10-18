@@ -24,8 +24,13 @@ export const QUALITY_FAIL_TTL_MS = 2 * 60 * 1000;
  */
 export function failureReasonLabel(error?: string): string | undefined {
   if (!error) return undefined;
+  // 传输层失败（请求没送达 / 流中途断）要排在「超时」之前：
+  // 这类文案本身就带「多为网关超时」的解释，先匹配超时会把归因指错
+  if (/中断|断开|送达|网关拦截/.test(error)) return '连接中断';
   if (error.includes('超时')) return '超时';
   if (/HTTP (401|403)/.test(error)) return '防盗链';
+  // 5xx 多为反代/网关回的错误页，和「源站不给画质」完全不是一回事
+  if (/HTTP 5\d\d|\(5\d\d\)/.test(error)) return '网关异常';
   if (error.includes('未找到播放资源')) return '无资源';
   if (error.includes('无效')) return '源无效';
   return undefined;

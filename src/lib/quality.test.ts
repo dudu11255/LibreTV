@@ -3,8 +3,10 @@ import {
   QUALITY_FAIL_TTL_MS,
   QUALITY_TTL_MS,
   describeQualityBadge,
+  failureReasonLabel,
   inferHeightFromBitrate,
   isQualityEntryFresh,
+  isRetryableTimeout,
   mergeQualityEntries,
   qualityLabel,
   summarizeQuality,
@@ -331,5 +333,33 @@ describe('summarizeQuality', () => {
   it('实测与探测混合时取较大值（实测可把单码率源补上）', () => {
     const play: QualityEntry = { height: 2160, from: 'play', timestamp: T };
     expect(summarizeQuality([probe(720), play]).best).toBe('4K');
+  });
+});
+
+describe('失败原因标签', () => {
+  it('源站拒绝与超时各有短标签', () => {
+    expect(failureReasonLabel('HTTP 403')).toBe('防盗链');
+    expect(failureReasonLabel('画质探测超时')).toBe('超时');
+    expect(failureReasonLabel('未找到播放资源')).toBe('无资源');
+  });
+
+  it('传输层失败也要有标签：否则线上只剩裸「未测到」，无从判断哪一环挂了', () => {
+    expect(failureReasonLabel('探测请求被网关拦截（未收到任何响应）')).toBe('连接中断');
+    expect(failureReasonLabel('探测连接中途被断开（已收到部分结果，多为网关超时）')).toBe('连接中断');
+    expect(failureReasonLabel('探测请求没能送达服务器（网络或反向代理中断）')).toBe('连接中断');
+    expect(failureReasonLabel('请求失败 (502)')).toBe('网关异常');
+  });
+
+  it('无法归类的错误不硬造标签', () => {
+    expect(failureReasonLabel('fetch failed')).toBeUndefined();
+    expect(failureReasonLabel(undefined)).toBeUndefined();
+  });
+});
+
+describe('isRetryableTimeout', () => {
+  it('只把超时视作值得自动补探的失败', () => {
+    expect(isRetryableTimeout('画质探测超时')).toBe(true);
+    expect(isRetryableTimeout('HTTP 403')).toBe(false);
+    expect(isRetryableTimeout(undefined)).toBe(false);
   });
 });
