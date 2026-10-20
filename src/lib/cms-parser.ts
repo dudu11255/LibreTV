@@ -175,14 +175,24 @@ export function normalizeTitle(s: string): string {
   return s.toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '');
 }
 
-/** 仅将独立数字或明确的「第 N 季」后缀作为季数别名。 */
-function parseSeasonSuffix(title: string, allowAnnotations = false): { base: string; season: number; explicit: boolean } | undefined {
+/**
+ * 仅将独立数字或明确的「第 N 季」后缀作为季数别名。
+ *
+ * `bareNeedsSpace` 区分两侧：
+ * - 查询侧传 false：用户习惯直接输入「庆余年2」，数字前没有空格也得认成季数
+ * - 标题侧保持 true：必须有空格，避免把片名自带的数字（「电影2」）误判成第二季
+ */
+function parseSeasonSuffix(
+  title: string,
+  allowAnnotations = false,
+  bareNeedsSpace = true
+): { base: string; season: number; explicit: boolean } | undefined {
   // 标题侧允许「第二季」后跟任意附注：粤语、预告片、【影视解说】、无分隔符的「第二季粤语」都算
   const explicitPattern = allowAnnotations
     ? /^(.*?)\s*第\s*([1-9]\d?|[一二两三四五六七八九十]{1,3})\s*季.*$/u
     : /^(.*?)\s*第\s*([1-9]\d?|[一二两三四五六七八九十]{1,3})\s*季$/u;
   const explicit = title.trim().match(explicitPattern);
-  const bare = title.trim().match(/^(.*?)\s+([1-9]\d?)$/u);
+  const bare = title.trim().match(bareNeedsSpace ? /^(.*?)\s+([1-9]\d?)$/u : /^(.*?)\s*([1-9]\d?)$/u);
   const match = explicit ?? bare;
   if (!match || !normalizeTitle(match[1])) return undefined;
   const value = match[2];
@@ -231,7 +241,8 @@ function prepareQuery(wd: string): PreparedQuery | undefined {
   if (!normalized) return undefined;
   return {
     normalized,
-    season: parseSeasonSuffix(wd),
+    // 查询侧允许「庆余年2」这种无空格写法
+    season: parseSeasonSuffix(wd, false, false),
     tokens: wd.trim().split(/\s+/).map(normalizeTitle).filter(Boolean),
   };
 }
