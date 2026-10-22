@@ -22,7 +22,11 @@ import { Drawer } from './drawer';
  * 真正的跳过判定在 player-shell.tsx，存储与校验在 lib/skip-marks.ts。
  *
  * 交互约定：
- * - 记录/试跳前先暂停：抽屉贴在播放器旁边，点击到读取之间视频还在走，容易偏 1–2 秒；
+ * - 抽屉是非模态的：不遮光、不锁滚动、不挡点击。标记的前提是"看着画面记边界"，
+ *   模态遮罩会把正在播的视频压暗并吃掉点击，反而没法边看边标；
+ * - 手机上（<lg）退化成底部半屏抽屉，并把记录按钮放在 footer 常驻，避免盖住画面、
+ *   也避免列表变长后要滚到底才能记一笔；
+ * - 记录/试跳前先暂停：点击到读取之间视频还在走，容易偏 1–2 秒；
  * - 顶部常驻「当前 12:34 / 45:00」，试跳与微调都有参照；
  * - 中段两步态的起点由播放页持有（pendingStart），与 Shift+S/E 共用同一份状态；
  * - 全局「自动跳过片段」在这里只读展示（层级不同，避免和「本剧跳过」并排成两个 checkbox）。
@@ -47,6 +51,7 @@ export function SkipMarkPanel({
   pendingStart,
   onPendingStart,
   getPlayerClock,
+  mobileMaxHeight,
 }: {
   open: boolean;
   onClose: () => void;
@@ -57,6 +62,11 @@ export function SkipMarkPanel({
   onPendingStart: (start: number | null) => void;
   /** 读取播放器当前时间/时长/跳转；播放器未就绪时返回 null */
   getPlayerClock: () => PlayerClock | null;
+  /**
+   * 小屏抽屉的最大高度（px，由播放页按播放器底边算出）：
+   * 视口矮、播放器占比大时靠它保证抽屉不压住画面；未传则用默认 60vh。
+   */
+  mobileMaxHeight?: number;
 }) {
   const mark = useAppStore((s) => s.skipMarks[markKey]);
   const setSkipMark = useAppStore((s) => s.setSkipMark);
@@ -216,7 +226,54 @@ export function SkipMarkPanel({
   });
 
   return (
-    <Drawer open={open} onClose={onClose} title="跳过标记" width="max-w-sm">
+    // 桌面端宽度收窄到 320px：播放页右侧剧集栏是 300px，抽屉正好盖住它而不压到视频；
+    // 记录区放进 footer 常驻底部：手机上侧栏只占下半屏，滚到列表末尾再点按钮太别扭
+    <Drawer
+      open={open}
+      onClose={onClose}
+      title="跳过标记"
+      width="max-w-sm lg:max-w-[20rem]"
+      modal={false}
+      mobileSheet
+      panelStyle={mobileMaxHeight ? { maxHeight: mobileMaxHeight } : undefined}
+      footer={
+        <div>
+          <p className="mb-1.5 text-[11px] text-faint">记录（会先暂停在当前画面）</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              title="把当前画面记为片头结束位置"
+              onClick={() => recordAt('opening')}
+            >
+              记为片头结束
+            </button>
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              title="把当前画面记为片尾开始位置"
+              onClick={() => recordAt('ending')}
+            >
+              记为片尾开始
+            </button>
+            {pendingStart === null ? (
+              <button type="button" className="btn-ghost btn-sm" onClick={markMiddleStart}>
+                标记中段起点
+              </button>
+            ) : (
+              <>
+                <button type="button" className="btn-ghost btn-sm" onClick={markMiddleEnd}>
+                  标记中段终点（自 {formatTime(pendingStart)}）
+                </button>
+                <button type="button" className="btn-ghost btn-sm" title="放弃这个起点" onClick={() => onPendingStart(null)}>
+                  取消
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      }
+    >
       {/* 当前进度 + 本剧开关：本剧作用域放最上，全局开关在底部只读展示，避免两个层级并排 */}
       <div className="flex items-start justify-between gap-2">
         <div>
@@ -318,42 +375,6 @@ export function SkipMarkPanel({
           })}
         </ul>
       )}
-
-      <div className="mt-4 border-t border-line pt-3">
-        <p className="mb-1.5 text-[11px] text-faint">记录（会先暂停在当前画面）</p>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            className="btn-ghost btn-sm"
-            title="把当前画面记为片头结束位置"
-            onClick={() => recordAt('opening')}
-          >
-            记为片头结束
-          </button>
-          <button
-            type="button"
-            className="btn-ghost btn-sm"
-            title="把当前画面记为片尾开始位置"
-            onClick={() => recordAt('ending')}
-          >
-            记为片尾开始
-          </button>
-          {pendingStart === null ? (
-            <button type="button" className="btn-ghost btn-sm" onClick={markMiddleStart}>
-              标记中段起点
-            </button>
-          ) : (
-            <>
-              <button type="button" className="btn-ghost btn-sm" onClick={markMiddleEnd}>
-                标记中段终点（自 {formatTime(pendingStart)}）
-              </button>
-              <button type="button" className="btn-ghost btn-sm" title="放弃这个起点" onClick={() => onPendingStart(null)}>
-                取消
-              </button>
-            </>
-          )}
-        </div>
-      </div>
 
       {/* 全局开关：只读展示（层级与本剧开关不同，改起来去设置里更不容易误解） */}
       <div className="mt-3 rounded-lg border border-line bg-surface px-3 py-2.5">

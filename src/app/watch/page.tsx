@@ -67,6 +67,37 @@ function WatchContent() {
   const [skipPanelOpen, setSkipPanelOpen] = useState(false);
   // 播放器对外暴露的精确时间读取接口（「记录当前」用），随播放器卸载置空
   const playerApiRef = useRef<PlayerSkipApi | null>(null);
+  // 播放框：小屏「跳过标记」抽屉要按它的底边算剩余高度，避免压住画面
+  const playerFrameRef = useRef<HTMLDivElement | null>(null);
+  const [sheetMaxHeight, setSheetMaxHeight] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (!skipPanelOpen) return;
+    const measure = () => {
+      // 桌面端抽屉贴右侧、整屏高，不受播放器位置影响
+      if (window.matchMedia('(min-width: 1024px)').matches) {
+        setSheetMaxHeight(undefined);
+        return;
+      }
+      const box = playerFrameRef.current?.getBoundingClientRect();
+      if (!box) {
+        setSheetMaxHeight(undefined);
+        return;
+      }
+      const viewport = window.visualViewport?.height ?? window.innerHeight;
+      const room = viewport - box.bottom - 12;
+      // 不超过视口 60%；矮窗下最多压到 160px，再小就没法用了
+      setSheetMaxHeight(Math.round(Math.max(160, Math.min(viewport * 0.6, room))));
+    };
+    measure();
+    // 只在打开与尺寸变化时测：跟着滚动实时改高度会让抽屉边滚边长，很晃
+    window.addEventListener('resize', measure);
+    window.visualViewport?.addEventListener('resize', measure);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.visualViewport?.removeEventListener('resize', measure);
+    };
+  }, [skipPanelOpen]);
 
   const source = resolveSource(store, sourceKey, {
     url: searchParams.get('sourceUrl') || undefined,
@@ -283,7 +314,7 @@ function WatchContent() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-4">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
           <div>
-            <div className="aspect-video bg-black rounded-lg overflow-hidden">
+            <div ref={playerFrameRef} className="aspect-video bg-black rounded-lg overflow-hidden">
               {currentUrl ? (
                 <PlayerShell
                   url={currentUrl}
@@ -377,6 +408,7 @@ function WatchContent() {
               markKey={markKey}
               pendingStart={pendingStart}
               onPendingStart={setPendingStart}
+              mobileMaxHeight={sheetMaxHeight}
               getPlayerClock={() => {
                 const api = playerApiRef.current;
                 if (!api) return null;
