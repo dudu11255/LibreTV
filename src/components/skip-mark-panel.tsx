@@ -12,6 +12,7 @@ import {
 import { cn, formatTime } from '@/lib/utils';
 import { useToast } from './toast';
 import { Drawer } from './drawer';
+import { Icon } from './icon';
 
 /**
  * 播放页的「跳过标记」抽屉。
@@ -238,7 +239,7 @@ export function SkipMarkPanel({
       panelStyle={mobileMaxHeight ? { maxHeight: mobileMaxHeight } : undefined}
       footer={
         <div>
-          <p className="mb-1.5 text-[11px] text-faint">记录（会先暂停在当前画面）</p>
+          <p className="mb-1.5 text-[11px] text-muted">记录（会先暂停在当前画面）</p>
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
@@ -280,17 +281,17 @@ export function SkipMarkPanel({
           <p className="text-xs text-muted">
             当前{' '}
             <span className="font-mono text-content">{formatTime(clock.current)}</span>
-            <span className="text-faint"> / {formatTime(clock.duration)}</span>
-            {clock.paused && <span className="ml-1 text-faint">· 已暂停</span>}
+            <span className="text-muted"> / {formatTime(clock.duration)}</span>
+            {clock.paused && <span className="ml-1 text-muted">· 已暂停</span>}
           </p>
-          <p className="mt-1 text-[11px] text-faint">
+          <p className="mt-1 text-[11px] text-muted">
             已标记 {segments.length} 段 · 按剧名对本剧各集与同名资源生效
           </p>
         </div>
         <label
           className={cn(
             'flex shrink-0 items-center gap-1.5 text-xs',
-            mark ? 'cursor-pointer text-muted hover:text-content' : 'cursor-not-allowed text-faint/70'
+            mark ? 'cursor-pointer text-muted hover:text-content' : 'cursor-not-allowed text-faint'
           )}
           title={mark ? '关闭后保留标记但完全不生效' : '还没有可开关的标记'}
         >
@@ -306,7 +307,7 @@ export function SkipMarkPanel({
       </div>
 
       {segments.length === 0 ? (
-        <p className="mt-3 rounded-lg border border-dashed border-line px-3 py-3 text-xs leading-relaxed text-faint">
+        <p className="mt-3 rounded-lg border border-dashed border-line px-3 py-3 text-xs leading-relaxed text-muted">
           尚未标记跳过片段。播放到目标位置后，用下方按钮记录，或使用快捷键：
           Shift+I 片头结束 / Shift+O 片尾开始 / Shift+S · Shift+E 中段区间。
         </p>
@@ -314,11 +315,17 @@ export function SkipMarkPanel({
         <ul className="mt-3 space-y-2">
           {segments.map((seg, i) => {
             const isCurrent = currentKey === seg;
+            // 中段可以有多条：按时间顺序编号（中段1 / 中段2…），否则两行 [中段] 分不清
+            const sameTypeCount = segments.filter((s) => s.type === seg.type).length;
+            const label =
+              seg.type === 'middle' && sameTypeCount > 1
+                ? `${SEGMENT_LABELS.middle}${segments.slice(0, i).filter((s) => s.type === 'middle').length + 1}`
+                : SEGMENT_LABELS[seg.type];
             return (
               <li
                 key={`${seg.type}:${seg.start}`}
                 className={cn(
-                  'rounded-lg border px-2.5 py-2 transition-colors',
+                  'relative rounded-lg border px-2.5 py-2 pr-8 transition-colors',
                   isCurrent ? 'border-accent/60 bg-chip/60' : 'border-line/70'
                 )}
               >
@@ -329,7 +336,7 @@ export function SkipMarkPanel({
                       className="inline-block h-2 w-2 shrink-0 rounded-sm"
                       style={{ backgroundColor: SEGMENT_COLORS[seg.type] }}
                     />
-                    <span className="text-muted">[{SEGMENT_LABELS[seg.type]}]</span>
+                    <span className="text-muted">[{label}]</span>
                     <span className="font-mono text-muted">
                       {formatTime(seg.start)} → {seg.type === 'ending' ? '结尾' : formatTime(seg.end)}
                     </span>
@@ -361,15 +368,17 @@ export function SkipMarkPanel({
                   <button type="button" className="btn-ghost btn-sm" title="边界推后 1 秒" onClick={() => nudge(i, 1)}>
                     +1s
                   </button>
-                  <button
-                    type="button"
-                    className="btn-ghost btn-sm"
-                    title="删除（可在提示中撤销）"
-                    onClick={() => remove(i)}
-                  >
-                    删
-                  </button>
                 </div>
+                {/* 删除放在右上角：条目多时「删」混在操作行里容易和 ±1s 混淆 */}
+                <button
+                  type="button"
+                  className="absolute right-0.5 top-0.5 rounded-md p-1.5 text-muted transition-colors hover:bg-hover hover:text-danger"
+                  title="删除（可在提示中撤销）"
+                  aria-label={`删除${label}片段`}
+                  onClick={() => remove(i)}
+                >
+                  <Icon name="close" className="h-3.5 w-3.5" />
+                </button>
               </li>
             );
           })}
@@ -380,11 +389,11 @@ export function SkipMarkPanel({
       <div className="mt-3 rounded-lg border border-line bg-surface px-3 py-2.5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs text-muted">全局 · 自动跳过片段</span>
-          <span className={cn('text-xs font-medium', autoSkipSegments ? 'text-accent' : 'text-faint')}>
+          <span className={cn('text-xs font-medium', autoSkipSegments ? 'text-accent' : 'text-muted')}>
             {autoSkipSegments ? '已开启' : '已关闭'}
           </span>
         </div>
-        <p className="mt-1 text-[11px] leading-relaxed text-faint">
+        <p className="mt-1 text-[11px] leading-relaxed text-muted">
           {autoSkipSegments
             ? '命中片头/中段自动跳段，片尾结束本集（是否连播看「自动连播」）。'
             : '命中片段只显示按钮，不自动跳。'}
@@ -392,7 +401,7 @@ export function SkipMarkPanel({
         </p>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-faint">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
         <span>进度条色带：</span>
         {SEGMENT_TYPES.map((t) => (
           <span key={t} className="inline-flex items-center gap-1">
