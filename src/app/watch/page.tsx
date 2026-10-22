@@ -18,8 +18,9 @@ const PlayerShell = dynamic(() => import('@/components/player-shell').then((m) =
 import { EmptyState, LoadingState, Spinner } from '@/components/states';
 import { SwitchSourceModal } from '@/components/switch-source';
 import { SkipMarkPanel } from '@/components/skip-mark-panel';
-import { skipMarkKey } from '@/lib/skip-marks';
+import { skipMarkKey, validateSegment, type SkipSegment } from '@/lib/skip-marks';
 import type { PlayerSkipApi } from '@/components/player-shell';
+import { useToast } from '@/components/toast';
 import { enqueueDownload } from '@/components/download-manager';
 import { Icon } from '@/components/icon';
 import { useAuth } from '@/components/auth';
@@ -53,6 +54,7 @@ function WatchContent() {
   const router = useRouter();
   const store = useAppStore();
   const { verified } = useAuth();
+  const { toast } = useToast();
 
   const sourceKey = searchParams.get('source') || '';
   const vodId = searchParams.get('id') || '';
@@ -96,7 +98,7 @@ function WatchContent() {
     return indexParam;
   }, [episodes, indexParam]);
 
-  // 片头片尾标记按剧名记忆：换集不变，换源到同名资源也能命中。
+  // 跳过片段按剧名记忆：换集不变，换源到同名资源也能命中。
   // 标题缺失（直连链接）时退回 source:vodId，至少保证本源本片可用。
   const skipMarkFallback = `${sourceKey}:${vodId || currentUrl}`;
   const markKey = useMemo(
@@ -104,6 +106,12 @@ function WatchContent() {
     [videoTitle, skipMarkFallback]
   );
   const skipMark = store.skipMarks[markKey];
+  const markedCount = skipMark?.segments.length ?? 0;
+
+  // 中段两步态的起点：页面层持有，面板按钮与 Shift+S/E 共用同一份状态
+  const [pendingStart, setPendingStart] = useState<number | null>(null);
+  // 换集清空中段两步态：起点属于上一集，不能和新集的位置拼成区间
+  useEffect(() => setPendingStart(null), [sourceKey, vodId, currentIndex]);
 
   const goEpisode = useCallback(
     (index: number) => {
@@ -169,6 +177,31 @@ function WatchContent() {
       autoNextTimer.current = setTimeout(() => goEpisode(currentIndex + 1), 800);
     }
   }, [store.autoplayNext, currentIndex, episodes.length, goEpisode, sourceKey, vodId]);
+
+  // 快捷键（Shift+I/O/S/E）记录片段：校验后写入
+  const handleRecordSegment = useCallback(
+    (segment: SkipSegment) => {
+      const duration = playerApiRef.current?.getDuration() ?? 0;
+      const existing = useAppStore.getState().skipMarks[markKey]?.segments ?? [];
+      const error = validateSegment(segment, duration, existing);
+      if (error) {
+        toast(error, 'error');
+        return;
+      }
+      useAppStore.getState().setSkipMark(markKey, [...existing, segment]);
+      const label =
+        segment.type === 'opening' ? '片头结束' : segment.type === 'ending' ? '片尾开始' : '中段片段';
+      // 中段命中时的表现取决于全局「自动跳过片段」，记完就说清楚，避免"标了却没反应"
+      const hint =
+        segment.type === 'middle'
+          ? useAppStore.getState().autoSkipSegments
+            ? '，命中时将自动跳过'
+            : '，命中时显示跳过按钮'
+          : '';
+      toast(`已记录${label}${hint}`, 'success');
+    },
+    [markKey, toast]
+  );
 
   // Alt+←/→ 集数切换快捷键
   useEffect(() => {
@@ -258,9 +291,11 @@ function WatchContent() {
                   adFilter={store.adFilter}
                   autoplayNext={store.autoplayNext}
                   skipMark={skipMark}
-                  autoSkipIntro={store.autoSkipIntro}
-                  autoSkipOutro={store.autoSkipOutro}
+                  autoSkipSegments={store.autoSkipSegments}
+                  pendingStart={pendingStart}
+                  onPendingStart={setPendingStart}
                   onPlayerApi={(api) => { playerApiRef.current = api; }}
+                  onRecordSegment={handleRecordSegment}
                   episodeKey={`${sourceKey}:${vodId}:${currentIndex}`}
                   nextUrl={currentIndex + 1 < episodes.length ? episodes[currentIndex + 1] : undefined}
                   nextEpisodeKey={currentIndex + 1 < episodes.length ? `${sourceKey}:${vodId}:${currentIndex + 1}` : undefined}
@@ -310,11 +345,20 @@ function WatchContent() {
                 下一集
               </button>
               <button
-                className="btn-ghost btn-sm"
+                className={cn('btn-ghost btn-sm', skipPanelOpen && 'bg-chip text-content')}
                 aria-expanded={skipPanelOpen}
+                aria-haspopup="dialog"
                 onClick={() => setSkipPanelOpen((v) => !v)}
+                title={
+                  markedCount > 0
+                    ? `本剧已标记 ${markedCount} 段${skipMark?.enabled === false ? '（本剧跳过已关闭）' : ''}`
+                    : '标记片头 / 中段 / 片尾，供本剧各集自动跳过'
+                }
               >
-                片头片尾
+                跳过标记{markedCount > 0 ? ` (${markedCount})` : ''}
+                {markedCount > 0 && skipMark?.enabled === false && (
+                  <span className="ml-1 inline-block size-1.5 rounded-full bg-faint" aria-label="本剧跳过已关闭" />
+                )}
               </button>
               <label className="flex items-center gap-1.5 text-xs text-muted ml-auto cursor-pointer">
                 <input
@@ -327,16 +371,24 @@ function WatchContent() {
               </label>
             </div>
 
-            {skipPanelOpen && (
-              <SkipMarkPanel
-                markKey={markKey}
-                getPlayerClock={() => {
-                  const api = playerApiRef.current;
-                  if (!api) return null;
-                  return { currentTime: api.getCurrentTime(), duration: api.getDuration() };
-                }}
-              />
-            )}
+            <SkipMarkPanel
+              open={skipPanelOpen}
+              onClose={() => setSkipPanelOpen(false)}
+              markKey={markKey}
+              pendingStart={pendingStart}
+              onPendingStart={setPendingStart}
+              getPlayerClock={() => {
+                const api = playerApiRef.current;
+                if (!api) return null;
+                return {
+                  currentTime: api.getCurrentTime(),
+                  duration: api.getDuration(),
+                  seek: (s) => api.seek(s),
+                  pause: () => api.pause(),
+                  isPaused: () => api.isPaused(),
+                };
+              }}
+            />
           </div>
 
           {/* 剧集侧栏 */}

@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { QualityEntry, SourceConfig, LiveSourceConfig, SourceSearchOutcome } from './types';
-import type { SkipMark } from './skip-marks';
+import { migrateSkipMarks, type SkipMark, type SkipSegment } from './skip-marks';
 import { isQualityEntryFresh, mergeQualityEntries, qualityKey } from './quality';
 import { clearLiveProbeResultsDb, loadLiveProbeResults, saveLiveProbeResults } from './db';
 import { PERSIST_KEY, createThrottledStorage } from './persist-storage';
@@ -24,12 +24,13 @@ export interface AppSettings {
   /** 用户是否在设置中主动选择过推荐数据源；为 false 时部署者的 DEFAULT_RECOMMEND_SOURCE 默认值可生效 */
   recommendSourceTouched: boolean;
   autoplayNext: boolean;
-  /** 片头/片尾标记：按归一化剧名持久化，详见 lib/skip-marks.ts */
+  /** 跳过片段：按归一化剧名持久化，详见 lib/skip-marks.ts */
   skipMarks: Record<string, SkipMark>;
-  /** 命中片头标记时自动跳到片头结束位置 */
-  autoSkipIntro: boolean;
-  /** 到达片尾标记时自动结束本集；是否连播下一集仍由 autoplayNext 决定 */
-  autoSkipOutro: boolean;
+  /**
+   * 自动跳过标记的片段：片头/中段跳到片段末尾，片尾则直接结束本集。
+   * 三类都是「标记区间 → 不播」，所以共用同一个开关；是否连播下一集仍由 autoplayNext 决定。
+   */
+  autoSkipSegments: boolean;
   imageProxyMode: 'direct' | 'proxy' | 'custom';
   /** 用户是否在设置中主动选择过封面图加载方式；为 false 时部署者的 DEFAULT_IMAGE_MODE 默认值可生效 */
   imageProxyModeTouched: boolean;
@@ -267,11 +268,13 @@ interface AppState extends AppSettings {
    * 播放时的 videoHeight 才是真实分辨率，实测一旦拿到就覆盖探测结果。
    */
   setQuality: (entries: Record<string, QualityEntry>) => void;
-  /** 写入/更新一部剧的片头片尾标记；字段传 null 表示清除该字段 */
-  setSkipMark: (key: string, patch: { introEnd?: number | null; outroStart?: number | null }) => void;
-  /** 清除单部剧的片头片尾标记 */
+  /** 写入/更新一部剧的跳过片段（整体替换 segments，空数组表示清除） */
+  setSkipMark: (key: string, segments: SkipSegment[]) => void;
+  /** 本剧跳过总开关：关闭后保留标记但不生效 */
+  setSkipMarkEnabled: (key: string, enabled: boolean) => void;
+  /** 清除单部剧的跳过片段 */
   clearSkipMark: (key: string) => void;
-  /** 清除全部片头片尾标记（设置面板的「清除全部」入口） */
+  /** 清除全部跳过片段（设置面板的「清除全部」入口） */
   clearAllSkipMarks: () => void;
   markEnvSubsSeen: (urls: string[]) => void;
   updateSettings: (patch: Partial<Omit<AppSettings, 'customAPIs' | 'selectedKeys'>>) => void;
@@ -319,9 +322,8 @@ export const useAppStore = create<AppState>()(
       recommendSourceTouched: false,
       autoplayNext: true,
       skipMarks: {},
-      // 自动跳过默认开启，但只有用户真正标记过片头/片尾才生效
-      autoSkipIntro: true,
-      autoSkipOutro: true,
+      // 自动跳过默认开启，但只有用户真正标记过片段才生效
+      autoSkipSegments: true,
       // 直连优先：豆瓣封面有公共镜像 + 内置代理两级兜底（见 buildImageCandidates），
       // 默认省服务器流量；老用户保持已持久化的选择不受影响。
       // 部署者可用 DEFAULT_IMAGE_MODE=proxy 下发内置代理优先（最稳定，吃服务器流量）
@@ -740,27 +742,34 @@ export const useAppStore = create<AppState>()(
         set({ qualityMap: mergeQualityEntries(get().qualityMap, entries) });
       },
 
-      setSkipMark: (key, patch) => {
+      setSkipMark: (key, segments) => {
         const marks = get().skipMarks;
-        const prev = marks[key];
-        const next: SkipMark = { ...prev, updatedAt: Date.now() };
-        if ('introEnd' in patch) {
-          if (patch.introEnd == null) delete next.introEnd;
-          else next.introEnd = patch.introEnd;
-        }
-        if ('outroStart' in patch) {
-          if (patch.outroStart == null) delete next.outroStart;
-          else next.outroStart = patch.outroStart;
-        }
-        // 两个字段都清空后整条删除，持久化快照里不留空壳条目
-        if (next.introEnd === undefined && next.outroStart === undefined) {
-          if (!prev) return;
+        // 空片段列表整条删除，持久化快照里不留空壳条目
+        if (!segments || segments.length === 0) {
+          if (!marks[key]) return;
           const rest = { ...marks };
           delete rest[key];
           set({ skipMarks: rest });
           return;
         }
-        set({ skipMarks: { ...marks, [key]: next } });
+        set({
+          skipMarks: {
+            ...marks,
+            [key]: {
+              segments,
+              // 改片段不重置本剧总开关：用户可能只是修一条标错的边界
+              enabled: marks[key]?.enabled ?? true,
+              updatedAt: Date.now(),
+            },
+          },
+        });
+      },
+
+      setSkipMarkEnabled: (key, enabled) => {
+        const marks = get().skipMarks;
+        const mark = marks[key];
+        if (!mark || mark.enabled === enabled) return;
+        set({ skipMarks: { ...marks, [key]: { ...mark, enabled, updatedAt: Date.now() } } });
       },
 
       clearSkipMark: (key) => {
@@ -806,18 +815,48 @@ export const useAppStore = create<AppState>()(
       // v1：直播源新增归属字段、最近观看新增 sourceUrl。
       // v2：直播源归属改为多引用（fromSubscription 单值 → fromSubscriptions 数组）。
       // v3：新增片头片尾标记与自动跳过开关（旧快照缺字段时补默认值）。
+      // v4：片头/片尾双标记泛化为跳过片段 segments（opening/middle/ending）。
+      // v5：标记新增本剧总开关 enabled。
+      // v6：自动跳过由「片头 / 中段」合并为单一开关。
+      // v7：片尾结束也并入同一开关（不再单独提供 autoSkipOutro）。
       // 此前未声明 version 的存量数据会被视为 v0 并走 migrate 补齐。
-      version: 3,
+      version: 7,
       migrate: (persisted, version) => {
         const state = { ...((persisted ?? {}) as Partial<AppState>) };
         if (!Array.isArray(state.liveRecent)) state.liveRecent = [];
         if (!Array.isArray(state.liveSubscriptions)) state.liveSubscriptions = [];
-        // 片头片尾标记必须是非数组对象；损坏的数据不能带进内存，否则读取时会抛错
-        if (!state.skipMarks || typeof state.skipMarks !== 'object' || Array.isArray(state.skipMarks)) {
-          state.skipMarks = {};
+
+        // v3 的片头/片尾双标记 → v4 的 segments（纯函数，脏数据在内部丢弃）
+        state.skipMarks = migrateSkipMarks(
+          (state as unknown as { skipMarks?: unknown }).skipMarks
+        );
+
+        // 「自动跳过」只有一个开关，覆盖片头/中段/片尾（都是「标记区间 → 不播」）。
+        // v3 autoSkipIntro / v4 autoSkipSegments / v5 autoSkipOpening / v5-v6 autoSkipOutro 统一归一：
+        // 以「跳过」开关为准，其次才看旧的分项开关，都没有时按默认开启。
+        const legacy = state as unknown as {
+          autoSkipIntro?: unknown;
+          autoSkipSegments?: unknown;
+          autoSkipOpening?: unknown;
+          autoSkipMiddle?: unknown;
+          autoSkipOutro?: unknown;
+        };
+        if (typeof legacy.autoSkipSegments !== 'boolean') {
+          state.autoSkipSegments =
+            typeof legacy.autoSkipOpening === 'boolean'
+              ? legacy.autoSkipOpening
+              : typeof legacy.autoSkipIntro === 'boolean'
+                ? legacy.autoSkipIntro
+                : typeof legacy.autoSkipOutro === 'boolean'
+                  ? legacy.autoSkipOutro
+                  : true;
         }
-        if (typeof state.autoSkipIntro !== 'boolean') state.autoSkipIntro = true;
-        if (typeof state.autoSkipOutro !== 'boolean') state.autoSkipOutro = true;
+
+        // 迁移完成后清掉旧字段，避免内存里同时存在两套语义
+        for (const stale of ['autoSkipIntro', 'autoSkipOpening', 'autoSkipMiddle', 'autoSkipOutro']) {
+          delete (state as unknown as Record<string, unknown>)[stale];
+        }
+
         if (version < 2) {
           state.liveSubscriptions = state.liveSubscriptions.map((s) => {
             const legacy = s as LiveSubscription & { fromSubscription?: unknown };
@@ -860,8 +899,7 @@ export const useAppStore = create<AppState>()(
         recommendSourceTouched: s.recommendSourceTouched,
         autoplayNext: s.autoplayNext,
         skipMarks: s.skipMarks,
-        autoSkipIntro: s.autoSkipIntro,
-        autoSkipOutro: s.autoSkipOutro,
+        autoSkipSegments: s.autoSkipSegments,
         imageProxyMode: s.imageProxyMode,
         imageProxyModeTouched: s.imageProxyModeTouched,
         customImageProxy: s.customImageProxy,

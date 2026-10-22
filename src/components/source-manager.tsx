@@ -578,24 +578,18 @@ function PlaybackPanel() {
           onChange={(v) => store.updateSettings({ autoplayNext: v })}
         />
         <ToggleRow
-          label="自动跳过片头"
-          description="命中片头标记时自动跳到片头结束位置；关闭后仍显示「跳过片头」按钮（标记在播放页「片头片尾」中设置）"
-          checked={store.autoSkipIntro}
-          onChange={(v) => store.updateSettings({ autoSkipIntro: v })}
-        />
-        <ToggleRow
-          label="自动跳过片尾"
-          description="到达片尾标记时自动结束本集（开启自动连播则继续下一集）；关闭后仍显示「跳过片尾」按钮"
-          checked={store.autoSkipOutro}
-          onChange={(v) => store.updateSettings({ autoSkipOutro: v })}
+          label="自动跳过片段"
+          description="命中片头/中段标记时跳到片段末尾，命中片尾标记时结束本集（是否连播下一集由「自动连播」决定）；关闭后三类都只显示跳过按钮（标记在播放页「跳过标记」中设置）"
+          checked={store.autoSkipSegments}
+          onChange={(v) => store.updateSettings({ autoSkipSegments: v })}
         />
       </div>
 
       {markCount > 0 && (
         <div className="flex items-center justify-between gap-3 pt-3 mt-3 border-t border-line">
           <div className="min-w-0">
-            <div className="text-sm text-content">片头片尾标记</div>
-            <div className="text-xs text-faint">已记录 {markCount} 部；在播放页「片头片尾」中设置</div>
+            <div className="text-sm text-content">跳过片段标记</div>
+            <div className="text-xs text-faint">已记录 {markCount} 部；在播放页「跳过标记」中设置，可逐剧关闭</div>
           </div>
           <button className="btn-ghost btn-sm shrink-0" onClick={() => setClearMarksOpen(true)}>
             清除全部
@@ -606,14 +600,14 @@ function PlaybackPanel() {
       <ConfirmDialog
         open={clearMarksOpen}
         danger
-        title="清除全部片头片尾标记？"
-        message={`将删除已记录的 ${markCount} 部剧的片头片尾标记，之后播放不再自动跳过；可重新在播放页标记。`}
+        title="清除全部跳过片段？"
+        message={`将删除已记录的 ${markCount} 部剧的跳过片段，之后播放不再自动跳过；可重新在播放页标记。`}
         confirmLabel="清除全部"
         onCancel={() => setClearMarksOpen(false)}
         onConfirm={() => {
           store.clearAllSkipMarks();
           setClearMarksOpen(false);
-          toast('已清除全部片头片尾标记', 'success');
+          toast('已清除全部跳过片段标记', 'success');
         }}
       />
 
