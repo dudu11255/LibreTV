@@ -64,6 +64,14 @@ export interface SourceSubscription {
    * 不改动各源自身的勾选状态、也不删除已导入的数据，因此随时可无损恢复。
    */
   enabled?: boolean;
+  /**
+   * 自动刷新周期（天）。undefined = 只手动同步（默认，与历史行为一致）；
+   * 1-365 表示打开站点时按该周期静默刷新（详见 lib/subscription-sync.ts）。
+   * 预置订阅（DEFAULT_SUBSCRIPTIONS）也读这里：用户显式设过就覆盖部署者的默认值。
+   */
+  refreshDays?: number;
+  /** 连续同步失败次数：达到阈值后暂停自动刷新，成功一次清零 */
+  failStreak?: number;
 }
 
 /** 删除点播源后的撤销快照 */
@@ -223,9 +231,15 @@ interface AppState extends AppSettings {
   removeSubscription: (url: string) => void;
   /** 整体启用/停用某个订阅（停用只影响搜索时是否采用，不动各源的勾选状态） */
   setSubscriptionEnabled: (url: string, enabled: boolean) => void;
+  /** 设置自动刷新周期；传 undefined 表示改为纯手动同步 */
+  setSubscriptionRefreshDays: (url: string, days: number | undefined) => void;
   markSubscriptionSynced: (url: string, name?: string, counts?: SubscriptionSyncCounts) => void;
-  /** 记录一次同步失败（保留该订阅与已导入的源，仅更新状态供列表展示） */
-  markSubscriptionFailed: (url: string, error: string) => void;
+  /**
+   * 记录一次同步失败（保留该订阅与已导入的源，仅更新状态供列表展示）。
+   * `countFailure: false` 用于鉴权失败（401/503）——那是会话问题不是源的问题，
+   * 计入连续失败会让自动刷新被误暂停。
+   */
+  markSubscriptionFailed: (url: string, error: string, options?: { countFailure?: boolean }) => void;
   /** 用订阅内容整体替换该订阅名下的点播源，返回新增数量 */
   applySubscriptionSources: (subUrl: string, list: Omit<SourceConfig, 'key'>[]) => number;
   /** 用订阅内容整体替换该订阅名下的直播源，返回新增数量 */
@@ -442,6 +456,8 @@ export const useAppStore = create<AppState>()(
                   lastStatus: 'ok',
                   lastError: undefined,
                   lastCounts: counts ?? s.lastCounts,
+                  // 成功即清零：自动刷新被暂停的订阅会随之恢复
+                  failStreak: 0,
                 }
               : s
           ),
@@ -454,11 +470,27 @@ export const useAppStore = create<AppState>()(
         });
       },
 
-      markSubscriptionFailed: (url, error) => {
-        // 失败不清空已导入的源（旧数据保留），仅记录状态供列表展示
+      setSubscriptionRefreshDays: (url, days) => {
         set({
           subscriptions: get().subscriptions.map((s) =>
-            s.url === url ? { ...s, lastStatus: 'error', lastError: error } : s
+            s.url === url ? { ...s, refreshDays: days } : s
+          ),
+        });
+      },
+
+      markSubscriptionFailed: (url, error, options) => {
+        // 失败不清空已导入的源（旧数据保留），仅记录状态供列表展示
+        const countFailure = options?.countFailure !== false;
+        set({
+          subscriptions: get().subscriptions.map((s) =>
+            s.url === url
+              ? {
+                  ...s,
+                  lastStatus: 'error',
+                  lastError: error,
+                  failStreak: countFailure ? (s.failStreak ?? 0) + 1 : s.failStreak,
+                }
+              : s
           ),
         });
       },
@@ -819,8 +851,10 @@ export const useAppStore = create<AppState>()(
       // v5：标记新增本剧总开关 enabled。
       // v6：自动跳过由「片头 / 中段」合并为单一开关。
       // v7：片尾结束也并入同一开关（不再单独提供 autoSkipOutro）。
+      // v8：订阅新增 refreshDays / failStreak——两者都缺省即「纯手动 + 无失败记录」，
+      //     与旧行为完全一致，因此无需改写存量数据，仅借版本号让 migrate 跑一遍。
       // 此前未声明 version 的存量数据会被视为 v0 并走 migrate 补齐。
-      version: 7,
+      version: 8,
       migrate: (persisted, version) => {
         const state = { ...((persisted ?? {}) as Partial<AppState>) };
         if (!Array.isArray(state.liveRecent)) state.liveRecent = [];

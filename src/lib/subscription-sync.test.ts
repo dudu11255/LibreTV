@@ -8,14 +8,23 @@ vi.mock('./db', () => ({
   saveLiveProbeResults: vi.fn(async () => {}),
 }));
 
-// 订阅内容由服务端代理拉取（需登录），测试中直接 mock
-vi.mock('./client-api', () => ({
-  api: { fetchSourceList: vi.fn() },
-}));
+// 订阅内容由服务端代理拉取（需登录），测试中直接 mock；
+// ApiError 保留真实实现——自动刷新要按 401/503 区分「会话问题」与「源问题」
+vi.mock('./client-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./client-api')>();
+  return { ...actual, api: { fetchSourceList: vi.fn() } };
+});
 
-import { api } from './client-api';
-import { applyEnvPresets } from './subscription-sync';
-import { useAppStore } from './store';
+import { ApiError, api } from './client-api';
+import {
+  applyEnvPresets,
+  autoRefreshSubscriptions,
+  canAutoRefresh,
+  DEFAULT_ENV_SUB_REFRESH_DAYS,
+  isRefreshDue,
+} from './subscription-sync';
+import { DEFAULT_ENV_SUB_REFRESH_DAYS as ENV_DEFAULT_DAYS } from './env-subscriptions';
+import { useAppStore, type SourceSubscription } from './store';
 import type { AuthStatusResponse, SourceListPayload } from './types';
 
 /**
@@ -67,6 +76,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 describe('applyEnvPresets', () => {
@@ -221,5 +231,179 @@ describe('applyEnvPresets · DEFAULT_IMAGE_MODE', () => {
     await applyEnvPresets(status({ defaultImageMode: 'proxy' }));
     expect(useAppStore.getState().imageProxyMode).toBe('proxy');
     expect(useAppStore.getState().imageProxyModeTouched).toBe(false);
+  });
+});
+
+describe('applyEnvPresets · DEFAULT_SUBSCRIPTIONS 的 refreshDays', () => {
+  const subs = (refreshDays?: number) => status({ defaultSubscriptions: [{ url: SUB_URL, refreshDays }] });
+  const at = (iso: string) => vi.setSystemTime(new Date(iso));
+
+  it('未满周期不刷新，满周期即刷新', async () => {
+    vi.useFakeTimers();
+    fetchSourceList.mockResolvedValue(payload);
+
+    at('2026-01-01T00:00:00Z');
+    await applyEnvPresets(subs(10));
+    expect(fetchSourceList).toHaveBeenCalledTimes(1);
+
+    // 差 1 秒满 10 天：仍按缓存跳过
+    at('2026-01-10T23:59:59Z');
+    await applyEnvPresets(subs(10));
+    expect(fetchSourceList).toHaveBeenCalledTimes(1);
+
+    // 满 10 天：静默刷新
+    at('2026-01-11T00:00:00Z');
+    await applyEnvPresets(subs(10));
+    expect(fetchSourceList).toHaveBeenCalledTimes(2);
+  });
+
+  it('未配置 refreshDays 时按 1 天', async () => {
+    vi.useFakeTimers();
+    fetchSourceList.mockResolvedValue(payload);
+
+    at('2026-01-01T00:00:00Z');
+    await applyEnvPresets(subs());
+    expect(fetchSourceList).toHaveBeenCalledTimes(1);
+
+    at('2026-01-01T23:00:00Z');
+    await applyEnvPresets(subs());
+    expect(fetchSourceList).toHaveBeenCalledTimes(1);
+
+    at('2026-01-02T00:00:00Z');
+    await applyEnvPresets(subs());
+    expect(fetchSourceList).toHaveBeenCalledTimes(2);
+  });
+
+  it('改小 refreshDays 后按新周期判断（不因上次同步于旧周期内而永久跳过）', async () => {
+    vi.useFakeTimers();
+    fetchSourceList.mockResolvedValue(payload);
+
+    at('2026-01-01T00:00:00Z');
+    await applyEnvPresets(subs(30));
+    expect(fetchSourceList).toHaveBeenCalledTimes(1);
+
+    // 部署者把周期从 30 天改成 1 天：已过 2 天，应立即刷新
+    at('2026-01-03T00:00:00Z');
+    await applyEnvPresets(subs(1));
+    expect(fetchSourceList).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('自动刷新周期判定', () => {
+  const base: SourceSubscription = { url: SUB_URL };
+  const DAY = 86_400_000;
+
+  it('未设周期一律不自动刷新（默认仍是纯手动）', () => {
+    expect(canAutoRefresh({ ...base, lastSync: 0 })).toBe(false);
+    expect(isRefreshDue(0, undefined)).toBe(false);
+  });
+
+  it('从未同步过视为该刷新', () => {
+    expect(isRefreshDue(undefined, 1)).toBe(true);
+    expect(canAutoRefresh({ ...base, refreshDays: 1 })).toBe(true);
+  });
+
+  it('满周期才刷新，边界与旧版 24h 语义一致', () => {
+    const now = 1_700_000_000_000;
+    expect(isRefreshDue(now - DAY + 1, 1, now)).toBe(false);
+    expect(isRefreshDue(now - DAY, 1, now)).toBe(true);
+    expect(isRefreshDue(now - 7 * DAY, 7, now)).toBe(true);
+  });
+
+  it('连续失败触顶后暂停，未触顶仍刷新', () => {
+    const stale = { ...base, refreshDays: 1, lastSync: 0 };
+    expect(canAutoRefresh({ ...stale, failStreak: 2 })).toBe(true);
+    expect(canAutoRefresh({ ...stale, failStreak: 3 })).toBe(false);
+  });
+
+  it('客户端缺省周期与服务端常量一致（两处重复定义，防漂移）', () => {
+    expect(DEFAULT_ENV_SUB_REFRESH_DAYS).toBe(ENV_DEFAULT_DAYS);
+  });
+});
+
+describe('autoRefreshSubscriptions', () => {
+  const now = Date.now();
+  const DAY = 86_400_000;
+
+  it('只刷新「设了周期且已到期」的订阅', async () => {
+    useAppStore.setState({
+      subscriptions: [
+        { url: 'https://a.example.com/due.json', refreshDays: 1, lastSync: now - 2 * DAY },
+        { url: 'https://b.example.com/fresh.json', refreshDays: 1, lastSync: now - 1000 },
+        { url: 'https://c.example.com/manual.json', lastSync: now - 30 * DAY },
+      ],
+    });
+    fetchSourceList.mockResolvedValue(payload);
+
+    await autoRefreshSubscriptions(now);
+
+    expect(fetchSourceList).toHaveBeenCalledTimes(1);
+    expect(fetchSourceList).toHaveBeenCalledWith('https://a.example.com/due.json');
+  });
+
+  it('失败计入连续失败次数，成功清零', async () => {
+    useAppStore.setState({
+      subscriptions: [{ url: 'https://a.example.com/x.json', refreshDays: 1, lastSync: 0, failStreak: 1 }],
+    });
+    fetchSourceList.mockRejectedValue(new Error('boom'));
+
+    await autoRefreshSubscriptions(now);
+    expect(useAppStore.getState().subscriptions[0].failStreak).toBe(2);
+
+    fetchSourceList.mockResolvedValue(payload);
+    await autoRefreshSubscriptions(now);
+    expect(useAppStore.getState().subscriptions[0].failStreak).toBe(0);
+  });
+
+  it('鉴权失败不计入连续失败（会话问题不是源问题）', async () => {
+    useAppStore.setState({
+      subscriptions: [{ url: 'https://a.example.com/x.json', refreshDays: 1, lastSync: 0, failStreak: 1 }],
+    });
+    fetchSourceList.mockRejectedValue(new ApiError('需要登录', 401));
+
+    await autoRefreshSubscriptions(now);
+
+    const sub = useAppStore.getState().subscriptions[0];
+    expect(sub.failStreak).toBe(1);
+    expect(sub.lastStatus).toBe('error');
+  });
+
+  it('触顶的订阅不会再被自动刷新', async () => {
+    useAppStore.setState({
+      subscriptions: [{ url: 'https://a.example.com/x.json', refreshDays: 1, lastSync: 0, failStreak: 3 }],
+    });
+
+    await autoRefreshSubscriptions(now);
+
+    expect(fetchSourceList).not.toHaveBeenCalled();
+  });
+});
+
+describe('applyEnvPresets · 用户订阅自动刷新的触发条件', () => {
+  const DAY = 86_400_000;
+
+  const seedDue = () =>
+    useAppStore.setState({
+      subscriptions: [{ url: 'https://a.example.com/x.json', refreshDays: 1, lastSync: Date.now() - 2 * DAY }],
+    });
+
+  it('未登录（verified=false）时不触发，避免白打一串 401', async () => {
+    seedDue();
+    await applyEnvPresets(status());
+    expect(fetchSourceList).not.toHaveBeenCalled();
+  });
+
+  it('已登录时触发', async () => {
+    seedDue();
+    fetchSourceList.mockResolvedValue(payload);
+    await applyEnvPresets(status({ verified: true }));
+    expect(fetchSourceList).toHaveBeenCalledTimes(1);
+  });
+
+  it('登录成功回调显式传 verified 可覆盖缓存里过期的 false', async () => {
+    seedDue();
+    fetchSourceList.mockResolvedValue(payload);
+    await applyEnvPresets(status(), { verified: true });
+    expect(fetchSourceList).toHaveBeenCalledTimes(1);
   });
 });

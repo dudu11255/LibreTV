@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Drawer } from './drawer';
 import { ConfirmDialog } from './confirm-dialog';
+import { Dropdown, type DropdownOption } from './dropdown';
 import { Icon, type IconName } from './icon';
 import { LiveSourceManager } from './live-source-manager';
 import {
@@ -28,7 +29,7 @@ import { PERSIST_KEY } from '@/lib/persist-storage';
 import { copyToClipboard } from '@/lib/clipboard';
 import { useAuth } from './auth';
 import { api } from '@/lib/client-api';
-import { syncSourceSubscription } from '@/lib/subscription-sync';
+import { AUTO_REFRESH_MAX_FAIL_STREAK, syncSourceSubscription } from '@/lib/subscription-sync';
 import { describeParseStats } from '@/lib/tvbox-parser';
 
 /**
@@ -763,9 +764,23 @@ function HomePanel() {
 // —— 数据面板 ——
 
 /**
+ * 自动刷新周期选项。值统一用字符串（Dropdown 的 value 是 string），
+ * `off` = 纯手动，保持这个功能对存量用户的默认无感。
+ */
+const REFRESH_OPTIONS: DropdownOption[] = [
+  { value: 'off', label: '手动', hint: '只在点 ⟳ 时同步' },
+  { value: '1', label: '每天', hint: '打开站点时检查' },
+  { value: '3', label: '每 3 天' },
+  { value: '7', label: '每 7 天' },
+  { value: '14', label: '每 14 天' },
+  { value: '30', label: '每 30 天' },
+];
+
+/**
  * 数据源订阅 / 分享：
- * - 订阅：填入远程订阅地址（LibreTV-SourceList JSON 或 TVBOX 配置 JSON，由服务端自动识别），
- *   一次拉取点播源与直播源，可随时重新同步；
+ * - 订阅：填入远程订阅地址（LibreTV-SourceList JSON、TVBOX 配置 JSON 或接口目录 JSON，
+ *   由服务端自动识别），一次拉取点播源与直播源，可随时重新同步；
+ * - 自动刷新：每个订阅可单独设周期（默认手动），到期才在打开站点时静默同步；
  * - 分享：把当前点播源 + 直播源导出为同格式 JSON 文件，托管到任意位置即可被他人订阅。
  */
 function SourceSubscriptions() {
@@ -782,7 +797,12 @@ function SourceSubscriptions() {
       const { vodCount, liveCount, stats } = await syncSourceSubscription(url);
       // 如实说明跳过/截断情况，避免用户疑惑「配置里站点很多，为何只导入了个位数」
       const detail = describeParseStats(stats, { includeSamples: false });
-      const formatLabel = stats?.format === 'tvbox' ? '（TVBOX 配置）' : '';
+      const formatLabel =
+        stats?.format === 'tvbox'
+          ? '（TVBOX 配置）'
+          : stats?.format === 'source-catalog'
+            ? '（接口源列表）'
+            : '';
       toast(`已同步 ${vodCount} 个点播源、${liveCount} 个直播源${formatLabel}${detail ? `；${detail}` : ''}`, 'success');
       setSubUrl('');
     } catch (err) {
@@ -994,6 +1014,13 @@ function SourceSubscriptions() {
             const vodCount = store.customAPIs.filter((a) => keyBelongsToSubscription(a.key, subKeyPrefix(sub.url))).length;
             const liveCount = store.liveSubscriptions.filter((s) => s.fromSubscriptions.includes(sub.url)).length;
             const isSyncing = syncing.has(sub.url);
+            // 自动刷新状态：暂停（连续失败触顶）> 距下次刷新 > 未设周期不提示
+            const paused = Boolean(
+              sub.refreshDays && (sub.failStreak ?? 0) >= AUTO_REFRESH_MAX_FAIL_STREAK
+            );
+            const nextAt =
+              sub.refreshDays && sub.lastSync ? sub.lastSync + sub.refreshDays * 86_400_000 : undefined;
+            const remainingMs = nextAt ? nextAt - Date.now() : 0;
             return (
               <li
                 key={sub.url}
@@ -1032,6 +1059,29 @@ function SourceSubscriptions() {
                     {sub.lastStatus === 'error' && sub.lastError && (
                       <p className="text-[11px] text-danger mt-1 break-all">{sub.lastError}</p>
                     )}
+                    {/* 自动刷新：默认「手动」，显式设了周期才会在打开站点时静默刷新 */}
+                    <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px] text-faint">
+                      <Icon name="clock" className="w-3 h-3 shrink-0" />
+                      <span>自动刷新</span>
+                      <Dropdown
+                        value={sub.refreshDays ? String(sub.refreshDays) : 'off'}
+                        onChange={(v) =>
+                          store.setSubscriptionRefreshDays(sub.url, v === 'off' ? undefined : Number(v))
+                        }
+                        options={REFRESH_OPTIONS}
+                        ariaLabel="自动刷新周期"
+                        className="[&>button]:!py-0.5 [&>button]:!pl-2 [&>button]:!pr-1.5 [&>button]:text-[11px]"
+                      />
+                      {paused ? (
+                        <span className="text-warning">
+                          已暂停：连续失败 {sub.failStreak} 次，手动同步成功即恢复
+                        </span>
+                      ) : remainingMs > 0 ? (
+                        <span>约 {Math.max(1, Math.ceil(remainingMs / 86_400_000))} 天后刷新</span>
+                      ) : sub.refreshDays ? (
+                        <span>下次打开站点时刷新</span>
+                      ) : null}
+                    </div>
                   </div>
                   <Switch
                     checked={sub.enabled !== false}

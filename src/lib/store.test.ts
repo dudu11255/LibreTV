@@ -449,3 +449,75 @@ describe('跳过片段标记', () => {
     expect(store().skipMarks).toEqual({});
   });
 });
+
+describe('订阅自动刷新状态', () => {
+  const subUrl = 'https://sub.example.com/list.json';
+  const otherUrl = 'https://other.example.com/list.json';
+
+  beforeEach(() => {
+    useAppStore.setState({ customAPIs: [], selectedKeys: [], subscriptions: [] });
+    store().addSubscription(subUrl, 'S');
+    store().addSubscription(otherUrl, 'O');
+  });
+
+  const find = (url: string) => store().subscriptions.find((s) => s.url === url);
+
+  it('未设置刷新周期的订阅保持纯手动（refreshDays 为 undefined）', () => {
+    expect(find(subUrl)?.refreshDays).toBeUndefined();
+  });
+
+  it('设置刷新周期只影响目标订阅，传 undefined 可退回手动', () => {
+    store().setSubscriptionRefreshDays(subUrl, 7);
+    expect(find(subUrl)?.refreshDays).toBe(7);
+    expect(find(otherUrl)?.refreshDays).toBeUndefined();
+
+    store().setSubscriptionRefreshDays(subUrl, undefined);
+    expect(find(subUrl)?.refreshDays).toBeUndefined();
+  });
+
+  it('markSubscriptionFailed 记录错误并累加连续失败次数，不清空已导入的源', () => {
+    store().addCustomApi({ key: `${subKeyPrefix(subUrl)}_0`, name: 'A', url: 'https://a.example.com/api.php/provide/vod' });
+
+    store().markSubscriptionFailed(subUrl, 'boom');
+    expect(find(subUrl)?.lastStatus).toBe('error');
+    expect(find(subUrl)?.lastError).toBe('boom');
+    expect(find(subUrl)?.failStreak).toBe(1);
+
+    store().markSubscriptionFailed(subUrl, 'boom again');
+    expect(find(subUrl)?.failStreak).toBe(2);
+    // 关键：失败只是状态，源还在，用户可以继续用旧数据
+    expect(store().customAPIs).toHaveLength(1);
+    // 只影响本订阅
+    expect(find(otherUrl)?.failStreak).toBeUndefined();
+  });
+
+  it('countFailure: false（鉴权失败）不计入连续失败，避免自动刷新被误暂停', () => {
+    store().markSubscriptionFailed(subUrl, 'unauthorized');
+    expect(find(subUrl)?.failStreak).toBe(1);
+
+    // 401/503 属于会话问题，连续三次也不该把 failStreak 推高
+    for (let i = 0; i < 3; i++) store().markSubscriptionFailed(subUrl, 'unauthorized', { countFailure: false });
+    expect(find(subUrl)?.failStreak).toBe(1);
+    // 但状态仍要如实反映失败
+    expect(find(subUrl)?.lastStatus).toBe('error');
+  });
+
+  it('markSubscriptionSynced 清零连续失败次数，被暂停的自动刷新随之恢复', () => {
+    for (let i = 0; i < 3; i++) store().markSubscriptionFailed(subUrl, 'boom');
+    expect(find(subUrl)?.failStreak).toBe(3);
+
+    store().markSubscriptionSynced(subUrl);
+    expect(find(subUrl)?.failStreak).toBe(0);
+    expect(find(subUrl)?.lastStatus).toBe('ok');
+    expect(find(subUrl)?.lastError).toBeUndefined();
+    expect(find(subUrl)?.lastSync).toBeGreaterThan(0);
+  });
+
+  it('改刷新周期不会重置失败计数，改完仍按原失败次数判断是否暂停', () => {
+    for (let i = 0; i < 2; i++) store().markSubscriptionFailed(subUrl, 'boom');
+    store().setSubscriptionRefreshDays(subUrl, 3);
+
+    expect(find(subUrl)?.refreshDays).toBe(3);
+    expect(find(subUrl)?.failStreak).toBe(2);
+  });
+});

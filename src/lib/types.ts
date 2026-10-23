@@ -135,7 +135,7 @@ export interface AuthStatusResponse {
   /** 部署者通过 DEFAULT_LIVE_SOURCES 环境变量预置的直播源（未配置时为空数组） */
   defaultLiveSources: LiveSourceConfig[];
   /** 部署者通过 DEFAULT_SUBSCRIPTIONS 环境变量预置的 SourceList 订阅链接（未配置时为空数组） */
-  defaultSubscriptions: { url: string; name?: string }[];
+  defaultSubscriptions: { url: string; name?: string; refreshDays?: number }[];
   /** 部署者通过 DEFAULT_RECOMMEND_SOURCE 环境变量指定的首页推荐数据源默认值（未配置时为 null） */
   defaultRecommendSource: 'douban' | 'bangumi' | 'hot-list' | null;
   /** 部署者通过 DEFAULT_IMAGE_MODE 环境变量指定的封面图加载方式默认值（未配置时为 null） */
@@ -204,13 +204,15 @@ export type SubscriptionSkipReason =
   | 'unsearchable'
   /** 直播源不是 M3U 播放列表（如 txt 频道列表、单仓 JSON） */
   | 'nonM3uLive'
+  /** 接口目录条目自身标记 enabled: false（发布者主动停用，不是异常） */
+  | 'disabled'
   /** 地址非法、非 http(s) 或未通过服务端公网校验 */
   | 'invalidUrl';
 
 /** 订阅解析统计：说明跳过与截断情况，用于导入结果提示 */
 export interface SubscriptionParseStats {
   /** 识别出的订阅格式 */
-  format: 'libretv' | 'tvbox';
+  format: 'libretv' | 'tvbox' | 'source-catalog';
   /** 被跳过的条目总数 */
   skipped: number;
   /** 跳过原因分类计数 */
@@ -224,7 +226,8 @@ export interface SubscriptionParseStats {
 /**
  * 远程订阅解析结果。
  * `sources` 为点播源（Apple CMS 采集站），`liveSources` 为直播源（M3U + 可选 EPG）。
- * 兼容两种订阅格式：LibreTV-SourceList JSON 与 TVBOX 配置 JSON（`sites` / `lives`）。
+ * 兼容三种订阅格式：LibreTV-SourceList JSON、TVBOX 配置 JSON（`sites` / `lives`）、
+ * 接口目录（裸数组 `{name, baseUrl, enabled}`，仅点播）。
  * 老格式订阅只有 `sources`，此时 `liveSources` 为空数组。
  */
 export interface SourceListPayload {

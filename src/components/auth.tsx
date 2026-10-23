@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           queryFn: () => api.status(),
           staleTime: 0,
         }));
-      if (status) await applyEnvPresets(status);
+      if (status) await applyEnvPresets(status, { verified: true });
     } catch {
       // 补拉预置数据失败不影响登录后的正常使用
     }
