@@ -56,6 +56,15 @@ jobs:
           # 不剔除的话这个包只能在 x64 上跑，失去跨架构的意义
           rm -rf node_modules/sharp node_modules/@img
 
+          # next build 会把项目根的 .env* 一并复制进 standalone（本地实测会带 PASSWORD）。
+          # 发布包是公开下载的，绝不能带任何环境文件；删完再兜底校验
+          rm -f .env .env.*
+          if find . -maxdepth 1 -name '.env*' | grep -q .; then
+            echo '::error::产物里仍有 .env 文件，拒绝发布'
+            find . -maxdepth 1 -name '.env*'
+            exit 1
+          fi
+
           # 兜底校验：只要还有 .node，就说明有原生模块漏了，宁可失败也不要发一个坏包
           if find . -name '*.node' | grep -q .; then
             echo '::error::产物里仍有原生模块，跨架构不可用：'
