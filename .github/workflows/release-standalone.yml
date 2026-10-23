@@ -138,6 +138,8 @@ jobs:
           GHCR="ghcr.io/${GITHUB_REPOSITORY,,}"
           HUB="docker.io/bestzwei/libretv"
           PREV="$(git describe --tags --abbrev=0 "${TAG}^" 2> /dev/null || true)"
+          # 写到 RUNNER_TEMP，不落在工作区（避免本地复现时在仓库里留文件）
+          NOTES="${RUNNER_TEMP}/release-notes.md"
 
           {
             echo '## 获取方式'
@@ -170,10 +172,11 @@ jobs:
             else
               echo "完整提交：https://github.com/${GITHUB_REPOSITORY}/commits/${TAG}"
             fi
-          } > release-notes.md
+          } > "$NOTES"
 
           echo "TAG=$TAG" >> "$GITHUB_ENV"
-          cat release-notes.md
+          echo "NOTES_FILE=$NOTES" >> "$GITHUB_ENV"
+          cat "$NOTES"
 
       - name: 创建 Release 并上传资产
         if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
@@ -184,6 +187,6 @@ jobs:
           if gh release view "$TAG" > /dev/null 2>&1; then
             echo "::notice::Release $TAG 已存在，只更新附件，说明保持不变"
           else
-            gh release create "$TAG" --title "$TAG" --notes-file release-notes.md
+            gh release create "$TAG" --title "$TAG" --notes-file "$NOTES_FILE"
           fi
           gh release upload "$TAG" dist/*.tar.gz dist/SHA256SUMS --clobber
