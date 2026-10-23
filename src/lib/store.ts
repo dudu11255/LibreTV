@@ -971,11 +971,6 @@ export function isSourceDisabled(
 }
 
 /**
- * 源是否来自一个被用户整体停用的订阅。
- * 与 isSourceDisabled 分开判断：一个是用户主动关的、一个是系统按连续失败关的，
- * 提示文案与恢复方式都不同，混在一起用户就看不懂源为什么不生效了。
- */
-/**
  * 读取某「源 + 影片」的画质记录（直接查内存态，不订阅 store）。
  * 结果列表一次可能有十几张卡片 × 十几个来源，订阅整个 map 会让每次探测
  * 结果都触发所有卡片重渲染，因此只在展开面板 / 探测回调时用 getState 读。
@@ -999,6 +994,11 @@ export function readQualities(pairs: Array<{ sourceKey: string; vodId: string }>
   return out;
 }
 
+/**
+ * 源是否来自一个被用户整体停用的订阅。
+ * 与 isSourceDisabled 分开判断：一个是用户主动关的、一个是系统按连续失败关的，
+ * 提示文案与恢复方式都不同，混在一起用户就看不懂源为什么不生效了。
+ */
 export function isInDisabledSubscription(
   state: Pick<AppState, 'subscriptions'>,
   key: string
