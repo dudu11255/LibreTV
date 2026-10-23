@@ -1,0 +1,108 @@
+name: release-standalone
+
+# 打版本 tag（v*）时，除多架构镜像外再产出一个与 CPU 架构无关的预构建包：
+# 解压后 `node server.js` 即可运行，供 armv7（路由器 / 梅林固件）、无 Docker 的环境使用。
+#
+# 为什么不需要按架构重新构建：运行期依赖全是纯 JS，唯一与架构绑定的是 next 的可选依赖
+# sharp（图片优化用）。本项目 images.unoptimized 且不使用 next/image，打包前剔除即可，
+# 于是同一份产物可以在任意架构的 Node 18+ 上运行。
+#
+# 与 docker-publish 的关系：两者都监听 v* tag，互不依赖；镜像仍按架构在原生 runner 上构建。
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write # 创建 Release 并上传资产
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --no-audit --no-fund
+
+      # next.config.ts 只在 DOCKER_BUILD=1 时启用 output: 'standalone'
+      - name: 构建 standalone 产物
+        env:
+          DOCKER_BUILD: '1'
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: npm run build
+
+      - name: 组装可移植包目录
+        working-directory: .next/standalone
+        run: |
+          # standalone 只含 server.js 与按需 trace 的 node_modules，
+          # 静态资源与 public 需按 Dockerfile 的方式补进来
+          cp -r ../../public ./public
+          mkdir -p ./.next
+          cp -r ../static ./.next/static
+
+          # sharp 会把构建机的平台二进制（@img/sharp-linuxmusl-x64）带进产物，
+          # 不剔除的话这个包只能在 x64 上跑，失去跨架构的意义
+          rm -rf node_modules/sharp node_modules/@img
+
+          # 兜底校验：只要还有 .node，就说明有原生模块漏了，宁可失败也不要发一个坏包
+          if find . -name '*.node' | grep -q .; then
+            echo '::error::产物里仍有原生模块，跨架构不可用：'
+            find . -name '*.node'
+            exit 1
+          fi
+
+      - name: 冒烟测试
+        working-directory: .next/standalone
+        run: |
+          # 必须重定向输出：后台进程占着 stdout 会让这一步一直挂着不结束
+          PORT=3000 HOSTNAME=127.0.0.1 node server.js > /tmp/standalone.log 2>&1 &
+          SERVER_PID=$!
+          for i in $(seq 1 30); do
+            sleep 1
+            if curl -fsS http://127.0.0.1:3000/api/status > /dev/null; then
+              echo "启动正常（${i}s）"
+              kill "$SERVER_PID"
+              exit 0
+            fi
+          done
+          echo '::error::standalone 包启动失败，不发布'
+          cat /tmp/standalone.log
+          kill "$SERVER_PID" 2> /dev/null || true
+          exit 1
+
+      - name: 打包
+        run: |
+          VER="$(node -p "require('./package.json').version")"
+          mkdir -p dist
+          tar -czf "dist/libretv-${VER}-standalone.tar.gz" -C .next/standalone .
+          (cd dist && sha256sum libretv-*.tar.gz > SHA256SUMS)
+          ls -lh dist
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: standalone-${{ github.ref_name }}
+          path: dist/
+          if-no-files-found: error
+
+      # 手动触发时没有 tag，只留 artifact；tag 触发才挂到 Release
+      - name: 附加到 Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VER="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "v${VER}" ]; then
+            echo "::warning::tag ${TAG} 与 package.json 的 ${VER} 不一致，文件仍按 ${VER} 命名"
+          fi
+          gh release view "$TAG" > /dev/null 2>&1 \
+            || gh release create "$TAG" --title "$TAG" --generate-notes
+          gh release upload "$TAG" dist/*.tar.gz dist/SHA256SUMS --clobber
