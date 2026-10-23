@@ -23,7 +23,8 @@ services:
       # 可选：预置直播源（M3U 订阅，JSON 数组），epg 为可选节目单地址
       # - DEFAULT_LIVE_SOURCES=[{"name":"示例直播源","url":"https://example.com/list.m3u","epg":"https://example.com/epg.xml.gz"}]
       # 可选：预置数据源订阅（SourceList JSON 链接，一次下发点播源 + 直播源）
-      # - DEFAULT_SUBSCRIPTIONS=["https://example.com/sources.json"]
+      # refreshDays 为该订阅的静默刷新周期初始值（1-365 天，缺省 1 天），可省略；用户在面板改过后以面板为准
+      # - DEFAULT_SUBSCRIPTIONS=["https://example.com/sources.json", {"url":"https://example.com/list.json","name":"名称","refreshDays":10}]
       # 可选：首页推荐数据源默认值（douban / bangumi / hot-list），仅对未主动选择过的用户生效
       # - DEFAULT_RECOMMEND_SOURCE=douban
       # 可选：自建内网 IPTV 放行（对拉列表、测活、拉流三个阶段同时生效，默认关闭以维持 SSRF 防护）

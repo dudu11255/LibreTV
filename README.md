@@ -113,7 +113,7 @@ PASSWORD=your-password npm start   # 监听 8080
 | `COOKIE_SECURE` | 否 | 显式覆盖会话 cookie 的 `Secure` 标记（`true` / `false`）；默认按请求协议自动推导。反向代理未正确传递 `x-forwarded-proto` 导致 HTTPS 下登录失效时，设为 `true` 可解 |
 | `60S_API_BASE` | 否 | 影视榜单推荐源（60s API）实例地址，默认 `https://60s.crystelf.top`；有限流，高频使用可[自部署](https://github.com/vikiboss/60s) |
 | `DEFAULT_LIVE_SOURCES` | 否 | 预置直播源（M3U 订阅），JSON 数组：`[{"name":"源名","url":"https://.../list.m3u","epg":"https://.../epg.xml.gz"}]`，`epg` 为可选的 XMLTV 节目单地址 |
-| `DEFAULT_SUBSCRIPTIONS` | 否 | 预置数据源订阅（LibreTV-SourceList JSON 链接，也接受 TVBOX 配置地址），JSON 数组：`["https://.../sources.json", {"url":"https://.../list.json","name":"名称"}]`。首次访问自动导入点播源与直播源，之后每 24h 静默刷新；用户删除后不再自动加回 |
+| `DEFAULT_SUBSCRIPTIONS` | 否 | 预置数据源订阅（LibreTV-SourceList JSON 链接，也接受 TVBOX 配置与接口目录地址），JSON 数组：`["https://.../sources.json", {"url":"https://.../list.json","name":"名称","refreshDays":10}]`。首次访问自动导入点播源与直播源，之后按 `refreshDays`（1-365，缺省 1 天）静默刷新；用户删除后不再自动加回。`refreshDays` 只是初始值，用户在源管理面板改过之后以面板设置为准 |
 | `DEFAULT_RECOMMEND_SOURCE` | 否 | 首页推荐数据源的默认值（`douban` / `bangumi` / `hot-list`，出厂默认 `hot-list`）；仅对未在设置中主动选择过的用户生效，用户的选择始终优先 |
 | `LIVE_ALLOW_PRIVATE` | 否 | 设为 `1` 时允许直播流代理访问内网/保留地址（自建 IPTV 场景），默认关闭以维持 SSRF 防护 |
 
@@ -199,10 +199,26 @@ PASSWORD=your-password npm start   # 监听 8080
 - **格式容错**：配置里的 `//` 注释、尾随逗号、字符串内未转义的换行会自动修正后再解析（共享配置中很常见，TVBOX 客户端用的 fastjson 同样容忍这些写法）；
 - 其他限制：订阅地址需直接返回 JSON（Base64 / 压缩包装的分享链接不支持）；TVBOX「多仓」配置（顶层为 `urls` 数组）不支持，请填单仓配置；地址公网校验、去重与数量上限与上方格式完全一致。
 
+### 兼容接口目录（source-catalog）
+
+订阅地址也可以填一份**接口目录**——裸数组，元素为 `{ "name": "...", "baseUrl": "..." }`：
+
+```json
+[
+  { "name": "示例接口", "baseUrl": "https://example.com/api.php/provide/vod" },
+  { "name": "已停用的接口", "baseUrl": "https://old.example.com/api.php/provide/vod", "enabled": false }
+]
+```
+
+- 只导入 `baseUrl`（点播接口），**不含直播源**；`enabled` 缺省视为启用，写 `false` 的条目跳过并在结果里计数；
+- 顶层数组**全部条目都带 `baseUrl`** 才按接口目录解析；混用 `baseUrl` 与 `url` 两种条目会直接报格式错误，避免其中一批被静默丢弃；
+- 地址归一化、去重与数量上限与 LibreTV 源列表一致（`baseUrl` 去尾部斜杠与空的 `?` / `#`）。
+
 ### 订阅行为
 
 - **订阅**：设置 → 源管理 → 数据源订阅 → 填入订阅地址 → 「订阅」，导入的点播源自动勾选、直播源自动启用，均带「订阅」标识，条目上显示「点播 N · 直播 M」；
 - **同步**：订阅条目上的 **⟳** 手动强制同步，整体替换该订阅名下的点播源与直播源；
+- **自动刷新**：每个订阅可单独设置刷新周期（条目上的周期下拉：关闭 / 1 / 3 / 7 / 14 / 30 天，默认**关闭**即纯手动）。设为 N 天后，打开站点时检查是否到期，到期才在后台静默同步；单次最多刷新 5 个、并发 2 个，页面不可见或离线时跳过，不阻塞首屏。连续失败 3 次自动暂停该订阅（条目显示「已暂停」），手动同步成功或改周期后恢复计数。环境变量 `DEFAULT_SUBSCRIPTIONS` 里的 `refreshDays` 只作为**初始值**，用户在面板里改过之后以面板为准；
 - **管理边界**：订阅源以远端列表为准，单独编辑会在下次同步时被覆盖，单独移除会在重新同步时恢复；如需调整请改远端列表，或直接删除整个订阅。删除订阅时点播源全部移除；直播源为**多归属共享**——同一 M3U 可被多个订阅引用（名称/EPG 以首次导入为准），删除订阅或远端列表中移除该源后再同步，都只摘除本订阅的引用，仅当不再被任何订阅引用时才移除该源，手动添加的源不受同步影响，**收藏的频道始终保留**；
 - **导出分享**：设置 → 源管理 → 数据源订阅 → 「导出数据源」，把当前全部点播源与直播源（预置 + 手动 + 订阅，按 URL 去重）导出为上述 JSON；也可用「发布为链接」，把当前**已勾选启用**的源一键上传到公开粘贴板（paste.rs，失败自动降级 0x0.st），直接返回可填入订阅框的 URL，无需自备托管。注意：发布的内容**公开可读**，且每次发布生成新链接、不支持覆盖更新，需长期稳定请用导出 + 自行托管。
 
