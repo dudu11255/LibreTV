@@ -27,7 +27,10 @@ jobs:
   package:
     runs-on: ubuntu-latest
     steps:
+      # 拉全量历史与 tag：发版说明要算上一版（git describe）
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -108,10 +111,9 @@ jobs:
 
       # tag 触发直接挂到该 tag 的 Release；手动触发则在填了 tag 输入时才挂，
       # 留空只出 artifact（方便先试跑打包链路，不碰任何 Release）
-      - name: 附加到 Release
+      - name: 生成发布说明
         if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
         env:
-          GH_TOKEN: ${{ github.token }}
           TAG_INPUT: ${{ inputs.tag }}
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
@@ -122,14 +124,66 @@ jobs:
           if [ -z "$TAG" ]; then
             echo '::error::手动触发需要填写 tag 输入'; exit 1
           fi
-          # 只往已存在的 tag 上挂资产：避免 gh 顺手按默认分支新建一个 tag
+          # 只认已存在的 tag：避免 gh 顺手按默认分支新建一个指错提交的 tag
           if ! git ls-remote --exit-code --tags origin "refs/tags/${TAG}" > /dev/null; then
             echo "::error::远端没有 tag ${TAG}，请先推送 tag 或检查输入"; exit 1
           fi
+
           VER="$(node -p "require('./package.json').version")"
           if [ "$TAG" != "v${VER}" ]; then
             echo "::warning::tag ${TAG} 与 package.json 的 ${VER} 不一致，文件仍按 ${VER} 命名"
           fi
-          gh release view "$TAG" > /dev/null 2>&1 \
-            || gh release create "$TAG" --title "$TAG" --generate-notes
+
+          # 镜像名与 docker-publish 保持一致：GHCR 按仓库全名转小写，Docker Hub 固定
+          GHCR="ghcr.io/${GITHUB_REPOSITORY,,}"
+          HUB="docker.io/bestzwei/libretv"
+          PREV="$(git describe --tags --abbrev=0 "${TAG}^" 2> /dev/null || true)"
+
+          {
+            echo '## 获取方式'
+            echo
+            echo '### Docker（多架构 linux/amd64 / linux/arm64）'
+            echo
+            echo '```bash'
+            echo "docker pull ${HUB}:${VER}"
+            echo "docker pull ${GHCR}:${VER}"
+            echo '```'
+            echo
+            echo "两个 registry 的镜像内容一致（同一组 digest），\`latest\` 也指向本版本。"
+            echo
+            echo '### 免 Docker（下方附件，Node 18+）'
+            echo
+            echo '```bash'
+            echo "sha256sum -c SHA256SUMS"
+            echo "tar -xzf libretv-${VER}-standalone.tar.gz -C libretv"
+            echo "cd libretv && PASSWORD=your-password PORT=8080 node server.js"
+            echo '```'
+            echo
+            echo '预构建包与 CPU 架构无关（x86_64 / arm64 / armv7），环境变量与 Docker 部署一致。'
+            echo
+            echo '> 镜像由 docker-publish 工作流在同一 tag 上构建，刚发布时可能还要 5–10 分钟才可拉取。'
+            echo
+            echo '## 变更'
+            echo
+            if [ -n "$PREV" ]; then
+              echo "完整对比：https://github.com/${GITHUB_REPOSITORY}/compare/${PREV}...${TAG}"
+            else
+              echo "完整提交：https://github.com/${GITHUB_REPOSITORY}/commits/${TAG}"
+            fi
+          } > release-notes.md
+
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          cat release-notes.md
+
+      - name: 创建 Release 并上传资产
+        if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 已存在的 Release 只补资产、不覆盖说明（说明可能是人工改过的）
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "::notice::Release $TAG 已存在，只更新附件，说明保持不变"
+          else
+            gh release create "$TAG" --title "$TAG" --notes-file release-notes.md
+          fi
           gh release upload "$TAG" dist/*.tar.gz dist/SHA256SUMS --clobber
