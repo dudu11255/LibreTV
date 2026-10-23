@@ -71,7 +71,7 @@ docker compose pull && docker compose up -d
 镜像发布在 GHCR 与 Docker Hub：`ghcr.io/librespark/libretv` 与 `docker.io/bestzwei/libretv`
 （`latest` / `主.次` / 完整版本号三个 tag，`linux/amd64` 与 `linux/arm64` 双架构，
 两个 registry 的镜像 digest 一致）。需要固定版本时在 `.env` 中设置
-`LIBRETV_IMAGE=ghcr.io/librespark/libretv:2.0.1`。
+`LIBRETV_IMAGE=ghcr.io/librespark/libretv:<版本>`。
 
 > 版本号以 `package.json` 为单一来源，部署后可用 `/api/status` 返回的 `version` 字段核对。详见[部署文档](https://libretv.is-an.org/wiki/Deployment.html)。
 
@@ -80,7 +80,9 @@ docker compose pull && docker compose up -d
 每个版本都会在 [Releases](https://github.com/LibreSpark/LibreTV/releases) 附一个 `libretv-<版本>-standalone.tar.gz` 与对应的 `SHA256SUMS`，解压后直接用 Node 启动：
 
 ```bash
-tar -xzf libretv-2.20.3-standalone.tar.gz -C libretv
+# 版本号替换为 Releases 中的实际版本（也可用 /api/status 返回的 version 核对）
+VER="<版本>"
+tar -xzf "libretv-${VER}-standalone.tar.gz" -C libretv
 cd libretv
 PASSWORD=your-password PORT=8080 node server.js
 ```
