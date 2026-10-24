@@ -66,7 +66,8 @@ services:
 docker compose pull && docker compose up -d
 ```
 
-> ⚠️ **生产部署必须通过 HTTPS 访问**（localhost 除外）：生产模式下会话 cookie 带 `Secure` 标记，浏览器只在 HTTPS（或 localhost）下保存它。因此用 `http://服务器IP:端口` 访问时，会出现"密码正确却无法登录"的现象——登录请求实际成功，但 cookie 被浏览器丢弃。请通过反向代理（Nginx / Caddy / Traefik）或 Cloudflare 等为站点套上 TLS 后再对外提供服务；本地开发用 `localhost` 不受影响。
+> 💡 **对外提供服务建议套上 HTTPS**：登录密码在 POST body 中以明文传输，公网 HTTP 会被中间人看到，推荐用反向代理（Nginx / Caddy / Traefik）或 Cloudflare 终结 TLS。
+> 登录本身**不依赖 HTTPS**：会话 cookie 的 `Secure` 标记按请求协议（`x-forwarded-proto`）自动推导，`http://服务器IP:端口` 也能正常登录，不会再出现"密码正确却无法登录"。需要强制指定时用 `COOKIE_SECURE`。
 
 镜像发布在 GHCR 与 Docker Hub：`ghcr.io/librespark/libretv` 与 `docker.io/bestzwei/libretv`
 （`latest` / `主.次` / 完整版本号三个 tag，`linux/amd64` 与 `linux/arm64` 双架构，
@@ -82,10 +83,13 @@ docker compose pull && docker compose up -d
 ```bash
 # 版本号替换为 Releases 中的实际版本（也可用 /api/status 返回的 version 核对）
 VER="<版本>"
+mkdir -p libretv                      # 包内没有顶层目录，目标目录必须先存在
 tar -xzf "libretv-${VER}-standalone.tar.gz" -C libretv
 cd libretv
 PASSWORD=your-password PORT=8080 node server.js
 ```
+
+> 不传 `PORT` 时监听 **3000**（standalone 的 `server.js` 默认值），与 Docker 镜像内的 8080 不同，按需显式指定即可。
 
 包内是 Next.js standalone 产物（`server.js` + `public` + 静态资源 + 运行时依赖），**与 CPU 架构无关**，x86_64 / arm64 / armv7 都能跑，适合用不了 Docker 的设备（如 ARMv7 路由器）。环境变量与 Docker 部署一致（`PASSWORD`、`PORT` 等），需要 Node 18+；包内不含 `sharp`（本项目不开图片优化，封面走代理原图）。
 
@@ -110,7 +114,7 @@ PASSWORD=your-password npm start   # 监听 8080
 | `SEARCH_SOURCE_TIMEOUT_MS` | 否 | 单个搜索源的总死线（毫秒，3s-60s，默认 10000）：该源所有分页请求须在时限内完成，到点中断并将其标记为「超时」；健康度自动停用也以此为超时判定依据 |
 | `USER_AGENT` | 否 | 代理请求使用的 UA（豆瓣封面防盗链等场景），默认 Chrome UA |
 | `FALLBACK_CORS_PROXY` | 否 | 豆瓣推荐数据直连被拒时降级使用的 CORS 代理地址 |
-| `COOKIE_SECURE` | 否 | 显式覆盖会话 cookie 的 `Secure` 标记（`true` / `false`）；默认按请求协议自动推导。反向代理未正确传递 `x-forwarded-proto` 导致 HTTPS 下登录失效时，设为 `true` 可解 |
+| `COOKIE_SECURE` | 否 | 显式覆盖会话 cookie 的 `Secure` 标记（`true` / `false`）；默认按 `x-forwarded-proto` 自动推导。反向代理终结了 TLS 但没传这个头时，cookie 不会带 `Secure`（不影响登录，但少了这层保护），设 `true` 可强制 |
 | `60S_API_BASE` | 否 | 影视榜单推荐源（60s API）实例地址，默认 `https://60s.crystelf.top`；有限流，高频使用可[自部署](https://github.com/vikiboss/60s) |
 | `DEFAULT_LIVE_SOURCES` | 否 | 预置直播源（M3U 订阅），JSON 数组：`[{"name":"源名","url":"https://.../list.m3u","epg":"https://.../epg.xml.gz"}]`，`epg` 为可选的 XMLTV 节目单地址 |
 | `DEFAULT_SUBSCRIPTIONS` | 否 | 预置数据源订阅（LibreTV-SourceList JSON 链接，也接受 TVBOX 配置与接口目录地址），JSON 数组：`["https://.../sources.json", {"url":"https://.../list.json","name":"名称","refreshDays":10}]`。首次访问自动导入点播源与直播源，之后按 `refreshDays`（1-365，缺省 1 天）静默刷新；用户删除后不再自动加回。`refreshDays` 只是初始值，用户在源管理面板改过之后以面板设置为准 |
