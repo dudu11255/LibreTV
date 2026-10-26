@@ -572,6 +572,26 @@ export function PlayerShell({
     art.on('fullscreenWeb', renderSkipMarks);
     art.on('resize', renderSkipMarks);
 
+    /**
+     * 倍速跨集保持（issue #955）。
+     *
+     * 换源会让媒体元素重新走一遍 load 算法，而该算法只动一个播放属性：
+     * `playbackRate = defaultPlaybackRate`。所以只要让 defaultPlaybackRate 始终
+     * 等于用户选的倍速，这次「归位」就变成空操作——而且一次覆盖全部重载路径：
+     * 换集、直连失败转代理、video:error 重建，以及 hls.js 内部
+     * recoverMediaError 的 detach/attach（那条路径不经过 setupHls，只在
+     * loadEpisode 里补写 playbackRate 是够不着的）。
+     *
+     * 判断依据：归位时新值必然等于 defaultPlaybackRate，跳过即可。必须跳过——
+     * 归位确实会派发 ratechange，无差别同步会把默认值自己写成 1，机制当场失效。
+     */
+    art.on('video:ratechange', () => {
+      const video = art.video;
+      if (video && video.playbackRate !== video.defaultPlaybackRate) {
+        video.defaultPlaybackRate = video.playbackRate;
+      }
+    });
+
     // 播放页「记录当前」需要精确时间：不能依赖 5s 节流的 onTimeUpdate
     propsRef.current.onPlayerApi?.({
       getCurrentTime: () => {
