@@ -8,6 +8,7 @@ vitest-results.json
 *.log
 
 # AI 工具产物（本机会话/缓存数据，不入库）
+.workbuddy/
 .mimosa/
 .zcode/
 .codebuddy/
