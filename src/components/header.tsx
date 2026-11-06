@@ -97,10 +97,14 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
           <div className="flex-1 sm:hidden" />
 
           <nav className="flex items-center gap-1 ml-auto">
+            <HeaderLink href="/category" active={pathname === '/category'}>
+              分类
+            </HeaderLink>
             <HeaderLink href="/live" active={pathname === '/live'}>
               直播
             </HeaderLink>
-            <HeaderLink href="/about" active={pathname === '/about'}>
+            {/* 窄屏放不下三个文字入口：关于页优先级最低，收进小屏之外 */}
+            <HeaderLink href="/about" active={pathname === '/about'} className="hidden sm:inline-flex">
               关于
             </HeaderLink>
             <ThemeToggle />
@@ -123,13 +127,24 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
   );
 }
 
-function HeaderLink({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
+function HeaderLink({
+  href,
+  active,
+  className,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
     <Link
       href={href}
       className={cn(
         'px-2.5 py-1.5 rounded-md text-sm transition-colors',
-        active ? 'text-content bg-hover' : 'text-muted hover:text-content'
+        active ? 'text-content bg-hover' : 'text-muted hover:text-content',
+        className
       )}
     >
       {children}

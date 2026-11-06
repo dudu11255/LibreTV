@@ -98,6 +98,53 @@ export interface QualityProbeResult {
   error?: string;
 }
 
+// —— 视频分类（按采集站的 type 树浏览） ——
+
+/** 采集站的单个分类节点（Apple CMS 的 class 条目） */
+export interface CmsClass {
+  /** type_id（字符串化：部分源返回数字、部分返回字符串） */
+  id: string;
+  /** type_name，如「动作片」「国产剧」 */
+  name: string;
+  /** type_pid，0 表示顶级分类 */
+  pid: string;
+}
+
+/** 单源分类拉取结果：一个源失败不影响其余源 */
+export interface SourceCategoryOutcome {
+  sourceKey: string;
+  sourceName: string;
+  ok: boolean;
+  error?: string;
+  classes: CmsClass[];
+}
+
+/** 归并后的大类（电影 / 电视剧 / …），subs 为该大类下各源的子分类 */
+export interface CategoryGenre {
+  name: string;
+  /** 提供该大类的源数量 */
+  sources: number;
+  /** 该大类下去重后的分类数（各源同名分类只算一次） */
+  types: number;
+  subs: { name: string; count: number }[];
+}
+
+export interface CategoryTreeResponse {
+  sources: SourceCategoryOutcome[];
+  genres: CategoryGenre[];
+}
+
+export interface CategoryListResponse {
+  list: SearchResultItem[];
+  failures: { sourceKey: string; error: string; timedOut?: boolean }[];
+  /** 本次返回的页码（从 1 开始） */
+  page: number;
+  /** 仍有源存在下一页 */
+  hasMore: boolean;
+  /** 实际参与抓取的源数（选中分类在该源不存在的会被跳过） */
+  usedSources: number;
+}
+
 // —— API 响应结构 ——
 
 export interface SearchResponse {

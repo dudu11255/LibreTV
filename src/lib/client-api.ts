@@ -1,6 +1,6 @@
 'use client';
 
-import type { SearchResponse, SearchStreamEvent, SourceSearchOutcome, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse, SourceListPayload, QualityProbeItem, QualityProbeResult } from './types';
+import type { SearchResponse, SearchStreamEvent, SourceSearchOutcome, VideoDetail, DoubanResponse, BangumiCalendarResponse, AuthStatusResponse, SourceConfig, SearchResultItem, LivePlaylistResponse, LiveEpgResponse, SourceListPayload, QualityProbeItem, QualityProbeResult, CategoryTreeResponse, CategoryListResponse } from './types';
 
 /**
  * 客户端 API 封装。401 时触发全局事件打开登录框，
@@ -145,6 +145,29 @@ export const api = {
     const sp = new URLSearchParams({ id, source: JSON.stringify(source) });
     return request<VideoDetail>(`/api/detail?${sp.toString()}`, { signal });
   },
+
+  /** —— 分类浏览 —— */
+
+  /** 各源分类树（服务端归并为统一大类，源站侧缓存 30 分钟） */
+  categoryTree: (sources: SourceConfig[], filterAdult: boolean, signal?: AbortSignal) =>
+    request<CategoryTreeResponse>('/api/category', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'tree', sources, filterAdult }),
+      signal,
+    }),
+
+  /** 分类列表：按大类/子类跨源取同一页并合并（缺省 sub 表示该大类「全部」） */
+  categoryList: (
+    params: { sources: SourceConfig[]; genre: string; sub?: string; page: number; filterAdult: boolean },
+    signal?: AbortSignal
+  ) =>
+    request<CategoryListResponse>('/api/category', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'list', ...params }),
+      signal,
+    }),
 
   /**
    * 批量画质探测（NDJSON 流式）：展开来源面板时逐条回调，先到的源先显示画质。

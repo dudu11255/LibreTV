@@ -1,4 +1,4 @@
-import type { SearchResultItem, VideoDetail } from './types';
+import type { CmsClass, SearchResultItem, VideoDetail } from './types';
 
 /**
  * Apple CMS（苹果CMS）资源站响应解析
@@ -44,6 +44,33 @@ export function parseSearchList(
       isAdult: source.isAdult,
     };
   });
+}
+
+/**
+ * 分类树：Apple CMS 在 `ac=list` 的响应里用 `class` 返回分类节点。
+ * 绝大多数源是 `[{type_id, type_pid, type_name}]`，少数源返回以 type_id 为键的对象，
+ * 两种都归一化为同一结构；非法条目直接丢弃（源站脏数据不应让整棵树失败）。
+ */
+export function parseClassList(data: unknown): CmsClass[] {
+  if (!data || typeof data !== 'object') return [];
+  const raw = (data as { class?: unknown }).class;
+  const entries = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === 'object'
+      ? Object.values(raw as Record<string, unknown>)
+      : [];
+  const out: CmsClass[] = [];
+  const seen = new Set<string>();
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') continue;
+    const c = entry as Record<string, unknown>;
+    const id = String(c.type_id ?? '').trim();
+    const name = String(c.type_name ?? '').trim();
+    if (!id || !name || seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, name, pid: String(c.type_pid ?? '0').trim() || '0' });
+  }
+  return out;
 }
 
 /**
@@ -152,7 +179,7 @@ export function parseDetailPageHtml(
 
 /** 敏感分类过滤（成人内容过滤，关键词与旧版保持一致） */
 const ADULT_KEYWORDS = [
-  '伦理片', '福利', '倫理片', '福利片', '日本伦理', '日本福利', '日本福利片', '日本伦理片', '擦边短剧', '擦边', '韩国伦理','里番动漫', '门事件', '萝莉少女', '制服诱惑', '国产传媒',
+  '伦理片', '理论片', '福利', '倫理片', '福利片', '日本伦理', '日本福利', '日本福利片', '日本伦理片', '擦边短剧', '擦边', '韩国伦理','里番动漫', '门事件', '萝莉少女', '制服诱惑', '国产传媒',
   'cosplay', '黑丝诱惑', '无码', '日本无码', '有码', '日本有码', 'SWAG',
   '网红主播', '色情片', '同性片', '福利视频', '无码高清', '有码高清', '91视频', '自拍偷拍', 'mini传媒', '福利片',
 ];

@@ -7,11 +7,12 @@ import { Header } from '@/components/header';
 import { RecommendSection } from '@/components/douban-section';
 import { DetailModal } from '@/components/detail-modal';
 import { AggregatedCard, aggregateResults } from '@/components/video-card';
-import { useAppStore, resolveSource, isInDisabledSubscription, isSourceDisabled } from '@/lib/store';
+import { useAppStore } from '@/lib/store';
+import { useSelectedSources } from '@/components/use-selected-sources';
 import { api } from '@/lib/client-api';
 import type { SearchResultItem, SourceSearchOutcome } from '@/lib/types';
 import { SearchHistoryDropdown, useSearchHistory } from '@/components/search-history';
-import { cn, formatDisableTtl, validateSourceUrl } from '@/lib/utils';
+import { cn, formatDisableTtl } from '@/lib/utils';
 import { useToast } from '@/components/toast';
 import { EmptyState } from '@/components/states';
 import { Icon } from '@/components/icon';
@@ -37,14 +38,12 @@ function HomeContent() {
   const router = useRouter();
   const { toast } = useToast();
   const urlQuery = searchParams.get('s') || '';
-  // 精确订阅所需字段（对齐 live 页的做法）：搜索流式期间逐源写健康度、
-  // 打开设置抽屉/历史面板等无关 store 变化，都不应触发首页整树重渲染
+  // 选源规则（去重、URL 合法、自动停用、订阅关闭）与分类页共用
+  const { sources: selectedSources, disabledKeys: disabledSources, offSubscriptionKeys: offSubscriptionSources, sourceName } =
+    useSelectedSources();
   const customAPIs = useAppStore((s) => s.customAPIs);
   const envSources = useAppStore((s) => s.envSources);
-  const selectedKeys = useAppStore((s) => s.selectedKeys);
   const yellowFilter = useAppStore((s) => s.yellowFilter);
-  const sourceHealth = useAppStore((s) => s.sourceHealth);
-  const subscriptions = useAppStore((s) => s.subscriptions);
   const [input, setInput] = useState(urlQuery);
   const [detailItem, setDetailItem] = useState<SearchResultItem | null>(null);
   /** 流式搜索中已结算的源（data 就绪前用于增量渲染） */
@@ -56,42 +55,8 @@ function HomeContent() {
     if (urlQuery) setInput(urlQuery);
   }, [urlQuery]);
 
-  // 源名回显：失败/停用提示里显示友好名称而非裸 key
-  const sourceName = (key: string) =>
-    customAPIs.find((a) => a.key === key)?.name ??
-    envSources.find((a) => a.key === key)?.name ??
-    key;
-
-  const selectedSources = useMemo(() => {
-    // selectedKeys 可能含历史残留的重复 key：按 key 去重，避免同源重复搜索
-    const seen = new Set<string>();
-    return selectedKeys
-      .map((key) => resolveSource({ customAPIs, envSources }, key))
-      .filter((s): s is NonNullable<typeof s> => {
-        if (!s || !validateSourceUrl(s.url) || seen.has(s.key)) return false;
-        seen.add(s.key);
-        return true;
-      })
-      // 自动停用期内的源不参与搜索（到期自动恢复）
-      .filter((s) => !isSourceDisabled({ sourceHealth }, s.key))
-      // 所属订阅被整体停用的源同样跳过（无损：各源勾选状态保留，重新启用即恢复）
-      .filter((s) => !isInDisabledSubscription({ subscriptions }, s.key));
-  }, [customAPIs, envSources, selectedKeys, sourceHealth, subscriptions]);
-  const disabledSources = useMemo(
-    () => selectedKeys.filter((key) => isSourceDisabled({ sourceHealth }, key)),
-    [selectedKeys, sourceHealth]
-  );
-  // 来自已关闭订阅的源：勾选状态还在，但本次搜索用不到，必须明确告知
-  const offSubscriptionSources = useMemo(
-    () =>
-      selectedKeys.filter(
-        (key) => !isSourceDisabled({ sourceHealth }, key) && isInDisabledSubscription({ subscriptions }, key)
-      ),
-    [selectedKeys, sourceHealth, subscriptions]
-  );
-
   const searchQuery = useQuery({
-    queryKey: ['search', urlQuery, selectedKeys, yellowFilter],
+    queryKey: ['search', urlQuery, selectedSources.map((s) => s.key), yellowFilter],
     // 与 runSearch 的截断规则保持一致：顶栏搜索 / 手动构造长链接不会绕过上限
     queryFn: ({ signal }) => {
       setStreamedOutcomes([]);
