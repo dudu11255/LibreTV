@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { guardRequest } from '@/lib/api-guard';
-import { buildGenreSummary, interleave, resolveTypeTargets } from '@/lib/category';
+import { buildGenreSummary, interleave, normalizeYearFilter, resolveTypeTargets } from '@/lib/category';
 import { cmsRequestHeaders, filterAdultResults, parseClassList, parseSearchList } from '@/lib/cms-parser';
 import { fetchUpstream, getCache, setCache } from '@/lib/fetch-utils';
 import { checkUpstreamAllowed } from '@/lib/ssrf';
@@ -33,6 +33,8 @@ interface CategoryBody {
   genre?: string;
   /** 子分类名，缺省表示「全部」 */
   sub?: string;
+  /** 年份筛选（四位年份），缺省表示不限年份 */
+  year?: number | string;
   page?: number;
   filterAdult?: boolean;
 }
@@ -66,11 +68,23 @@ interface TypePage {
   pageCount: number;
 }
 
-/** 按分类取一页列表 */
-async function fetchTypePage(source: SourceConfig, typeId: string, page: number): Promise<TypePage> {
+/**
+ * 按分类取一页列表。
+ *
+ * `year` 交给源站筛（MacCMS 的 vod 接口支持 `year=` 单值查询），而不是取回来自己过滤：
+ * `ac=list` 的响应里根本没有 `vod_year` 字段，本地拿不到年份。带上 year 后源站的
+ * total / pagecount 会同步收窄，翻页语义仍然正确。
+ */
+async function fetchTypePage(
+  source: SourceConfig,
+  typeId: string,
+  page: number,
+  year?: number
+): Promise<TypePage> {
   const base = source.url.replace(/\/+$/, '');
   const params = new URLSearchParams({ ac: 'list', pg: String(page) });
   if (typeId) params.set('t', typeId);
+  if (year) params.set('year', String(year));
   const res = await fetchUpstream(`${base}?${params.toString()}`, {
     timeoutMs: UPSTREAM_TIMEOUT_MS,
     headers: cmsRequestHeaders(),
@@ -117,6 +131,7 @@ async function handleList(
   sources: SourceConfig[],
   genre: string,
   sub: string | undefined,
+  year: number | undefined,
   page: number,
   filterAdult: boolean
 ): Promise<CategoryListResponse> {
@@ -147,7 +162,9 @@ async function handleList(
       // 该源没有这个分类（例如只提供电影、不提供纪录片）：静默跳过，不算失败
       if (targets.length === 0) return base;
 
-      const settled = await Promise.allSettled(targets.map((typeId) => fetchTypePage(source, typeId, page)));
+      const settled = await Promise.allSettled(
+        targets.map((typeId) => fetchTypePage(source, typeId, page, year))
+      );
       const buckets: SearchResultItem[][] = [];
       let hasMore = false;
       let error: string | undefined;
@@ -215,17 +232,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '缺少分类参数' }, { status: 400 });
   }
   const sub = (body.sub || '').trim().slice(0, 30) || undefined;
+  const year = normalizeYearFilter(body.year);
   const page = Math.min(MAX_PAGE, Math.max(1, Math.floor(Number(body.page) || 1)));
   const filterAdult = body.filterAdult !== false;
 
   const cacheKey = `category-list:${sources
     .map((s) => s.url.replace(/\/+$/, ''))
     .sort()
-    .join('|')}\n${genre}\n${sub ?? ''}\n${page}\n${filterAdult ? 1 : 0}`;
+    .join('|')}\n${genre}\n${sub ?? ''}\n${year ?? ''}\n${page}\n${filterAdult ? 1 : 0}`;
   const cached = getCache<CategoryListResponse>(cacheKey);
   if (cached) return NextResponse.json(cached);
 
-  const payload = await handleList(sources, genre, sub, page, filterAdult);
+  const payload = await handleList(sources, genre, sub, year, page, filterAdult);
   setCache(cacheKey, payload, LIST_CACHE_TTL);
   return NextResponse.json(payload);
 }

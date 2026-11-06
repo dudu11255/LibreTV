@@ -189,3 +189,39 @@ export function interleave<T>(buckets: T[][]): T[] {
   }
   return out;
 }
+
+// —— 年份筛选 ——
+
+/**
+ * 年份筛选不是本站自己过滤的：`ac=list` 的响应里**不带** `vod_year`
+ * （只有标题/封面/备注/分类名），拿到手再筛等于筛空气。
+ * 因此年份只能作为参数交给源站：MacCMS 的 vod 接口支持 `year=` 单值查询，
+ * 带上后 total / pagecount 都会按该年份收窄，分页才仍然是对的。
+ */
+
+/** 当前年份（分类页的年份选项以此为上界） */
+export function currentYear(now: Date = new Date()): number {
+  return now.getFullYear();
+}
+
+/**
+ * 年份筛选值归一化：只接受单个四位年份，其余（空串、「全部」、区间、越界）一律
+ * 当作「不筛选」。宁可退化成看全部，也不要给源站发一个它读不懂的值——那种情况下
+ * 源站多半直接忽略参数，用户看到的就是「筛了等于没筛」。
+ */
+export function normalizeYearFilter(input: unknown, now: Date = new Date()): number | undefined {
+  const raw =
+    typeof input === 'number' ? String(input) : typeof input === 'string' ? input.trim() : '';
+  if (!/^\d{4}$/.test(raw)) return undefined;
+  const year = Number(raw);
+  // 上界放到次年：源站常提前上架明年的片子
+  if (year < 1900 || year > currentYear(now) + 1) return undefined;
+  return year;
+}
+
+/** 年份筛选条的可选年份：从当年往回数 span 个（含当年） */
+export function buildYearOptions(now: Date = new Date(), span = 12): number[] {
+  const top = currentYear(now);
+  return Array.from({ length: Math.max(1, span) }, (_, i) => top - i);
+}
+

@@ -157,9 +157,16 @@ export const api = {
       signal,
     }),
 
-  /** 分类列表：按大类/子类跨源取同一页并合并（缺省 sub 表示该大类「全部」） */
+  /** 分类列表：按大类/子类跨源取同一页并合并（缺省 sub 表示该大类「全部」，缺省 year 表示不限年份） */
   categoryList: (
-    params: { sources: SourceConfig[]; genre: string; sub?: string; page: number; filterAdult: boolean },
+    params: {
+      sources: SourceConfig[];
+      genre: string;
+      sub?: string;
+      year?: number;
+      page: number;
+      filterAdult: boolean;
+    },
     signal?: AbortSignal
   ) =>
     request<CategoryListResponse>('/api/category', {

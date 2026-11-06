@@ -16,7 +16,7 @@ LibreTV Next.js 迁移版：免费在线视频聚合搜索与观看平台。基�
 ## 核心特性
 
 - **聚合搜索**：多采集站服务端并行搜索
-- **分类浏览**：按采集站自己的 `type` 树按类目翻页（`/category`），各源命名差异（电影片/电影、连续剧/国产剧）自动归并为电影、电视剧、综艺、动漫、纪录片、短剧六个大类，子类跨源合并；「全部」会下沉到叶子分类并行取数再打散合并（父分类在采集站上普遍是空壳，直接取会得到近乎空白的页面）
+- **分类浏览**：按采集站自己的 `type` 树按类目翻页（`/category`），各源命名差异（电影片/电影、连续剧/国产剧）自动归并为电影、电视剧、综艺、动漫、纪录片、短剧六个大类，子类跨源合并；可再按年份筛选（「全部」或近 12 年，年份以 `year` 参数交给源站查询而非本地过滤，分页页数随之收窄）；「全部」会下沉到叶子分类并行取数再打散合并（父分类在采集站上普遍是空壳，直接取会得到近乎空白的页面）
 - **跨源同名聚合**：同名影片合并为一张卡片，展开即可比较和选择各来源
 - **HLS 播放**：ArtPlayer + hls.js，广告分片过滤、跳过片段（片头/中段/片尾标记与自动跳过）、自动连播、倍速、快捷键、移动端长按 3 倍速
 - **直播 / IPTV**：M3U 订阅解析，`/live` 页面按分组浏览、搜索频道并站内播放（HLS + HTTP-FLV），支持 XMLTV 节目单（EPG）与频道收藏；直播流经专用长连接代理（`/api/live/stream`）转发
@@ -50,7 +50,7 @@ docker compose -f docker-compose.server.yml up -d
 ```yaml
 services:
   libretv:
-    image: ghcr.io/dw3055398959-jpg/libretv:latest
+    image: ghcr.io/dudu11255/libretv:latest
     container_name: libretv
     restart: unless-stopped
     ports:
@@ -75,10 +75,10 @@ docker compose up -d   # 镜像不存在时自动拉取
 > 💡 **对外提供服务建议套上 HTTPS**：登录密码在 POST body 中以明文传输，公网 HTTP 会被中间人看到，推荐用反向代理（Nginx / Caddy / Traefik）或 Cloudflare 终结 TLS。
 > 登录本身**不依赖 HTTPS**：会话 cookie 的 `Secure` 标记按请求协议（`x-forwarded-proto`）自动推导，`http://服务器IP:端口` 也能正常登录，不会再出现"密码正确却无法登录"。需要强制指定时用 `COOKIE_SECURE`。
 
-镜像由本仓库的 GitHub Actions 构建并推送到 GHCR：`ghcr.io/dw3055398959-jpg/libretv`。
+镜像由本仓库的 GitHub Actions 构建并推送到 GHCR：`ghcr.io/dudu11255/libretv`。
 在 Actions 页手动触发 `docker-publish` 产出 `latest`；推 `v*` tag 时额外产出 `主.次` 与完整版本号两个 tag，
 均为 `linux/amd64` 与 `linux/arm64` 双架构。需要固定版本时在 `.env` 中设置
-`LIBRETV_IMAGE=ghcr.io/dw3055398959-jpg/libretv:<版本>`。
+`LIBRETV_IMAGE=ghcr.io/dudu11255/libretv:<版本>`。
 
 > 该包默认私有：服务器上 pull 前需 `docker login ghcr.io`（用带 `read:packages` 的 PAT），
 > 或在包设置里把可见性改成 Public。首次部署的完整步骤见 [docs/docker-deploy.md](docs/docker-deploy.md)。
@@ -87,7 +87,7 @@ docker compose up -d   # 镜像不存在时自动拉取
 
 ### 免 Docker 运行（预构建包）
 
-推一个 `v*` tag（或在 Actions 里手动跑 `release-standalone`），[Releases](https://github.com/dw3055398959-jpg/LibreTV/releases) 会附带一个 `libretv-<版本>-standalone.tar.gz` 与对应的 `SHA256SUMS`，解压后直接用 Node 启动：
+推一个 `v*` tag（或在 Actions 里手动跑 `release-standalone`），[Releases](https://github.com/dudu11255/LibreTV/releases) 会附带一个 `libretv-<版本>-standalone.tar.gz` 与对应的 `SHA256SUMS`，解压后直接用 Node 启动：
 
 ```bash
 # 版本号替换为 Releases 中的实际版本（也可用 /api/status 返回的 version 核对）
@@ -134,7 +134,7 @@ PASSWORD=your-password npm start   # 监听 8080
 
 1. **添加点播源**：设置 → 源管理 → 点播源 → 添加 API，填入 Apple CMS 采集站地址（如 `https://example.com/api.php/provide/vod`），可选填详情页地址（部分源需要爬详情页提取播放地址）。
 2. **搜索**：勾选点播源后输入片名；搜索通过服务端聚合，个别源失败不影响整体结果。
-3. **分类浏览**：顶栏「分类」进入 `/category`，选大类与子类即可翻页；分类在 URL 上（`?g=电影&t=动作片`），可前进后退与分享。只提供该分类的源才会参与请求，缺分类的源会被跳过并在结果区提示失败原因。
+3. **分类浏览**：顶栏「分类」进入 `/category`，选大类、子类与年份即可翻页；大类/子类/年份都在 URL 上（`?g=电影&t=动作片&y=2024`），可前进后退与分享，切换大类或子类时保留当前年份，点年份条上的「全部」清除年份。只提供该分类的源才会参与请求，缺分类的源会被跳过并在结果区提示失败原因；年份由源站按 `year` 参数筛（`ac=list` 不返回 `vod_year`，本地拿不到年份），不认这个参数的源会退回该分类的全部年份。
 4. **播放**：详情弹窗选择剧集进入 `/watch`；支持快捷键（空格/←→/↑↓/F/Alt+←→）、移动端长按 3 倍速、自动连播、换源测速。观看/暂停时后续分片自动缓存到本地（设置可关），播放页可「下载本集」（TS/MP4）离线观看。播放页「跳过标记」可标记片头/中段/片尾区间（快捷键 Shift+I 片头结束、Shift+O 片尾开始、Shift+S·Shift+E 中段区间），之后同剧各集与同名资源自动跳过——片头/中段跳到片段末尾，片尾则直接结束本集（是否连播下一集由自动连播决定），三类片段共用「自动跳过片段」一个开关；跳过时提示条带「撤销」，「跳过标记」侧栏可逐剧关闭、微调边界、试跳起点/终点（记录与试跳都会先暂停），命中区间在进度条上着色。侧栏是非模态的：不遮画面、不挡播放器点击，可以一边看一边标。
 5. **进度与历史**：自动保存在本设备 IndexedDB，仅定位信息入库，播放时自动同步最新剧集。
 6. **配置迁移**：设置 → 数据 → 配置导入导出（兼容旧版 LibreTV-Settings JSON 的历史记录迁移）。
@@ -258,7 +258,7 @@ npm version patch       # 或 minor / major；会更新 package.json 并打 git 
 git push && git push --tags
 ```
 
-CI 校验通过后自动构建并推送 `ghcr.io/librespark/libretv:<版本>`（详见[部署文档](https://libretv.is-an.org/wiki/Deployment.html)）。
+CI 校验通过后自动构建并推送 `ghcr.io/dudu11255/libretv:<版本>`（详见[docs/docker-deploy.md](docs/docker-deploy.md)）。
 
 ## 安全说明
 

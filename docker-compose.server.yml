@@ -9,7 +9,7 @@
 
 services:
   libretv:
-    image: ${LIBRETV_IMAGE:-ghcr.io/dw3055398959-jpg/libretv:latest}
+    image: ${LIBRETV_IMAGE:-ghcr.io/dudu11255/libretv:latest}
     container_name: libretv
     restart: unless-stopped
     ports:

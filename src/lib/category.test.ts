@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildGenreSummary, classifyGenre, interleave, resolveTypeTargets } from './category';
+import {
+  buildGenreSummary,
+  buildYearOptions,
+  classifyGenre,
+  interleave,
+  normalizeYearFilter,
+  resolveTypeTargets,
+} from './category';
 import { parseClassList } from './cms-parser';
 import type { CmsClass, SourceCategoryOutcome } from './types';
 
@@ -193,5 +200,37 @@ describe('parseClassList', () => {
   it('没有 class 字段时返回空数组', () => {
     expect(parseClassList({ list: [] })).toEqual([]);
     expect(parseClassList(null)).toEqual([]);
+  });
+});
+
+describe('年份筛选', () => {
+  const now = new Date('2026-06-01T12:00:00Z');
+
+  it('接受合法的四位年份', () => {
+    expect(normalizeYearFilter('2024', now)).toBe(2024);
+    expect(normalizeYearFilter(2024, now)).toBe(2024);
+    expect(normalizeYearFilter(' 2015 ', now)).toBe(2015);
+  });
+
+  it('非法值退回「不限年份」，不给源站发它读不懂的参数', () => {
+    expect(normalizeYearFilter('', now)).toBeUndefined();
+    expect(normalizeYearFilter(undefined, now)).toBeUndefined();
+    expect(normalizeYearFilter(null, now)).toBeUndefined();
+    expect(normalizeYearFilter('全部', now)).toBeUndefined();
+    expect(normalizeYearFilter('2020-2024', now)).toBeUndefined();
+    expect(normalizeYearFilter('20', now)).toBeUndefined();
+    expect(normalizeYearFilter('1899', now)).toBeUndefined();
+    expect(normalizeYearFilter('0', now)).toBeUndefined();
+    expect(normalizeYearFilter('2028', now)).toBeUndefined();
+  });
+
+  it('次年放行：源站常提前上架明年的片子', () => {
+    expect(normalizeYearFilter('2027', now)).toBe(2027);
+  });
+
+  it('年份选项从当年往回数，连续且不含未来', () => {
+    expect(buildYearOptions(now, 5)).toEqual([2026, 2025, 2024, 2023, 2022]);
+    expect(buildYearOptions(now)).toHaveLength(12);
+    expect(buildYearOptions(now, 0)).toEqual([2026]);
   });
 });

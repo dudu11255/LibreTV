@@ -9,8 +9,8 @@ services:
     # - 本地构建：docker compose up -d --build（构建产物就打这个 tag）
     # - 用 Actions 出的镜像：docker compose pull && docker compose up -d
     # - 想临时对比官方版：LIBRETV_IMAGE=ghcr.io/librespark/libretv:latest docker compose up -d
-    # - 需要固定版本：LIBRETV_IMAGE=ghcr.io/dw3055398959-jpg/libretv:<版本>
-    image: ${LIBRETV_IMAGE:-ghcr.io/dw3055398959-jpg/libretv:latest}
+    # - 需要固定版本：LIBRETV_IMAGE=ghcr.io/dudu11255/libretv:<版本>
+    image: ${LIBRETV_IMAGE:-ghcr.io/dudu11255/libretv:latest}
     container_name: libretv
     restart: unless-stopped
     ports:

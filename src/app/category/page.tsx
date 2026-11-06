@@ -10,6 +10,7 @@ import { useSelectedSources } from '@/components/use-selected-sources';
 import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { SiteFooter } from '@/components/site-footer';
 import { api } from '@/lib/client-api';
+import { buildYearOptions, normalizeYearFilter } from '@/lib/category';
 import { useAppStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import type { SearchResultItem } from '@/lib/types';
@@ -18,7 +19,7 @@ import type { SearchResultItem } from '@/lib/types';
  * 分类浏览页：把各采集站的 type 树归并成统一大类后按类目翻页。
  *
  * 与搜索页的分工——搜索解决「知道片名」，分类解决「不知道看什么」。
- * 大类/子类写在 URL 上（?g=电影&t=动作片），可后退、可分享、刷新保持。
+ * 大类/子类/年份写在 URL 上（?g=电影&t=动作片&y=2024），可后退、可分享、刷新保持。
  */
 
 /** 首屏渲染的卡片数：一次挂载几百张卡会明显掉帧，滚到底再追加 */
@@ -44,8 +45,16 @@ function CategoryContent() {
 
   const urlGenre = searchParams.get('g') || '';
   const urlSub = searchParams.get('t') || '';
+  const urlYear = searchParams.get('y') || '';
   // 源集合变化时必须重新取分类树：不同源的分类树完全不同
   const sourceUrls = sources.map((s) => s.url).join('|');
+
+  // 年份是源站侧筛选（`ac=list` 不返回 vod_year，拿回来也没法自己筛），
+  // 非法值直接当作不限年份，URL 上留着也不会影响结果
+  const year = normalizeYearFilter(urlYear);
+  const yearOptions = useMemo(() => buildYearOptions(), []);
+  // 手填一个超出下拉范围的年份（如 ?y=2010）时也要能看到并取消掉，否则胶囊全灭像是坏了
+  const yearChips = year && !yearOptions.includes(year) ? [year, ...yearOptions] : yearOptions;
 
   const treeQuery = useQuery({
     queryKey: ['category-tree', sourceUrls, yellowFilter],
@@ -61,10 +70,17 @@ function CategoryContent() {
   const activeSub = urlSub && activeGenre?.subs.some((s) => s.name === urlSub) ? urlSub : undefined;
 
   const listQuery = useInfiniteQuery({
-    queryKey: ['category-list', activeGenre?.name ?? '', activeSub ?? '', sourceUrls, yellowFilter],
+    queryKey: ['category-list', activeGenre?.name ?? '', activeSub ?? '', year ?? '', sourceUrls, yellowFilter],
     queryFn: ({ pageParam, signal }) =>
       api.categoryList(
-        { sources, genre: activeGenre!.name, sub: activeSub, page: pageParam, filterAdult: yellowFilter },
+        {
+          sources,
+          genre: activeGenre!.name,
+          sub: activeSub,
+          year,
+          page: pageParam,
+          filterAdult: yellowFilter,
+        },
         signal
       ),
     initialPageParam: 1,
@@ -88,8 +104,8 @@ function CategoryContent() {
 
   const usedSources = pages?.[0]?.usedSources ?? 0;
 
-  // 换分类（或换源）时回到首批；追加分页不能重置，否则「加载更多」会把自己弹回去
-  const listKey = `${activeGenre?.name ?? ''}|${activeSub ?? ''}|${sourceUrls}|${yellowFilter}`;
+  // 换分类/换年份（或换源）时回到首批；追加分页不能重置，否则「加载更多」会把自己弹回去
+  const listKey = `${activeGenre?.name ?? ''}|${activeSub ?? ''}|${year ?? ''}|${sourceUrls}|${yellowFilter}`;
   const [visibleCount, setVisibleCount] = useState(RESULT_PAGE_SIZE);
   const [showAllSubs, setShowAllSubs] = useState(false);
   useEffect(() => {
@@ -107,9 +123,14 @@ function CategoryContent() {
   const visibleSubs = subsExpanded ? subs : subs.slice(0, SUB_CHIP_LIMIT);
   const hiddenSubCount = subs.length - visibleSubs.length;
 
-  const go = (genre: string, sub?: string) => {
+  /**
+   * 切换大类/子类时**保留**当前年份：连续看「2024 电影 → 2024 电视剧」是常见操作。
+   * 传 undefined 表示清除年份（年份条上的「全部」）。
+   */
+  const go = (genre: string, sub?: string, y?: number) => {
     const params = new URLSearchParams({ g: genre });
     if (sub) params.set('t', sub);
+    if (y) params.set('y', String(y));
     router.replace(`/category?${params.toString()}`, { scroll: false });
   };
 
@@ -162,7 +183,7 @@ function CategoryContent() {
                 <Chip
                   key={g.name}
                   active={g.name === activeGenre?.name}
-                  onClick={() => go(g.name)}
+                  onClick={() => go(g.name, undefined, year)}
                   title={`${g.sources} 个源提供该分类`}
                 >
                   {g.name}
@@ -173,14 +194,14 @@ function CategoryContent() {
             {/* 子分类：只有一个「全部」时整行没有意义，直接省略 */}
             {activeGenre && subs.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-3">
-                <Chip active={!activeSub} onClick={() => go(activeGenre.name)}>
+                <Chip active={!activeSub} onClick={() => go(activeGenre.name, undefined, year)}>
                   全部
                 </Chip>
                 {visibleSubs.map((s) => (
                   <Chip
                     key={s.name}
                     active={s.name === activeSub}
-                    onClick={() => go(activeGenre.name, s.name)}
+                    onClick={() => go(activeGenre.name, s.name, year)}
                     title={`${s.count} 个源提供该分类`}
                   >
                     {s.name}
@@ -205,10 +226,30 @@ function CategoryContent() {
               </div>
             )}
 
+            {/* 年份：作为 year 参数下发给源站筛选，不是本地过滤（`ac=list` 不返回年份字段） */}
+            {activeGenre && (
+              <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                <span className="text-xs text-faint mr-0.5">年份</span>
+                <Chip active={!year} onClick={() => go(activeGenre.name, activeSub)}>
+                  全部
+                </Chip>
+                {yearChips.map((y) => (
+                  <Chip
+                    key={y}
+                    active={y === year}
+                    onClick={() => go(activeGenre.name, activeSub, y)}
+                  >
+                    {y}
+                  </Chip>
+                ))}
+              </div>
+            )}
+
             <div className="flex items-center justify-between gap-3 mb-3 text-xs text-faint">
               <span>
                 {activeGenre?.name}
                 {activeSub ? ` · ${activeSub}` : ''}
+                {year ? ` · ${year} 年` : ''}
                 {usedSources > 0 && `（${usedSources} 个源有该分类）`}
               </span>
               {listQuery.isFetching && <span>加载中…</span>}
@@ -235,11 +276,13 @@ function CategoryContent() {
             ) : groups.length === 0 ? (
               <EmptyState
                 icon="filter"
-                title="该分类暂无内容"
+                title={year ? `${year} 年暂无内容` : '该分类暂无内容'}
                 description={
                   usedSources === 0
                     ? '所选源都没有这个分类，换一个点播源或切换到其他大类再试。'
-                    : '这个分类在所选源里暂时是空的，过段时间再来看看。'
+                    : year
+                      ? `这个分类在所选源里没有 ${year} 年的片子，可以切到「全部」年份或换一个年份。`
+                      : '这个分类在所选源里暂时是空的，过段时间再来看看。'
                 }
                 className="!py-16"
               />

@@ -15,7 +15,7 @@
 ## 路线 A：源码构建
 
 ```bash
-git clone https://github.com/dw3055398959-jpg/LibreTV.git
+git clone https://github.com/dudu11255/LibreTV.git
 cd LibreTV
 
 cp .env.example .env
@@ -28,7 +28,7 @@ docker compose logs -f libretv
 
 访问 `http://<机器IP>:8080`。
 
-镜像会被打上 `ghcr.io/dw3055398959-jpg/libretv:latest` 这个 tag——这是**故意的**，和上游同名才会在手滑 `docker compose pull` 时静默换成官方镜像。想换 tag 就设 `LIBRETV_IMAGE=libretv:local`。
+镜像会被打上 `ghcr.io/dudu11255/libretv:latest` 这个 tag——这是**故意的**，和上游同名才会在手滑 `docker compose pull` 时静默换成官方镜像。想换 tag 就设 `LIBRETV_IMAGE=libretv:local`。
 
 ## 路线 B：CI 出镜像，服务器只跑镜像
 
@@ -36,7 +36,7 @@ docker compose logs -f libretv
 
 仓库页 → **Actions** → 左侧 `docker-publish` → **Run workflow**，分支选 `main`。
 
-跑完后镜像在 `ghcr.io/dw3055398959-jpg/libretv`，带 `latest` 标签；如果推的是 `v*` tag，还会额外有 `2.21.2`、`2.21` 两个版本标签。
+跑完后镜像在 `ghcr.io/dudu11255/libretv`，带 `latest` 标签；如果推的是 `v*` tag，还会额外有 `2.21.2`、`2.21` 两个版本标签。
 
 > 推包报 403 时去 **Settings → Actions → General → Workflow permissions** 勾上 *Read and write permissions*。
 
@@ -45,7 +45,7 @@ docker compose logs -f libretv
 GHCR 的包默认是**私有**的，二选一：
 
 - **改成公开**：GitHub 个人页 → Packages → `libretv` → Package settings → Change visibility → Public
-- **或者登录**：`docker login ghcr.io -u dw3055398959-jpg`，密码填一个带 `read:packages` 权限的 PAT（不是账号密码）
+- **或者登录**：`docker login ghcr.io -u dudu11255`，密码填一个带 `read:packages` 权限的 PAT（不是账号密码）
 
 ### 3. 服务器上只需两个文件
 
@@ -83,7 +83,7 @@ curl http://127.0.0.1:8080/api/status
 ```
 
 - `version` 与 `package.json` 一致 → 镜像内容正确
-- 浏览器登录后顶栏应出现 **分类** 入口，`/category` 能列出大类并翻页 → 分类模块生效
+- 浏览器登录后顶栏应出现 **分类** 入口，`/category` 能列出大类、按子类与年份筛选并翻页 → 分类模块生效
 - 若顶栏只有「直播 / 关于」，说明拿到的是上游镜像，检查 `docker image ls` 里的 image 来源
 
 ## 常见问题
