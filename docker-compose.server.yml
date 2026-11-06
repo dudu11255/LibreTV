@@ -1,0 +1,30 @@
+# 服务器 / NAS 专用编排：只跑镜像，不带 build 上下文。
+#
+# 用法：把本文件和 .env 放到服务器同一目录，然后
+#   docker compose -f docker-compose.server.yml up -d
+# 服务器上不需要 Node，也不需要 2G 内存去跑 next build。
+#
+# 镜像由 GitHub Actions 构建（.github/workflows/docker-publish.yml）后推送到 GHCR：
+# 仓库 Actions → docker-publish → Run workflow，跑完即可 pull。
+
+services:
+  libretv:
+    image: ${LIBRETV_IMAGE:-ghcr.io/dw3055398959-jpg/libretv:latest}
+    container_name: libretv
+    restart: unless-stopped
+    ports:
+      # 左边是宿主机端口，和已有服务冲突就改这里（如 "8090:8080"）
+      - "8080:8080"
+    # 无状态服务：观看历史在浏览器 IndexedDB、设置在 localStorage，无需挂载卷
+    environment:
+      # 必填：访问密码（在 .env 中设置，缺失时 compose 启动即报错）
+      - PASSWORD=${PASSWORD:?请在 .env 中设置 PASSWORD}
+      # 可选：会话/代理签名密钥（多实例部署建议显式设置：openssl rand -hex 32）
+      # - PROXY_SECRET=your-secret
+      # 可选：Cookie Secure 策略覆盖（true=强制开启 / false=强制关闭；不设置时按请求协议自动推导）
+      # - COOKIE_SECURE=true
+      # 可选：预置采集站（JSON 数组），用户端自动出现且默认勾选
+      # - DEFAULT_SOURCES=[{"name":"示例源","url":"https://example.com/api.php/provide/vod"}]
+      # 可选：预置直播源（M3U 订阅，JSON 数组），epg 为可选节目单地址
+      # - DEFAULT_LIVE_SOURCES=[{"name":"示例直播源","url":"https://example.com/list.m3u","epg":"https://example.com/epg.xml.gz"}]
+      # 其余变量见 docker-compose.yml 与 .env.example

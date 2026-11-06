@@ -28,17 +28,21 @@ LibreTV Next.js 迁移版：免费在线视频聚合搜索与观看平台。基�
 
 ## 部署
 
+> **本仓库是 LibreTV 的 fork**，比官方版多了「分类浏览」（`/category`）模块，镜像地址也相应改成了本仓库自己的
+> GHCR。Docker 部署的完整说明（两条路线对比、更新、排错）见 **[docs/docker-deploy.md](docs/docker-deploy.md)**。
+
 ### Docker（推荐）
 
 ```bash
 # 在 .env 中设置 PASSWORD
 echo "PASSWORD=your-password" > .env
 
-# 方式一：拉取发布镜像（零构建）
-docker compose pull && docker compose up -d
-
-# 方式二：源码构建
+# 方式一：源码构建（本机或服务器，需要约 2G 可用内存）
 docker compose up -d --build
+
+# 方式二：服务器只跑镜像（先在 GitHub Actions 里跑一次 docker-publish）
+docker compose -f docker-compose.server.yml pull
+docker compose -f docker-compose.server.yml up -d
 ```
 
 ### Docker Compose
@@ -46,7 +50,7 @@ docker compose up -d --build
 ```yaml
 services:
   libretv:
-    image: ghcr.io/librespark/libretv:latest
+    image: ghcr.io/dw3055398959-jpg/libretv:latest
     container_name: libretv
     restart: unless-stopped
     ports:
@@ -61,25 +65,29 @@ services:
       # - LIVE_ALLOW_PRIVATE=1              # 自建内网 IPTV 源时开启
 ```
 
-> 其余可选变量见下方[环境变量](#环境变量)表；仓库内的 `docker-compose.yml` 含完整注释版本（含 `build: .` 源码构建分支）。
+> 其余可选变量见下方[环境变量](#环境变量)表；仓库内的 `docker-compose.yml` 含完整注释版本（含 `build: .` 源码构建分支），
+> `docker-compose.server.yml` 是不带 `build:` 的纯运行版，适合服务器 / NAS。
 
 ```bash
-docker compose pull && docker compose up -d
+docker compose up -d   # 镜像不存在时自动拉取
 ```
 
 > 💡 **对外提供服务建议套上 HTTPS**：登录密码在 POST body 中以明文传输，公网 HTTP 会被中间人看到，推荐用反向代理（Nginx / Caddy / Traefik）或 Cloudflare 终结 TLS。
 > 登录本身**不依赖 HTTPS**：会话 cookie 的 `Secure` 标记按请求协议（`x-forwarded-proto`）自动推导，`http://服务器IP:端口` 也能正常登录，不会再出现"密码正确却无法登录"。需要强制指定时用 `COOKIE_SECURE`。
 
-镜像发布在 GHCR 与 Docker Hub：`ghcr.io/librespark/libretv` 与 `docker.io/bestzwei/libretv`
-（`latest` / `主.次` / 完整版本号三个 tag，`linux/amd64` 与 `linux/arm64` 双架构，
-两个 registry 的镜像 digest 一致）。需要固定版本时在 `.env` 中设置
-`LIBRETV_IMAGE=ghcr.io/librespark/libretv:<版本>`。
+镜像由本仓库的 GitHub Actions 构建并推送到 GHCR：`ghcr.io/dw3055398959-jpg/libretv`。
+在 Actions 页手动触发 `docker-publish` 产出 `latest`；推 `v*` tag 时额外产出 `主.次` 与完整版本号两个 tag，
+均为 `linux/amd64` 与 `linux/arm64` 双架构。需要固定版本时在 `.env` 中设置
+`LIBRETV_IMAGE=ghcr.io/dw3055398959-jpg/libretv:<版本>`。
+
+> 该包默认私有：服务器上 pull 前需 `docker login ghcr.io`（用带 `read:packages` 的 PAT），
+> 或在包设置里把可见性改成 Public。首次部署的完整步骤见 [docs/docker-deploy.md](docs/docker-deploy.md)。
 
 > 版本号以 `package.json` 为单一来源，部署后可用 `/api/status` 返回的 `version` 字段核对。详见[部署文档](https://libretv.is-an.org/wiki/Deployment.html)。
 
 ### 免 Docker 运行（预构建包）
 
-每个版本都会在 [Releases](https://github.com/LibreSpark/LibreTV/releases) 附一个 `libretv-<版本>-standalone.tar.gz` 与对应的 `SHA256SUMS`，解压后直接用 Node 启动：
+推一个 `v*` tag（或在 Actions 里手动跑 `release-standalone`），[Releases](https://github.com/dw3055398959-jpg/LibreTV/releases) 会附带一个 `libretv-<版本>-standalone.tar.gz` 与对应的 `SHA256SUMS`，解压后直接用 Node 启动：
 
 ```bash
 # 版本号替换为 Releases 中的实际版本（也可用 /api/status 返回的 version 核对）

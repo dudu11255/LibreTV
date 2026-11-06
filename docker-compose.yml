@@ -1,11 +1,16 @@
 services:
   libretv:
     build: .
-    # 版本管理：镜像 tag 与 package.json 的 version 保持一致
-    # - 使用者：不设置 LIBRETV_IMAGE 即拉取 ghcr.io/librespark/libretv:latest（首次部署用 docker compose pull）
-    # - 开发者：docker compose up -d --build 会在本地构建并打上同名 tag
-    # - 需要固定版本时设置 LIBRETV_IMAGE=ghcr.io/librespark/libretv:<版本>
-    image: ${LIBRETV_IMAGE:-ghcr.io/librespark/libretv:latest}
+    # 本仓库是 LibreTV 的 fork（在官方版基础上补了「分类浏览」模块），镜像名指向
+    # 自己的 GHCR，而不是上游的 ghcr.io/librespark/libretv —— 否则 clone 下来后
+    # 手滑 `docker compose pull` 会拉到官方镜像，把这个仓库的改动静默覆盖掉，
+    # 而且现象很迷惑：容器能起、页面正常，只是分类入口不见了。
+    #
+    # - 本地构建：docker compose up -d --build（构建产物就打这个 tag）
+    # - 用 Actions 出的镜像：docker compose pull && docker compose up -d
+    # - 想临时对比官方版：LIBRETV_IMAGE=ghcr.io/librespark/libretv:latest docker compose up -d
+    # - 需要固定版本：LIBRETV_IMAGE=ghcr.io/dw3055398959-jpg/libretv:<版本>
+    image: ${LIBRETV_IMAGE:-ghcr.io/dw3055398959-jpg/libretv:latest}
     container_name: libretv
     restart: unless-stopped
     ports:
