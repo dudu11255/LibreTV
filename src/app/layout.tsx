@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from '@/components/providers';
+import { LEGACY_POLYFILLS } from '@/lib/legacy-polyfills';
 
 export const metadata: Metadata = {
   title: {
@@ -33,6 +34,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh-CN" suppressHydrationWarning>
       <head>
+        {/* 电视端兼容：老 Android WebView 缺 Object.fromEntries / Promise.allSettled
+            等运行时 API。内联同步脚本解析到即执行，早于 Next 的 async chunk */}
+        <script dangerouslySetInnerHTML={{ __html: LEGACY_POLYFILLS }} />
         {/* 首屏前同步主题，避免亮暗闪烁 */}
         <script
           dangerouslySetInnerHTML={{

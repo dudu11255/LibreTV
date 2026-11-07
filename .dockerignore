@@ -1,6 +1,7 @@
 # 依赖与构建产物：镜像内由 npm ci / next build 重新生成
 node_modules
 .next
+.next*
 out
 tsconfig.tsbuildinfo
 
