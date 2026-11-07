@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { SESSION_COOKIE, checkRateLimit, sessionFromCookieHeader, signSession, checkPassword, clearRateLimit, isPasswordConfigured } from '@/lib/auth';
+import { SESSION_COOKIE, checkRateLimit, sessionFromCookieHeader, signSession, checkPassword, clearRateLimit, isPasswordConfigured, isAutoLogin } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
@@ -51,10 +51,10 @@ export async function POST(req: Request) {
   return res;
 }
 
-/** GET：查询当前会话状态 */
+/** GET：查询当前会话状态（免登录模式下恒为已验证） */
 export async function GET(req: Request) {
-  const verified = sessionFromCookieHeader(req.headers.get('cookie'));
-  return NextResponse.json({ success: true, verified });
+  const verified = isAutoLogin() || sessionFromCookieHeader(req.headers.get('cookie'));
+  return NextResponse.json({ success: true, verified, autoLogin: isAutoLogin() });
 }
 
 /** DELETE：登出 */

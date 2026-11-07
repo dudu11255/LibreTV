@@ -15,6 +15,7 @@ import { SearchHistoryDropdown, useSearchHistory } from '@/components/search-his
 import { cn, formatDisableTtl } from '@/lib/utils';
 import { useToast } from '@/components/toast';
 import { EmptyState } from '@/components/states';
+import { ErrorBoundary } from '@/components/error-boundary';
 import { Icon } from '@/components/icon';
 import { SiteFooter } from '@/components/site-footer';
 
@@ -340,20 +341,24 @@ function HomeContent() {
           </section>
         )}
 
-        {/* 首页推荐（有搜索时隐藏） */}
+        {/* 首页推荐（有搜索时隐藏）。单块兜底：推荐区崩了也不该让搜索和顶栏一起失效 */}
         {!urlQuery && (
-          <RecommendSection
-            onPick={(title) => {
-              setInput(title);
-              runSearch(title);
-            }}
-          />
+          <ErrorBoundary title="首页推荐">
+            <RecommendSection
+              onPick={(title) => {
+                setInput(title);
+                runSearch(title);
+              }}
+            />
+          </ErrorBoundary>
         )}
       </main>
 
       <SiteFooter />
 
-      <DetailModal item={detailItem} onClose={() => setDetailItem(null)} />
+      <ErrorBoundary title="详情面板">
+        <DetailModal item={detailItem} onClose={() => setDetailItem(null)} />
+      </ErrorBoundary>
     </div>
   );
 }

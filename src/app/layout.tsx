@@ -50,6 +50,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
+        <noscript>
+          <div
+            style={{
+              background: '#0b101a',
+              color: '#e6edf3',
+              font: '15px/1.7 sans-serif',
+              padding: '20px',
+              margin: 0,
+            }}
+          >
+            <p style={{ fontWeight: 700, marginBottom: 8 }}>需要启用 JavaScript</p>
+            <p style={{ color: '#9aa7b8', margin: 0 }}>
+              本页的搜索、推荐与设置都由浏览器脚本驱动。请在浏览器设置里启用 JavaScript（或换一个浏览器）后重新打开。
+            </p>
+          </div>
+        </noscript>
         <Providers>{children}</Providers>
       </body>
     </html>

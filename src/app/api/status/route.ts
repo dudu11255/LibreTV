@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { isPasswordConfigured, sessionFromCookieHeader } from '@/lib/auth';
+import { isAutoLogin, isPasswordConfigured, sessionFromCookieHeader } from '@/lib/auth';
 import { getEnvSources } from '@/lib/env-sources';
 import { getEnvLiveSources } from '@/lib/env-live-sources';
 import { getEnvSubscriptions } from '@/lib/env-subscriptions';
@@ -11,9 +11,12 @@ export const runtime = 'nodejs';
 /** 站点状态：客户端据此决定是否弹出登录框 / 提示管理员配置密码，并获取预置采集站与预置直播源 */
 export async function GET(req: Request) {
   const passwordRequired = isPasswordConfigured();
-  const verified = passwordRequired && sessionFromCookieHeader(req.headers.get('cookie'));
+  const autoLogin = isAutoLogin();
+  // 免登录模式下浏览器不需要会话 cookie，老电视丢失 cookie 也不影响使用
+  const verified = autoLogin || (passwordRequired && sessionFromCookieHeader(req.headers.get('cookie')));
   return NextResponse.json({
     passwordRequired,
+    autoLogin,
     verified,
     // 构建时由 next.config.ts 从 package.json 注入
     version: process.env.APP_VERSION || 'dev',

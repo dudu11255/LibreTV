@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { afterEach, beforeAll, afterAll, describe, expect, it, vi } from 'vitest';
-import { SESSION_COOKIE, checkPassword, checkRateLimit, clearRateLimit, sessionFromCookieHeader, signSession, verifySession } from './auth';
+import { SESSION_COOKIE, checkPassword, checkRateLimit, clearRateLimit, isAutoLogin, isRequestVerified, sessionFromCookieHeader, signSession, verifySession } from './auth';
 
 /**
  * 会话鉴权单测：HMAC 签名/校验、过期、防篡改、密码恒定时间比较、登录限流。
@@ -123,5 +123,56 @@ describe('checkRateLimit', () => {
     expect(checkRateLimit('1.2.3.4')).toBe(false);
     clearRateLimit('1.2.3.4');
     expect(checkRateLimit('1.2.3.4')).toBe(true);
+  });
+});
+
+/**
+ * 免登录模式（AUTO_LOGIN）：电视端不好输密码、还可能丢 cookie，
+ * 打开后服务端必须无条件认「已验证」，且不能因为没配 PASSWORD 就 503。
+ */
+describe('isAutoLogin / isRequestVerified', () => {
+  afterEach(() => {
+    delete process.env.AUTO_LOGIN;
+  });
+
+  it('未设置 AUTO_LOGIN 时为关闭', () => {
+    expect(isAutoLogin()).toBe(false);
+  });
+
+  it.each(['1', 'true', 'TRUE', 'yes', 'on', ' on '])('「%s」视为开启', (value) => {
+    process.env.AUTO_LOGIN = value;
+    expect(isAutoLogin()).toBe(true);
+  });
+
+  it.each(['0', 'false', 'off', '', 'no'])('「%s」视为关闭', (value) => {
+    process.env.AUTO_LOGIN = value;
+    expect(isAutoLogin()).toBe(false);
+  });
+
+  it('免登录模式下无 cookie 的请求也算已验证', () => {
+    process.env.AUTO_LOGIN = '1';
+    expect(isRequestVerified(new Request('http://localhost/api/status'))).toBe(true);
+  });
+
+  it('免登录模式不依赖 PASSWORD 是否存在', () => {
+    process.env.AUTO_LOGIN = '1';
+    delete process.env.PASSWORD;
+    try {
+      expect(isRequestVerified(new Request('http://localhost/api/status'))).toBe(true);
+    } finally {
+      process.env.PASSWORD = TEST_PASSWORD;
+    }
+  });
+
+  it('非免登录模式下无 cookie 仍然拒绝', () => {
+    expect(isRequestVerified(new Request('http://localhost/api/status'))).toBe(false);
+  });
+
+  it('非免登录模式下带合法会话 cookie 才放行', () => {
+    const { token } = signSession();
+    const req = new Request('http://localhost/api/status', {
+      headers: { cookie: `${SESSION_COOKIE}=${token}` },
+    });
+    expect(isRequestVerified(req)).toBe(true);
   });
 });

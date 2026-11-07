@@ -21,6 +21,14 @@ export function Providers({ children }: { children: ReactNode }) {
       })
   );
 
+  // 标记「React 已挂载」：diag-recorder 里的启动看门狗靠这个属性决定要不要
+  // 用原生 DOM 盖一层「脚本没跑起来」的说明；真挂载了就顺手把可能已出现的浮层撤掉
+  useEffect(() => {
+    document.documentElement.setAttribute('data-lt-ready', '1');
+    const warn = document.getElementById('lt-boot-warn');
+    if (warn?.parentNode) warn.parentNode.removeChild(warn);
+  }, []);
+
   // store 配置了 skipHydration：等挂载后再读 localStorage，
   // 保证 hydration 阶段客户端与服务端渲染结果一致。
   useEffect(() => {

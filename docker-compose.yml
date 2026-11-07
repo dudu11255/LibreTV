@@ -19,6 +19,9 @@ services:
     environment:
       # 必填：访问密码（在 .env 中设置，缺失时 compose 启动即报错提醒）
       - PASSWORD=${PASSWORD:?请在 .env 中设置 PASSWORD}
+      # 可选：免登录模式（AUTO_LOGIN=1）：服务端把所有请求视为已验证，电视端不用输密码、不依赖 cookie。
+      # 注意：开启后站点等同于公开（任何人拿到域名都能用），只在自己可信网络里开。
+      - AUTO_LOGIN=${AUTO_LOGIN:-}
       # 可选：会话/代理签名密钥（多实例部署建议显式设置：openssl rand -hex 32）
       # - PROXY_SECRET=your-secret
       # 可选：Cookie Secure 策略覆盖（true=强制开启 / false=强制关闭；不设置时按请求协议自动推导，HTTP 部署无需配置）

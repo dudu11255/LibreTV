@@ -56,7 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((s) => {
         if (cancelled) return;
         setVerified(s.verified);
-        setSetupRequired(!s.passwordRequired);
+        // 免登录模式（AUTO_LOGIN）下即便没配 PASSWORD 也不算「需要配置」，
+        // 否则会弹出一个没用的「需要配置密码」框把电视端顶死
+        setSetupRequired(!s.passwordRequired && !s.autoLogin);
         setVersion(s.version);
         setChecked(true);
         /**

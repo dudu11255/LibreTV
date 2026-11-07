@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { Icon } from './icon';
+import { ErrorBoundary } from './error-boundary';
 
 /**
  * 通用右侧抽屉骨架：
@@ -213,7 +214,9 @@ export function Drawer({
           ref={contentRef}
           className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin px-4 pt-4 pb-6 max-lg:pt-3 max-lg:pb-3"
         >
-          {children}
+          {/* 面板内容单独兜底：某个分组渲染崩了，抽屉框架（标题/关闭/底部按钮）仍在，
+              用户至少能看到具体错误，而不是「点设置没反应」 */}
+          <ErrorBoundary title={title}>{children}</ErrorBoundary>
         </div>
         {footer && <div className="shrink-0 border-t border-line bg-surface-raised px-4 py-3">{footer}</div>}
       </div>
