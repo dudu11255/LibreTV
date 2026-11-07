@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from '@/components/providers';
 import { LEGACY_POLYFILLS } from '@/lib/legacy-polyfills';
+import { DIAG_RECORDER } from '@/lib/diag-recorder';
 
 export const metadata: Metadata = {
   title: {
@@ -37,6 +38,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* 电视端兼容：老 Android WebView 缺 Object.fromEntries / Promise.allSettled
             等运行时 API。内联同步脚本解析到即执行，早于 Next 的 async chunk */}
         <script dangerouslySetInnerHTML={{ __html: LEGACY_POLYFILLS }} />
+        {/* 电视端自检：在最早的时机记录脚本异常与失败的请求，供 ?diag=1 面板展示。
+            必须排在各打包 chunk 之前，才能抓到 hydration 阶段的错误 */}
+        <script dangerouslySetInnerHTML={{ __html: DIAG_RECORDER }} />
         {/* 首屏前同步主题，避免亮暗闪烁 */}
         <script
           dangerouslySetInnerHTML={{

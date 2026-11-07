@@ -80,8 +80,18 @@ export function Drawer({
       // 非模态不抢焦点，焦点留在原处（播放页要保留播放器的快捷键控制）
       if (modal) restoreFocusRef.current = document.activeElement as HTMLElement | null;
       setMounted(true);
-      const raf = requestAnimationFrame(() => requestAnimationFrame(() => setEntered(true)));
-      return () => cancelAnimationFrame(raf);
+      let raf2 = 0;
+      const raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => setEntered(true));
+      });
+      // 兜底：部分老内核/被节流的页面里 rAF 可能迟迟不触发，抽屉会停在屏幕外
+      // （表现为「背景变暗了但面板没出来」）。宁可少一段滑入动画，也不能打不开。
+      const fallback = setTimeout(() => setEntered(true), 150);
+      return () => {
+        cancelAnimationFrame(raf1);
+        if (raf2) cancelAnimationFrame(raf2);
+        clearTimeout(fallback);
+      };
     }
     setEntered(false);
     const timer = setTimeout(() => {

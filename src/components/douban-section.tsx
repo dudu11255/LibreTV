@@ -77,7 +77,7 @@ function DoubanView({ onPick }: { onPick: (title: string) => void }) {
       </div>
 
       {query.isError ? (
-        <p className="text-center text-sm text-faint py-8">推荐内容加载失败，可稍后重试或在设置中关闭</p>
+        <RecommendError error={query.error} onRetry={() => void query.refetch()} />
       ) : query.isLoading ? (
         <GridSkeleton />
       ) : items.length === 0 ? (
@@ -123,7 +123,7 @@ function BangumiView({ onPick }: { onPick: (title: string) => void }) {
       </div>
 
       {query.isError ? (
-        <p className="text-center text-sm text-faint py-8">推荐内容加载失败，可稍后重试或在设置中关闭</p>
+        <RecommendError error={query.error} onRetry={() => void query.refetch()} />
       ) : query.isLoading ? (
         <GridSkeleton />
       ) : (
@@ -168,7 +168,7 @@ function HotListView({ onPick }: { onPick: (title: string) => void }) {
       </div>
 
       {query.isError ? (
-        <p className="text-center text-sm text-faint py-8">推荐内容加载失败，可稍后重试或在设置中关闭</p>
+        <RecommendError error={query.error} onRetry={() => void query.refetch()} />
       ) : query.isLoading ? (
         <GridSkeleton />
       ) : (
@@ -179,6 +179,20 @@ function HotListView({ onPick }: { onPick: (title: string) => void }) {
         </div>
       )}
     </section>
+  );
+}
+
+/** 失败时把真实原因也显示出来：电视端没有控制台，只写「加载失败」等于没法排查 */
+function RecommendError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const message = error instanceof Error ? error.message : '';
+  return (
+    <div className="text-center py-8 space-y-2">
+      <p className="text-sm text-faint">推荐内容加载失败</p>
+      {message && <p className="text-xs text-faint font-mono break-all">{message}</p>}
+      <button className="btn-ghost btn-sm" onClick={onRetry}>
+        重试
+      </button>
+    </div>
   );
 }
 

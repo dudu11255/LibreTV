@@ -9,6 +9,7 @@ import { HistoryPanel } from './history-panel';
 import { requestShowDownloadManager } from './download-manager';
 import { Icon } from './icon';
 import { SearchHistoryDropdown, useSearchHistory } from './search-history';
+import { useAuth } from './auth';
 import { cn } from '@/lib/utils';
 
 /** 顶部导航：Logo、搜索框（首页外）、历史、设置 */
@@ -18,6 +19,8 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [query, setQuery] = useState('');
+  // 未登录时给一个常驻入口：电视端自动弹框万一被挡，用户仍能手动打开登录框
+  const { checked, verified, openLogin } = useAuth();
   // 与首页搜索框共用同一套「最近搜索」下拉逻辑
   const searchHistory = useSearchHistory(query);
 
@@ -108,6 +111,15 @@ export function Header({ showSearch = false }: { showSearch?: boolean }) {
               关于
             </HeaderLink>
             <ThemeToggle />
+            {checked && !verified && (
+              <button
+                className="px-2.5 py-1.5 rounded-md text-sm font-medium text-on-accent bg-accent hover:brightness-110 transition-[filter]"
+                onClick={openLogin}
+                aria-label="登录"
+              >
+                登录
+              </button>
+            )}
             <IconButton label="观看历史" onClick={() => setHistoryOpen(true)}>
               <Icon name="clock" />
             </IconButton>

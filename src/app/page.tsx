@@ -318,6 +318,17 @@ function HomeContent() {
               </>
             ) : isSearching ? (
               <ResultsSkeleton />
+            ) : searchQuery.isError ? (
+              // 把失败原因显示出来（401 / 超时 / 网关错误各不相同），电视端没有控制台
+              <EmptyState
+                icon="alert"
+                title="搜索失败"
+                description={
+                  (searchQuery.error instanceof Error ? searchQuery.error.message : '请检查网络后重试') +
+                  '（可在设置中恢复被停用的源，或按提示重新登录）'
+                }
+                className="!py-16"
+              />
             ) : (
               <EmptyState
                 icon="search"
