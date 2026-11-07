@@ -18,6 +18,14 @@
  * 注意：`/_next/static` 的响应头是 `immutable` + 一年缓存，若只改内容不改文件名，
  * 装过旧版本的电视会继续命中缓存里的坏文件、修复看起来「没生效」。所以降级过的 chunk
  * 会带新后缀重命名，并把 .next 下所有引用一起改写。
+ *
+ * 重命名有个坑（v3.0.3 踩过）：webpack runtime 里动态 chunk 的文件名不是完整字符串，
+ * 而是 `"static/chunks/" + ({id:"<name>"}[id]) + "." + ({id:"<hash>"}[id]) + ".js"`
+ * 现拼出来的。完整文件名在 runtime 源码里根本不存在，所以「按整份文件名做字符串替换」
+ * 永远改不到它 —— 文件改成了 `.lgXXXX.js`，runtime 仍拼旧名，所有 `next/dynamic`
+ * 的 chunk 一律 404（前端表现就是 ChunkLoadError / 播放器永远转圈）。
+ * 因此重命名后必须走 patchRuntimeChunkMaps() 补改哈希表，再用 verify() 把结果
+ * 跟磁盘实际文件对一遍 —— 对不上就让构建失败，而不是把坏产物推上线。
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -73,6 +81,118 @@ function downlevel(code) {
     legalComments: 'inline',
     sourcefile: 'chunk.js',
   }).code;
+}
+
+/** webpack runtime 中 `r.u` 的拼装表达式（flat 对象字面量，无嵌套） */
+const U_FN_PATTERN =
+  /"static\/chunks\/"\+\(\((\{[^{}]*\})\)\[(\w+)\]\|\|\2\)\+"\."\+\((\{[^{}]*\})\)\[(\w+)\]\+"\.js"/g;
+
+/** 解析 `{123:"abc",456:"def"}` 形式的映射表 */
+function parseChunkMap(text) {
+  const map = new Map();
+  for (const m of text.matchAll(/(\d+):"([^"]*)"/g)) map.set(m[1], m[2]);
+  return map;
+}
+
+/** 列出客户端 webpack runtime 文件（chunk 文件名拼装逻辑只在这里；server/ 下的不参与降级，不检查） */
+function runtimeFiles() {
+  return walk(STATIC_DIR).filter((f) => /[/\\]webpack-[\w.-]*\.js$/.test(f));
+}
+
+/**
+ * 改写 runtime 里「chunk id -> 内容哈希」映射表，让拼出来的文件名指向降级后的新文件。
+ *
+ * 例：`9910:"e8ddd09611a6c98d"` -> `9910:"e8ddd09611a6c98d.lg67f70e8d"`
+ * 拼装结果是 `a4634e51.e8ddd09611a6c98d.lg67f70e8d.js`，与磁盘上的文件名一致。
+ * 只匹配带引号的哈希串，避免误伤已经整名替换过的引用（那里哈希前是 `.` 不是 `"`）。
+ */
+function patchRuntimeChunkMaps(renames) {
+  // 收集「旧哈希 -> 追加后缀」，仅限 `.lgXXXX` 追加式改名
+  const patches = [];
+  for (const [oldName, newName] of renames) {
+    const oldBase = oldName.replace(/\.js$/, '');
+    const newBase = newName.replace(/\.js$/, '');
+    const dot = oldBase.indexOf('.');
+    if (dot < 0 || !newBase.startsWith(oldBase)) continue;
+    patches.push({ hash: oldBase.slice(dot + 1), suffix: newBase.slice(oldBase.length) });
+  }
+  if (!patches.length) return 0;
+
+  let patched = 0;
+  for (const file of runtimeFiles()) {
+    let content = fs.readFileSync(file, 'utf8');
+    let hit = false;
+    for (const { hash, suffix } of patches) {
+      const needle = `"${hash}"`;
+      if (!content.includes(needle)) continue;
+      content = content.split(needle).join(`"${hash}${suffix}"`);
+      hit = true;
+    }
+    if (hit) {
+      fs.writeFileSync(file, content);
+      patched++;
+    }
+  }
+  return patched;
+}
+
+/**
+ * 构建后自检：把 runtime 拼出来的每个 chunk URL、以及 HTML/RSC/manifest 里出现的
+ * /static/chunks/*.js 引用，逐一对照磁盘文件。缺一个就退出码 1 —— 宁可构建失败，
+ * 也不要把「一进播放页就 ChunkLoadError」的镜像推上去。
+ */
+function verify() {
+  const problems = [];
+  let checked = 0;
+
+  // 1) runtime 动态拼装出来的文件名
+  for (const file of runtimeFiles()) {
+    const rel = path.relative(DIST_PATH, file);
+    const src = fs.readFileSync(file, 'utf8');
+    let matched = false;
+    for (const m of src.matchAll(U_FN_PATTERN)) {
+      matched = true;
+      const nameMap = parseChunkMap(m[1]);
+      const hashMap = parseChunkMap(m[3]);
+      for (const [id, hash] of hashMap) {
+        const name = nameMap.get(id) || id;
+        const target = path.join(DIST_PATH, 'static', 'chunks', `${name}.${hash}.js`);
+        checked++;
+        if (!fs.existsSync(target)) {
+          problems.push(`${rel} 拼出 static/chunks/${name}.${hash}.js，磁盘上不存在`);
+        }
+      }
+    }
+    if (!matched) {
+      console.warn(`[legacy] 跳过自检：${rel} 里没找到认识的 chunk 拼装表达式（webpack 版本可能变了）`);
+    }
+  }
+
+  // 2) HTML / RSC / manifest 中的静态引用
+  const TEXT = /\.(html|rsc|json)$/;
+  for (const file of walk(DIST_PATH)) {
+    if (file.includes(`${path.sep}cache${path.sep}`) || !TEXT.test(file)) continue;
+    const src = fs.readFileSync(file, 'utf8');
+    for (const m of src.matchAll(/static\/chunks\/[\w.\-/]+\.js/g)) {
+      const ref = m[0];
+      // 跳过模板占位符（如 [id].js）之类的非实体引用
+      if (/[[\]{}?]/.test(ref)) continue;
+      checked++;
+      if (!fs.existsSync(path.join(DIST_PATH, ref))) {
+        problems.push(`${path.relative(DIST_PATH, file)} 引用了 ${ref}，磁盘上不存在`);
+      }
+    }
+  }
+
+  if (problems.length) {
+    const list = [...new Set(problems)].slice(0, 10);
+    console.error(`[legacy] 自检失败：${problems.length} 处引用指向不存在的文件`);
+    for (const p of list) console.error(`  - ${p}`);
+    console.error('[legacy] 大概率是降级改名后引用没改全；请检查本脚本的改写逻辑，不要直接上线。');
+    process.exit(1);
+  }
+
+  console.log(`[legacy] 自检通过：${checked} 处 chunk 引用全部命中磁盘文件`);
 }
 
 function main() {
@@ -135,12 +255,17 @@ function main() {
     }
   }
 
+  // runtime 里 chunk 文件名是拼出来的，整名替换覆盖不到，单独补
+  const patchedRuntimes = renames.size ? patchRuntimeChunkMaps(renames) : 0;
+
   const delta = beforeBytes ? ((afterBytes - beforeBytes) / beforeBytes) * 100 : 0;
   console.log(
     `[legacy] 已降级 ${touched}/${files.length} 个客户端 chunk，` +
       `体积 ${(beforeBytes / 1024).toFixed(1)}KB -> ${(afterBytes / 1024).toFixed(1)}KB (${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%)，` +
-      `改写引用 ${rewritten} 个文件`
+      `改写引用 ${rewritten} 个文件，runtime 映射表 ${patchedRuntimes} 个`
   );
+
+  verify();
 }
 
 main();
