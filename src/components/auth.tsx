@@ -56,18 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((s) => {
         if (cancelled) return;
         setVerified(s.verified);
-        // 免登录模式（AUTO_LOGIN）下即便没配 PASSWORD 也不算「需要配置」，
-        // 否则会弹出一个没用的「需要配置密码」框把电视端顶死
-        setSetupRequired(!s.passwordRequired && !s.autoLogin);
+        setSetupRequired(!s.passwordRequired);
         setVersion(s.version);
         setChecked(true);
-        /**
-         * 未登录时主动弹框，而不是等某个接口 401 反弹回来。
-         * 电视/投影仪端出现过「接口全部失败、但 401 从没走到事件回调」的情况
-         * （看不到控制台，用户只会看到首页空着且没有任何登录入口）。
-         * /api/status 是公开接口，它给出的 verified 是唯一可靠的登录态来源。
-         */
-        if (!s.verified) setModalOpen(true);
       })
       .catch(() => {
         if (!cancelled) setChecked(true);

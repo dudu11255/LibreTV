@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { Icon } from './icon';
-import { ErrorBoundary } from './error-boundary';
 
 /**
  * 通用右侧抽屉骨架：
@@ -81,18 +80,8 @@ export function Drawer({
       // 非模态不抢焦点，焦点留在原处（播放页要保留播放器的快捷键控制）
       if (modal) restoreFocusRef.current = document.activeElement as HTMLElement | null;
       setMounted(true);
-      let raf2 = 0;
-      const raf1 = requestAnimationFrame(() => {
-        raf2 = requestAnimationFrame(() => setEntered(true));
-      });
-      // 兜底：部分老内核/被节流的页面里 rAF 可能迟迟不触发，抽屉会停在屏幕外
-      // （表现为「背景变暗了但面板没出来」）。宁可少一段滑入动画，也不能打不开。
-      const fallback = setTimeout(() => setEntered(true), 150);
-      return () => {
-        cancelAnimationFrame(raf1);
-        if (raf2) cancelAnimationFrame(raf2);
-        clearTimeout(fallback);
-      };
+      const raf = requestAnimationFrame(() => requestAnimationFrame(() => setEntered(true)));
+      return () => cancelAnimationFrame(raf);
     }
     setEntered(false);
     const timer = setTimeout(() => {
@@ -214,9 +203,7 @@ export function Drawer({
           ref={contentRef}
           className="flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-thin px-4 pt-4 pb-6 max-lg:pt-3 max-lg:pb-3"
         >
-          {/* 面板内容单独兜底：某个分组渲染崩了，抽屉框架（标题/关闭/底部按钮）仍在，
-              用户至少能看到具体错误，而不是「点设置没反应」 */}
-          <ErrorBoundary title={title}>{children}</ErrorBoundary>
+          {children}
         </div>
         {footer && <div className="shrink-0 border-t border-line bg-surface-raised px-4 py-3">{footer}</div>}
       </div>

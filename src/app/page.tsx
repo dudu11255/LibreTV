@@ -15,7 +15,6 @@ import { SearchHistoryDropdown, useSearchHistory } from '@/components/search-his
 import { cn, formatDisableTtl } from '@/lib/utils';
 import { useToast } from '@/components/toast';
 import { EmptyState } from '@/components/states';
-import { ErrorBoundary } from '@/components/error-boundary';
 import { Icon } from '@/components/icon';
 import { SiteFooter } from '@/components/site-footer';
 
@@ -319,17 +318,6 @@ function HomeContent() {
               </>
             ) : isSearching ? (
               <ResultsSkeleton />
-            ) : searchQuery.isError ? (
-              // 把失败原因显示出来（401 / 超时 / 网关错误各不相同），电视端没有控制台
-              <EmptyState
-                icon="alert"
-                title="搜索失败"
-                description={
-                  (searchQuery.error instanceof Error ? searchQuery.error.message : '请检查网络后重试') +
-                  '（可在设置中恢复被停用的源，或按提示重新登录）'
-                }
-                className="!py-16"
-              />
             ) : (
               <EmptyState
                 icon="search"
@@ -341,24 +329,20 @@ function HomeContent() {
           </section>
         )}
 
-        {/* 首页推荐（有搜索时隐藏）。单块兜底：推荐区崩了也不该让搜索和顶栏一起失效 */}
+        {/* 首页推荐（有搜索时隐藏） */}
         {!urlQuery && (
-          <ErrorBoundary title="首页推荐">
-            <RecommendSection
-              onPick={(title) => {
-                setInput(title);
-                runSearch(title);
-              }}
-            />
-          </ErrorBoundary>
+          <RecommendSection
+            onPick={(title) => {
+              setInput(title);
+              runSearch(title);
+            }}
+          />
         )}
       </main>
 
       <SiteFooter />
 
-      <ErrorBoundary title="详情面板">
-        <DetailModal item={detailItem} onClose={() => setDetailItem(null)} />
-      </ErrorBoundary>
+      <DetailModal item={detailItem} onClose={() => setDetailItem(null)} />
     </div>
   );
 }

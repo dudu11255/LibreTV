@@ -27,22 +27,7 @@ export function useTheme(): ThemeContextValue {
 }
 
 function systemPrefersDark(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true;
-  try {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  } catch {
-    return true;
-  }
-}
-
-/** 电视端浏览器可能禁用了本地存储（访问即抛 SecurityError），读不到就按默认深色 */
-function readStoredTheme(): ThemeChoice {
-  try {
-    const v = localStorage.getItem(STORAGE_KEY);
-    return v === 'light' || v === 'dark' || v === 'system' ? v : 'dark';
-  } catch {
-    return 'dark';
-  }
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
 function apply(choice: ThemeChoice): 'light' | 'dark' {
@@ -56,35 +41,23 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [resolved, setResolved] = useState<'light' | 'dark'>('dark');
 
   useEffect(() => {
-    const stored = readStoredTheme();
+    const stored = (localStorage.getItem(STORAGE_KEY) as ThemeChoice | null) || 'dark';
     setThemeState(stored);
     setResolved(apply(stored));
 
-    if (typeof window.matchMedia !== 'function') return;
-    let media: MediaQueryList;
-    try {
-      media = window.matchMedia('(prefers-color-scheme: dark)');
-    } catch {
-      return;
-    }
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
     const onChange = () => {
-      if (readStoredTheme() === 'system') setResolved(apply('system'));
+      const current = (localStorage.getItem(STORAGE_KEY) as ThemeChoice | null) || 'dark';
+      if (current === 'system') {
+        setResolved(apply('system'));
+      }
     };
-    // 老 WebView 只有已废弃的 addListener，没有 addEventListener
-    if (typeof media.addEventListener === 'function') {
-      media.addEventListener('change', onChange);
-      return () => media.removeEventListener('change', onChange);
-    }
-    media.addListener?.(onChange);
-    return () => media.removeListener?.(onChange);
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
   }, []);
 
   const setTheme = useCallback((t: ThemeChoice) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, t);
-    } catch {
-      // 存储不可用时只改本次会话的主题，不影响使用
-    }
+    localStorage.setItem(STORAGE_KEY, t);
     setThemeState(t);
     setResolved(apply(t));
   }, []);

@@ -6,7 +6,6 @@ import { ToastProvider } from './toast';
 import { AuthProvider } from './auth';
 import { ThemeProvider } from './theme';
 import { GlobalDownloadManager } from './download-manager';
-import { DiagPanel } from './diag-panel';
 import { useAppStore, hydrateLiveProbeResults } from '@/lib/store';
 import { api, STATUS_QUERY_KEY } from '@/lib/client-api';
 import { applyEnvPresets } from '@/lib/subscription-sync';
@@ -20,14 +19,6 @@ export function Providers({ children }: { children: ReactNode }) {
         },
       })
   );
-
-  // 标记「React 已挂载」：diag-recorder 里的启动看门狗靠这个属性决定要不要
-  // 用原生 DOM 盖一层「脚本没跑起来」的说明；真挂载了就顺手把可能已出现的浮层撤掉
-  useEffect(() => {
-    document.documentElement.setAttribute('data-lt-ready', '1');
-    const warn = document.getElementById('lt-boot-warn');
-    if (warn?.parentNode) warn.parentNode.removeChild(warn);
-  }, []);
 
   // store 配置了 skipHydration：等挂载后再读 localStorage，
   // 保证 hydration 阶段客户端与服务端渲染结果一致。
@@ -59,11 +50,7 @@ export function Providers({ children }: { children: ReactNode }) {
           {/* 全站常驻：下载事件监听（enqueueDownload）依赖它存在——
               挂在 Header 里会让 /watch 等不渲染 Header 的页面派发的事件凭空丢失 */}
           <GlobalDownloadManager />
-          <AuthProvider>
-            {children}
-            {/* 电视端自检面板：?diag=1 打开，放在 AuthProvider 内是为了能直接调起登录框 */}
-            <DiagPanel />
-          </AuthProvider>
+          <AuthProvider>{children}</AuthProvider>
         </ToastProvider>
       </ThemeProvider>
     </QueryClientProvider>

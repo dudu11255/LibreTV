@@ -20,26 +20,6 @@ export function isPasswordConfigured(): boolean {
   return getPassword().length > 0;
 }
 
-/**
- * 免登录模式（AUTO_LOGIN=1|true|yes|on）。
- *
- * 电视/投影仪这类设备上，输入密码本身就很难受，个别浏览器还会丢 cookie，
- * 表现成「永远登录不上」。打开这个开关后服务端直接把所有请求视为已验证：
- * 不发会话 cookie、不弹登录框，客户端也不依赖任何本地存储。
- *
- * 代价要说清楚：开关一开，任何能访问到域名的人都能用（等同于公开站点）。
- * 只在自己可信的网络里，或愿意承担被刷流量的风险时再开。
- */
-export function isAutoLogin(): boolean {
-  return /^(1|true|yes|on)$/i.test((process.env.AUTO_LOGIN || '').trim());
-}
-
-/** 请求是否可放行（免登录模式下无条件放行） */
-export function isRequestVerified(req: Request): boolean {
-  if (isAutoLogin()) return true;
-  return isPasswordConfigured() && sessionFromCookieHeader(req.headers.get('cookie'));
-}
-
 function getSecret(): string {
   if (process.env.PROXY_SECRET) return process.env.PROXY_SECRET;
   return crypto.createHash('sha256').update(getPassword() + ':libretv::session-salt').digest('hex');

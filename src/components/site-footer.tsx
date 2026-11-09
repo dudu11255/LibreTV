@@ -3,11 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth';
 
-/** 本项目仓库地址（页脚链接） */
-const REPO_URL = 'https://github.com/dudu11255/LibreTV';
-
-/** 本项目仓库最新 tag（即最新版本号），用于页脚的更新检测 */
-const UPSTREAM_TAGS_API = 'https://api.github.com/repos/dudu11255/LibreTV/tags?per_page=1';
+/** 上游仓库最新 tag（即最新版本号），用于页脚的更新检测 */
+const UPSTREAM_TAGS_API = 'https://api.github.com/repos/LibreSpark/LibreTV/tags?per_page=1';
 
 /** 页脚版本号的更新检测结果；null 表示无需检测（本地 dev 构建） */
 type UpstreamUpdate = { status: 'checking' | 'latest' | 'newer'; latest?: string };
@@ -47,12 +44,7 @@ function useUpstreamUpdate(current: string | null): UpstreamUpdate | null {
       .then((r) => (r.ok ? r.json() : []))
       .then((tags: { name?: string }[]) => {
         const name = tags[0]?.name?.replace(/^v/, '');
-        if (!alive) return;
-        // 仓库还没有打 tag（或 tag 名不含版本号）时不做提示，避免一直停在「检测中」
-        if (!name) {
-          setState(null);
-          return;
-        }
+        if (!name || !alive) return;
         try {
           sessionStorage.setItem(cacheKey, name);
         } catch {
@@ -101,7 +93,7 @@ export function SiteFooter() {
     <footer className="border-t border-line py-4">
       <p className="text-center text-xs text-faint">
         <a
-          href={REPO_URL}
+          href="https://github.com/LibreSpark/LibreTV"
           target="_blank"
           rel="noopener noreferrer"
           className="group relative inline-block cursor-help hover:text-accent"

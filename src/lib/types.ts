@@ -174,8 +174,6 @@ export interface BangumiCalendarResponse {
 export interface AuthStatusResponse {
   /** 服务器是否配置了 PASSWORD */
   passwordRequired: boolean;
-  /** 免登录模式（AUTO_LOGIN）：verified 恒为 true，客户端不弹登录框 */
-  autoLogin?: boolean;
   /** 当前会话是否已验证 */
   verified: boolean;
   version: string;

@@ -1,12 +1,12 @@
 {
   "name": "libretv",
-  "version": "3.0.4",
+  "version": "2.21.2",
   "private": true,
   "description": "免费在线视频搜索与观看平台（Next.js 重构版）",
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "next dev -p 8080",
-    "build": "next build && node scripts/legacy-client.mjs",
+    "build": "next build",
     "start": "next start -p 8080",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
@@ -32,19 +32,11 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.20",
-    "esbuild": "^0.21.5",
     "eslint": "^9.39.4",
     "eslint-config-next": "^15.5.25",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
-  },
-  "browserslist": [
-    "chrome >= 70",
-    "edge >= 79",
-    "firefox >= 70",
-    "safari >= 12",
-    "not dead"
-  ]
+  }
 }
