@@ -125,6 +125,34 @@ curl http://127.0.0.1:8080/api/status
 **NAS / ARM 设备**
 `Dockerfile` 是标准多阶段构建，arm64 上可以直接 `--build`，只是慢；路线 B 的 workflow 里有 `ubuntu-24.04-arm` 原生 runner，出的是 arm64 镜像，更适合这类设备。
 
+**飞牛 / 群晖的镜像面板不提示「有新版本」**
+
+飞牛的「镜像管理」对 `ghcr.io` 的镜像检测不到更新——官方论坛 2024-12 就回「已知问题，正在跟进」，到 2025-08 仍未修；同一列表里 Docker Hub 的镜像能正常提示，所以看起来像「只有你的镜像不更新」。
+
+技术上是这么卡的：GHCR 只对外提供 OCI mediatype 的 manifest，探测方若用 Docker 旧格式或 `*/*` 去要，GHCR 直接回 404（不是 406），面板拿不到远端 digest 就静默跳过，不发任何提示。`docker pull` 本身走的是完整的 Accept 协商，所以命令行永远能正常拉到新镜像。
+
+绕过面板，两个办法：
+
+```bash
+# 1) 手动更新（飞牛「终端」或 SSH）
+cd /vol1/1000/docker/libretv     # 换成你的 compose 目录
+sudo docker compose pull && sudo docker compose up -d
+```
+
+```yaml
+# 2) 让它自己更新：加一个只盯这一个容器的 watchtower
+services:
+  watchtower:
+    image: containrrr/watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: --interval 3600 --cleanup libretv
+```
+
+> watchtower 按 digest 比对，对 public 的 GHCR 镜像有效；`libretv` 参数限定只更新这一个容器，不要省掉。
+> 面板里的「有新版本」只影响提示，不影响镜像本身是否可拉取。
+
 **公网提供服务**
 登录密码是明文 POST 的，务必用 Nginx / Caddy / Traefik 或 Cloudflare 套 HTTPS。登录本身不依赖 HTTPS（cookie 的 `Secure` 按 `x-forwarded-proto` 自动推导），需要强制时设 `COOKIE_SECURE=true`。
 
