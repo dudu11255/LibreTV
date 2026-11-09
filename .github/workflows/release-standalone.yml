@@ -115,6 +115,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
         env:
           TAG_INPUT: ${{ inputs.tag }}
+          # fork 仓库通常没有 Docker Hub 凭据（docker-publish 会整段跳过），
+          # 说明里就不该写上游的 docker.io 地址，否则照抄会 404
+          HAS_DOCKERHUB_CREDS: ${{ secrets.DOCKER_PASSWORD != '' }}
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             TAG="$GITHUB_REF_NAME"
@@ -147,11 +150,17 @@ jobs:
             echo '### Docker（多架构 linux/amd64 / linux/arm64）'
             echo
             echo '```bash'
-            echo "docker pull ${HUB}:${VER}"
+            if [ "$HAS_DOCKERHUB_CREDS" = "true" ]; then
+              echo "docker pull ${HUB}:${VER}"
+            fi
             echo "docker pull ${GHCR}:${VER}"
             echo '```'
             echo
-            echo "两个 registry 的镜像内容一致（同一组 digest），\`latest\` 也指向本版本。"
+            if [ "$HAS_DOCKERHUB_CREDS" = "true" ]; then
+              echo "两个 registry 的镜像内容一致（同一组 digest），\`latest\` 也指向本版本。"
+            else
+              echo "本仓库未配置 Docker Hub 凭据，镜像只在 GHCR 发布；\`latest\` 也指向本版本。"
+            fi
             echo
             echo '### 免 Docker（下方附件，Node 18+）'
             echo
