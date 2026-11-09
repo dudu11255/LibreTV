@@ -1,7 +1,12 @@
 name: docker-publish
 
-# 推送版本 tag（如 v2.0.1）时自动构建并发布镜像到 GHCR 与 Docker Hub；
-# 也可在 Actions 页面手动触发。
+# 触发与产出：
+# - 推 main 分支        → 出 edge 与 edge-<sha> 标签；latest 不动，正式版只由 tag 发布
+# - 推版本 tag（v3.0.5）→ 出 3.0.5 / 3.0 / latest
+# - Actions 页面手动触发（分支选 main 出 edge，选 tag 出正式版）
+# 为什么 main 也构建：edge 是「当前主干可跑的最新镜像」，用来验证主线没有被
+# 构建层面破坏，也方便 NAS 侧用 edge 跟主干；而 latest 必须保持与 git tag 对齐，
+# 否则别人 pull latest 拿到的内容和版本号会漂移。
 # GHCR 使用内置 GITHUB_TOKEN，无需配置 secrets；Docker Hub 需在仓库
 # Settings → Secrets and variables → Actions 配置 DOCKER_USERNAME 与
 # DOCKER_PASSWORD（Docker Hub 的 Access Token），未配置时自动降级为仅发布 GHCR。
@@ -14,6 +19,7 @@ name: docker-publish
 
 on:
   push:
+    branches: ['main']
     tags:
       - 'v*'
   workflow_dispatch:
@@ -21,6 +27,13 @@ on:
 permissions:
   contents: read
   packages: write
+
+# main 连推多次时，取消上一次未完成的构建：否则两次多架构构建并行，
+# 先触发的那次可能后跑完，把 edge 覆盖回旧提交的镜像。
+# tag 发布一律不取消，保证正式版构建不被打断。
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
 env:
   REGISTRY: ghcr.io
@@ -55,6 +68,7 @@ jobs:
 
   build:
     needs: verify
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -76,7 +90,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # tag v2.0.1 → 2.0.1 / 2.0 / latest 三个标签（在 merge job 里统一打）
+      # 标签规则（本文件三处 meta 完全一致，改动时一起改）：
+      #   tag v3.0.5  → 3.0.5 / 3.0 / latest
+      #   main 推送    → edge / edge-<短 sha>
+      # 这里只用于生成 labels，真正打标签在 merge job。
       - id: meta
         uses: docker/metadata-action@v5
         with:
@@ -84,7 +101,9 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,format=short,prefix=edge-,enable=${{ github.ref == 'refs/heads/main' }}
 
       # 按架构各推一个镜像层（无 tag，由 digest 标识），标签在 merge 阶段合并
       - id: build
@@ -93,8 +112,10 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # 两个架构分 scope 存 gha 缓存：共用默认 scope 会互相覆盖，
+          # 结果每次只有一个架构能命中，另一个全量重建。
+          cache-from: type=gha,scope=${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
+          cache-to: type=gha,scope=${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }},mode=max
           outputs: type=image,name=${{ steps.image.outputs.name }},push-by-digest=true,name-canonical=true,push=true
 
       - name: 导出 digest
@@ -154,7 +175,9 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,format=short,prefix=edge-,enable=${{ github.ref == 'refs/heads/main' }}
 
       # 与 GHCR 同一组标签规则；标签在各自的 imagetools create 里使用
       - id: meta-hub
@@ -165,7 +188,9 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,format=short,prefix=edge-,enable=${{ github.ref == 'refs/heads/main' }}
 
       # 纯 registry 元数据操作：把 build job 已推上来的两个架构 digest
       # 组装成多架构 manifest 并打标签。不要在这里用 build-push-action——
@@ -177,8 +202,15 @@ jobs:
       - name: 创建并推送多架构 manifest（GHCR）
         working-directory: ${{ runner.temp }}/digests
         run: |
-          docker buildx imagetools create \
-            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< '${{ steps.meta.outputs.json }}') \
+          tags=$(jq -cr '.tags | map("-t " + .) | join(" ")' <<< '${{ steps.meta.outputs.json }}')
+          # 触发条件只有 main 与 v* tag；万一将来改了触发条件却忘了改标签规则，
+          # 这里宁可失败，也不要推一个没有标签的 manifest 上去。
+          if [ -z "$tags" ]; then
+            echo "::error::ref=${GITHUB_REF} 未匹配到任何标签，拒绝推送无标签 manifest"
+            exit 1
+          fi
+          echo "标签：${tags}"
+          docker buildx imagetools create $tags \
             $(printf '${{ steps.image.outputs.name }}@sha256:%s ' *)
 
       # 跨 registry 复制：从 GHCR 的架构 digest 拉取后推到 Docker Hub，

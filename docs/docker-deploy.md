@@ -10,7 +10,7 @@
 | 适合 | 一台机器、想改就改 | 多台部署 / 低配服务器 / NAS |
 | 机器要求 | Docker + **2G 左右可用内存**（`next build` 峰值） | 只要 Docker |
 | 首次耗时 | 3–8 分钟（下载基础镜像 + `npm ci` + 构建） | Actions 约 10 分钟，之后 pull 几十秒 |
-| 改代码后 | `git pull && docker compose up -d --build` | 推代码 → 重跑 Actions → 服务器 `pull && up -d` |
+| 改代码后 | `git pull && docker compose up -d --build` | 推 `main` → 自动出 `edge` → 服务器 `pull && up -d` |
 
 ## 路线 A：源码构建
 
@@ -34,9 +34,15 @@ docker compose logs -f libretv
 
 ### 1. 先构建一次镜像
 
-仓库页 → **Actions** → 左侧 `docker-publish` → **Run workflow**，分支选 `main`。
+镜像是 Actions 自动发布的，不用手动点：
 
-跑完后镜像在 `ghcr.io/dudu11255/libretv`，带 `latest` 标签；如果推的是 `v*` tag，还会额外有 `2.21.2`、`2.21` 两个版本标签。
+| 触发 | 产物标签 | 用途 |
+|---|---|---|
+| 推 `main` 分支 | `edge`、`edge-<短 sha>` | 跟主干的最新构建，适合自己尝鲜 / 排查 |
+| 推 `v*` tag | `3.0.5`、`3.0`、`latest` | 正式版；`latest` 只跟 tag 走，不会被 `main` 覆盖 |
+| Actions 页面 Run workflow | 由所选 ref 决定 | 手动补构建 |
+
+所以「想让服务器拿到刚推的代码」有两条路：等 `main` 的 `edge` 构建完，或者发一个 tag 出正式版。手动触发仍在 仓库页 → **Actions** → `docker-publish` → **Run workflow**。
 
 > 推包报 403 时去 **Settings → Actions → General → Workflow permissions** 勾上 *Read and write permissions*。
 
@@ -69,17 +75,33 @@ docker compose -f docker-compose.server.yml logs -f
 ```bash
 # 路线 A
 git pull && docker compose up -d --build
+```
 
-# 路线 B：先在 GitHub 上重跑 Actions，再在服务器上
+路线 B 先决定跟哪条线，靠镜像标签切换，不用改别的：
+
+```bash
+# 跟主干：每次 main 有新提交，pull 到的就是新 edge
+LIBRETV_IMAGE=ghcr.io/dudu11255/libretv:edge
+
+# 跟正式版：只有打了 v* tag 才会变
+LIBRETV_IMAGE=ghcr.io/dudu11255/libretv:latest
+```
+
+写进 `.env` 后照常：
+
+```bash
 docker compose -f docker-compose.server.yml pull
 docker compose -f docker-compose.server.yml up -d
 ```
+
+> `edge` 每推一次 `main` 就重新构建一次，标签会频繁移动，NAS 镜像面板提示的「有新版本」多半就是它；`latest` 只在发版时动，所以更安静。
+> 需要钉死在某个提交时用 `edge-<短 sha>`，回滚时直接指定那个标签。
 
 ## 部署后确认
 
 ```bash
 curl http://127.0.0.1:8080/api/status
-# {"passwordRequired":true,"verified":false,"version":"2.21.2",...}
+# {"passwordRequired":true,"verified":false,"version":"3.0.5",...}
 ```
 
 - `version` 与 `package.json` 一致 → 镜像内容正确
